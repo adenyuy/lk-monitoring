@@ -7,6 +7,37 @@ import type { WaStatus } from "@/lib/types";
 import { Button, Notice, Spinner } from "@/components/ui";
 import s from "./setup.module.css";
 
+const STATUS = {
+  closed: { warna: "#98a2b3", label: "Belum terhubung", sub: "Jendela WhatsApp belum dibuka" },
+  loading: { warna: "#e0a43a", label: "Memuat WhatsApp Web", sub: "Tunggu sebentar" },
+  qr: { warna: "#e0a43a", label: "Menunggu scan QR", sub: "Lanjut otomatis setelah terhubung" },
+  logged_in: { warna: "#1e7a4c", label: "Terhubung", sub: "" },
+  error: { warna: "#a6282b", label: "Status tidak terbaca", sub: "" },
+} as const;
+
+const Icon = ({ d }: { d: React.ReactNode }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>
+);
+
+const HOWTO = [
+  {
+    judul: "Buka jendela WhatsApp",
+    isi: "Tekan tombol di bawah. Chrome khusus aplikasi terbuka dan menampilkan QR.",
+    icon: <Icon d={<><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></>} />,
+  },
+  {
+    judul: "Buka Perangkat tertaut",
+    isi: "Di HP: WhatsApp, menu titik tiga, lalu Perangkat tertaut dan Tautkan perangkat.",
+    icon: <Icon d={<><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></>} />,
+  },
+  {
+    judul: "Scan QR di Chrome",
+    isi: "Arahkan kamera HP ke QR. Halaman ini lanjut sendiri begitu terhubung.",
+    icon: <Icon d={<><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" /><path d="M7 12h10" /></>} />,
+  },
+];
+
 export function StepWhatsApp({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const [wa, setWa] = useState<WaStatus | null>(null);
   const [opening, setOpening] = useState(false);
@@ -25,7 +56,7 @@ export function StepWhatsApp({ onBack, onNext }: { onBack: () => void; onNext: (
     void check();
   }, []);
 
-  // Pantau terus sampai login (scan QR terjadi di jendela Chrome, bukan di halaman ini)
+  // Scan QR terjadi di jendela Chrome, jadi halaman ini memantau sampai terhubung.
   const watching = !!wa && (wa.state === "qr" || wa.state === "loading");
   usePolling(check, 2000, watching);
 
@@ -41,7 +72,9 @@ export function StepWhatsApp({ onBack, onNext }: { onBack: () => void; onNext: (
     }
   }
 
-  const state = wa?.state;
+  const state = wa?.state ?? "closed";
+  const st = STATUS[state];
+  const aktif = state === "closed" ? 0 : state === "logged_in" ? -1 : 1; // kartu yang disorot
 
   return (
     <>
@@ -51,62 +84,50 @@ export function StepWhatsApp({ onBack, onNext }: { onBack: () => void; onNext: (
         di laptop ini.
       </p>
 
+      <div className={s.status} role="status">
+        <div className={s.statusLabel}>
+          {wa ? <span className={s.light} style={{ background: st.warna }} /> : <Spinner label="Memeriksa" />}
+          <span>
+            {wa ? (state === "logged_in" ? `Terhubung ke ${wa.nomor_tersamar || "WhatsApp"}` : st.label) : "Memeriksa status"}
+            {wa && st.sub && <span className={s.statusSub} style={{ display: "block", fontWeight: 400 }}>{st.sub}</span>}
+          </span>
+        </div>
+        {watching && <Spinner label="Menunggu" />}
+      </div>
+
+      {state !== "logged_in" && (
+        <ol className={s.howto} aria-label="Cara menghubungkan">
+          {HOWTO.map((h, i) => (
+            <li key={h.judul} className={i === aktif || (aktif === 1 && i === 2) ? s.howtoActive : undefined}>
+              <div className={s.howtoTop}>
+                <span className={s.howtoIcon}>{h.icon}</span>
+                <span className={s.howtoNo}>{i + 1}</span>
+              </div>
+              <b style={{ color: "var(--ink)", fontWeight: 600 }}>{h.judul}</b>
+              <span>{h.isi}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+
       {error && <Notice tone="bad" title="WhatsApp belum bisa dibuka">{error}</Notice>}
       {state === "error" && <Notice tone="bad" title="Status WhatsApp tidak terbaca">{wa?.error}</Notice>}
-
-      {!wa && !error && (
-        <div className={s.waiting}>
-          <Spinner label="Memeriksa" />
-          <span>Memeriksa status WhatsApp…</span>
-        </div>
-      )}
-
-      {state === "closed" && (
-        <div className={s.actions}>
-          <Button loading={opening} onClick={openWa}>{opening ? "Membuka Chrome…" : "Buka WhatsApp Web"}</Button>
-          <Button variant="ghost" onClick={onBack}>Kembali</Button>
-        </div>
-      )}
-
-      {state === "loading" && (
-        <div className={s.waiting}>
-          <Spinner label="Memuat" />
-          <span>Memuat WhatsApp Web di jendela Chrome…</span>
-        </div>
-      )}
-
-      {state === "qr" && (
-        <>
-          <div className={s.qrSteps}>
-            <div className={s.qrBox}>QR tampil di jendela Chrome yang baru terbuka</div>
-            <ol className={s.ol}>
-              <li>Buka WhatsApp di HP yang nomornya dipakai untuk kirim.</li>
-              <li>Ketuk menu, pilih <b>Perangkat tertaut</b>, lalu <b>Tautkan perangkat</b>.</li>
-              <li>Arahkan kamera HP ke QR di jendela Chrome.</li>
-            </ol>
-          </div>
-          <div className={s.waiting}>
-            <Spinner label="Menunggu scan" />
-            <span>Menunggu scan QR. Halaman ini lanjut otomatis setelah terhubung.</span>
-          </div>
-          <div className={s.actions}>
-            <Button variant="secondary" size="sm" loading={opening} onClick={openWa}>Tampilkan jendela WhatsApp</Button>
-            <Button variant="ghost" size="sm" onClick={onBack}>Kembali</Button>
-          </div>
-        </>
-      )}
-
       {state === "logged_in" && (
-        <>
-          <Notice tone="ok" title={`Terhubung ke ${wa?.nomor_tersamar || "WhatsApp"}`}>
-            Biarkan jendela Chrome WhatsApp tetap terbuka saat mengirim. Boleh diperkecil.
-          </Notice>
-          <div className={s.actions}>
-            <Button onClick={onNext}>Lanjut</Button>
-            <Button variant="ghost" onClick={onBack}>Kembali</Button>
-          </div>
-        </>
+        <Notice tone="info" title="Biarkan jendela WhatsApp tetap terbuka">
+          Jendela Chrome WhatsApp dipakai saat mengirim. Boleh diperkecil, jangan ditutup.
+        </Notice>
       )}
+
+      <div className={s.actions}>
+        {state === "logged_in" ? (
+          <Button onClick={onNext}>Lanjut ke batas harian</Button>
+        ) : state === "closed" || state === "error" ? (
+          <Button loading={opening} onClick={openWa}>{opening ? "Membuka Chrome…" : "Buka jendela WhatsApp"}</Button>
+        ) : (
+          <Button variant="secondary" loading={opening} onClick={openWa}>Tampilkan jendela WhatsApp</Button>
+        )}
+        <Button variant="ghost" onClick={onBack}>Kembali</Button>
+      </div>
     </>
   );
 }

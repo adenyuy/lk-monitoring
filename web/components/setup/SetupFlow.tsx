@@ -50,13 +50,16 @@ export function SetupFlow() {
 
   return (
     <div className={s.page}>
-      <div className={s.shell}>
         <aside className={s.side}>
           <div className={s.brand}>
             <Logo />
             LK Monitoring
           </div>
-          <p className={s.lead}>Siapkan aplikasi sekali di laptop ini, lalu kirim pesan ke fasilitator per sesi.</p>
+          <h2 className={s.headline}>Siapkan sekali, kirim per sesi.</h2>
+          <p className={s.lead}>
+            Empat langkah ini cukup dilakukan sekali di laptop ini. Setelah itu kamu tinggal membuka aplikasi dan menekan
+            kirim saat sesi berjalan.
+          </p>
           <ol className={s.rail} aria-label="Langkah persiapan">
             {STEPS.map((st, i) => {
               const cls = i < current ? s.done : i === current ? s.current : "";
@@ -76,8 +79,13 @@ export function SetupFlow() {
               );
             })}
           </ol>
+          <div className={s.sideFoot}>
+            <span>Tim Monitoring Revitalisasi SD 2026</span>
+            <span>Versi {me?.version ?? "–"}</span>
+          </div>
         </aside>
 
+        <main className={s.main}>
         <section className={s.card} aria-live="polite">
           {error && !me && (
             <Notice tone="bad" title="Aplikasi belum tersambung">
@@ -108,8 +116,7 @@ export function SetupFlow() {
             </>
           )}
         </section>
-      </div>
-      <footer className={s.footer}>Versi {me?.version ?? "–"}</footer>
+        </main>
     </div>
   );
 }

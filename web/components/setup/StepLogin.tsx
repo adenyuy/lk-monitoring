@@ -69,13 +69,25 @@ export function StepLogin({ me, reload, onNext }: { me: Me; reload: () => Promis
           Sebelum masuk, aplikasi perlu file <b>credentials.json</b> dari admin. File ini cukup dipasang sekali di
           laptop ini.
         </p>
+        <ul className={s.points}>
+          {[
+            "Minta file credentials.json ke admin tim monitoring.",
+            "Simpan di laptop ini, misalnya di folder Downloads.",
+            "Tekan tombol di bawah lalu pilih file tersebut.",
+          ].map((t) => (
+            <li key={t}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+              {t}
+            </li>
+          ))}
+        </ul>
         {error && <Notice tone="bad" title="File tidak bisa dipakai">{error}</Notice>}
         <div className={s.actions}>
           <input ref={fileRef} id="cred" type="file" accept=".json,application/json" className={s.srOnly}
             onChange={(e) => pickCredentials(e.target.files?.[0])} />
           <Button loading={busy} onClick={() => fileRef.current?.click()}>Pilih credentials.json</Button>
         </div>
-        <p className={s.fine}>Belum punya file-nya? Minta ke admin tim monitoring.</p>
       </>
     );
   }
@@ -131,6 +143,19 @@ export function StepLogin({ me, reload, onNext }: { me: Me; reload: () => Promis
         Dipakai untuk membaca daftar fasilitator dan isi pesan dari sheet Broadcast tim. Aplikasi tidak mengubah isi
         sheet tersebut.
       </p>
+      <ul className={s.points}>
+        {[
+          "Tab baru terbuka untuk memilih akun Google.",
+          "Pakai akun yang didaftarkan admin di sheet Akses.",
+          "Izinkan akses Google Sheets dan alamat email, lalu kembali ke halaman ini.",
+        ].map((t) => (
+          <li key={t}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+            {t}
+          </li>
+        ))}
+      </ul>
       {(error || me.login.status === "error") && (
         <Notice tone="bad" title="Login belum berhasil">{error || me.login.error}</Notice>
       )}
