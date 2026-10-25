@@ -87,9 +87,9 @@ lk-monitoring/
 
 - [x] **2.1 Token desain** dari mockup di `styles/tokens.css`:
   `--bg #F6F7F9`, `--surface #FFFFFF`, `--ink #172033`, `--muted #5B6474`, `--line #E4E7EC`, `--primary #2346A0`, `--primary-soft #F5F7FD`, `--ok #1E5E3C / #E9F5EE`, `--warn #7A4900 / #FFF4DE`, `--bad #A6282B / #FCECEC`; font IBM Plex Sans 400/500/600; radius 8 (kontrol) / 10–12 (panel).
-- [ ] **2.2 Komponen dasar**: `Button` (primary/secondary/ghost/danger), `Chip` (status), `Panel`, `Stepper`, `Toggle`, `Table`, `EmptyState`, `ErrorBanner`.
-- [ ] **2.3 `lib/api.ts`**: wrapper fetch dengan penanganan error (pesan dari backend tampil apa adanya) + `useEvents()` untuk SSE.
-- [ ] **2.4 Layout app**: header (logo, menu Hari ini / Riwayat / Tarik Cutoff*, nomor WA, nama, tombol batas harian), footer versi. *Menu Cutoff hanya bila `me.fitur` memuat `cutoff`.
+- [x] **2.2 Komponen dasar**: `Button` (primary/secondary/ghost/danger), `Chip` (status), `Panel`, `Stepper`, `Toggle`, `Table`, `EmptyState`, `ErrorBanner`.
+- [x] **2.3 `lib/api.ts`**: wrapper fetch dengan penanganan error (pesan dari backend tampil apa adanya) + `useEvents()` untuk SSE.
+- [x] **2.4 Layout app**: header (logo, menu Hari ini / Riwayat / Tarik Cutoff*, nomor WA, nama, tombol batas harian), footer versi. *Menu Cutoff hanya bila `me.fitur` memuat `cutoff`.
 - [x] **2.5 Penjaga rute**: belum setup → `/setup`; sudah → `/today`.
 
 ## Fase 3 – Setup berurutan (± 5 jam)
@@ -123,11 +123,11 @@ lk-monitoring/
 
 ## Fase 6 – Layar Hari ini (± 8 jam)
 
-- [ ] **6.1 `/api/today` + `/api/sessions/{n}`** (judul, ringkasan, blok, baris detail).
-- [ ] **6.2 Rel jadwal**: grid `4fr 2fr 3fr 2fr 1fr`, blok sebagai `<button>`, penanda jam sekarang (update tiap menit), label jam 10.00–22.00, scroll horizontal di layar sempit.
-- [ ] **6.3 Panel detail sesi**: tiga keadaan (lewat / berjalan / mendatang) + kontrol kirim, mode coba, progres SSE, hitung mundur, Stop.
-- [ ] **6.4 Panel chat**: `/api/fasil/{nomor}` → status, tabel sekolah binaan (NPSN, progres, chip prioritas), gelembung pesan, tombol "Buka di WhatsApp Web" (fokuskan chat di jendela Chrome app).
-- [ ] **6.5 Keadaan kosong & error**: Broadcast kosong untuk petugas, WA logout (banner + tombol scan ulang), sheet tidak bisa dibaca.
+- [x] **6.1 `/api/today` + `/api/sessions/{n}`** (judul, ringkasan, blok, baris detail).
+- [x] **6.2 Rel jadwal**: grid `4fr 2fr 3fr 2fr 1fr`, blok sebagai `<button>`, penanda jam sekarang (update tiap menit), label jam 10.00–22.00, scroll horizontal di layar sempit.
+- [x] **6.3 Panel detail sesi**: tiga keadaan (lewat / berjalan / mendatang) + kontrol kirim, mode coba, progres SSE, hitung mundur, Stop.
+- [x] **6.4 Panel chat**: `/api/fasil/{nomor}` → status, tabel sekolah binaan (NPSN, progres, chip prioritas), gelembung pesan, tombol "Buka di WhatsApp Web" (fokuskan chat di jendela Chrome app).
+- [x] **6.5 Keadaan kosong & error**: Broadcast kosong untuk petugas, WA logout (banner + tombol scan ulang), sheet tidak bisa dibaca.
 
 ## Fase 7 – Riwayat (± 4 jam)
 

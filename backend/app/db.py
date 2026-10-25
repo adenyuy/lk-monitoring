@@ -87,10 +87,22 @@ def tx() -> Iterator[sqlite3.Connection]:
             raise
 
 
+def query(sql: str, params: tuple = ()) -> list[sqlite3.Row]:
+    """SELECT yang aman dipanggil dari thread mana pun (koneksi dipakai bersama)."""
+    conn = connect()
+    with _lock:
+        return conn.execute(sql, params).fetchall()
+
+
+def query_one(sql: str, params: tuple = ()) -> sqlite3.Row | None:
+    rows = query(sql, params)
+    return rows[0] if rows else None
+
+
 # --- settings (nilai disimpan sebagai JSON) ---
 
 def get_setting(key: str, default: Any = None) -> Any:
-    row = connect().execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    row = query_one("SELECT value FROM settings WHERE key = ?", (key,))
     return json.loads(row["value"]) if row else default
 
 

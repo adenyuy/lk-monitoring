@@ -1,0 +1,485 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ---------- judul & ringkasan ---------- */
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.date {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.title {
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 2px;
+}
+
+.stats {
+  display: flex;
+  gap: 28px;
+}
+
+.stats dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stats dd {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats dd small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ---------- rel jadwal ---------- */
+.railCard {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px 14px;
+}
+
+.railScroll {
+  overflow-x: auto;
+  padding-top: 26px;
+}
+
+.railInner {
+  position: relative;
+  min-width: 760px;
+}
+
+.blocks {
+  display: grid;
+  gap: 6px;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  min-height: 104px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.block:hover {
+  border-color: #b9c3d3;
+}
+
+.blockActive {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.blockActive:hover {
+  border-color: var(--primary);
+}
+
+.blockSelected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #98a2b3;
+}
+
+.blockActive.blockSelected {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary);
+}
+
+.blockMuted {
+  background: #fafbfc;
+  color: var(--muted);
+}
+
+.blockTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.blockTime {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.blockSub {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.track {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #eef0f3;
+}
+
+.blockActive .track {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: #1e7a4c;
+}
+
+.blockActive .fill {
+  background: #fff;
+}
+
+/* Penanda jam sekarang: label + tangkai pendek di atas blok, tidak menutupi isi blok */
+.now {
+  position: absolute;
+  top: -8px;
+  height: 8px;
+  width: 2px;
+  background: var(--primary);
+  pointer-events: none;
+}
+
+.nowLabel {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.ticks {
+  min-width: 760px;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- dua kolom ---------- */
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.panelHead {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.panelTitle {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.panelSub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* kontrol kirim */
+.control {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line-soft);
+  background: #fafbfc;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.controlRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.knob {
+  display: inline-flex;
+  align-items: center;
+  width: 36px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #d0d5dd;
+  transition: background 120ms ease;
+}
+
+.knob::after {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 120ms ease;
+}
+
+.toggle[aria-pressed="true"] .knob {
+  background: var(--primary);
+}
+
+.toggle[aria-pressed="true"] .knob::after {
+  transform: translateX(14px);
+}
+
+.bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  transition: width 300ms ease;
+}
+
+.progressText {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* daftar fasil di sesi */
+.groupLabel {
+  padding: 10px 20px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.rows {
+  list-style: none;
+}
+
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 20px;
+  border: 0;
+  border-top: 1px solid #f1f3f6;
+  background: var(--surface);
+  text-align: left;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.row:hover {
+  background: #fafbfc;
+}
+
+.rowSelected {
+  background: var(--primary-soft);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.rowSelected:hover {
+  background: var(--primary-soft);
+}
+
+.rowTime {
+  width: 44px;
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rowName {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowSub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---------- panel chat ---------- */
+.chatHead {
+  padding: 16px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.schools {
+  padding: 12px 20px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.schoolsHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 440px;
+}
+
+.table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 8px 6px 0;
+}
+
+.table td {
+  padding: 7px 8px 7px 0;
+  border-top: 1px solid #f1f3f6;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.thread {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg);
+  min-height: 160px;
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 88%;
+}
+
+.msgOut {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.bubble {
+  padding: 10px 13px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-line;
+  border-radius: 10px 10px 10px 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.msgOut .bubble {
+  border-radius: 10px 10px 3px 10px;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.msgMeta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.chatFoot {
+  padding: 10px 20px;
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--line-soft);
+}

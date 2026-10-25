@@ -27,3 +27,30 @@ def test_transaksi_rollback_saat_error():
     except RuntimeError:
         pass
     assert db.connect().execute("SELECT COUNT(*) FROM sends").fetchone()[0] == 0
+
+
+def test_aman_dipakai_banyak_thread():
+    """Regresi: baca/tulis bersamaan dari beberapa thread dulu memicu sqlite3.InterfaceError."""
+    import threading
+
+    from app import store
+
+    db.set_setting("email", "x@contoh.id")
+    errors = []
+
+    def kerja(i):
+        try:
+            for j in range(200):
+                assert db.get_setting("email") == "x@contoh.id"
+                store.counts("2026-10-26")
+                if j % 20 == 0:
+                    db.set_setting(f"k{i}", j)
+        except Exception as e:  # dikumpulkan lalu dicek di thread utama
+            errors.append(e)
+
+    threads = [threading.Thread(target=kerja, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []

@@ -20,37 +20,33 @@ def record_send(
 
 def sends_real() -> list[dict[str, Any]]:
     """Semua percobaan kirim sungguhan (bukan mode coba), urut waktu naik."""
-    rows = db.connect().execute(
-        "SELECT * FROM sends WHERE coba = 0 ORDER BY waktu, id"
-    ).fetchall()
+    rows = db.query("SELECT * FROM sends WHERE coba = 0 ORDER BY waktu, id")
     return [dict(r) for r in rows]
 
 
 def counts(tanggal: str) -> tuple[int, dict[int, int]]:
     """(terkirim hari itu, {sesi: terkirim}). Hanya status terkirim yang mengurangi kuota."""
-    rows = db.connect().execute(
+    rows = db.query(
         "SELECT sesi, COUNT(*) AS n FROM sends WHERE tanggal = ? AND status = 'terkirim' AND coba = 0 GROUP BY sesi",
         (tanggal,),
-    ).fetchall()
+    )
     per = defaultdict(int, {r["sesi"]: r["n"] for r in rows})
     return sum(per.values()), dict(per)
 
 
 def sends_on(tanggal: str) -> list[dict[str, Any]]:
-    rows = db.connect().execute(
-        "SELECT * FROM sends WHERE tanggal = ? ORDER BY waktu, id", (tanggal,)
-    ).fetchall()
+    rows = db.query("SELECT * FROM sends WHERE tanggal = ? ORDER BY waktu, id", (tanggal,))
     return [dict(r) for r in rows]
 
 
 def to_refresh(since_tanggal: str) -> list[str]:
     """Nomor yang terkirim sejak tanggal itu dan belum tercatat 'dibalas'."""
-    rows = db.connect().execute(
+    rows = db.query(
         "SELECT DISTINCT s.nomor FROM sends s LEFT JOIN chat_status c ON c.nomor = s.nomor "
         "WHERE s.status = 'terkirim' AND s.coba = 0 AND s.tanggal >= ? "
         "AND (c.status IS NULL OR c.status != 'dibalas')",
         (since_tanggal,),
-    ).fetchall()
+    )
     return [r["nomor"] for r in rows]
 
 
@@ -67,5 +63,5 @@ def save_chat_status(nomor: str, status: str, balasan: str, dicek: str) -> None:
 
 
 def chat_status_all() -> dict[str, dict[str, Any]]:
-    rows = db.connect().execute("SELECT * FROM chat_status").fetchall()
+    rows = db.query("SELECT * FROM chat_status")
     return {r["nomor"]: dict(r) for r in rows}

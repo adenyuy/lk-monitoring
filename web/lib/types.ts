@@ -26,5 +26,92 @@ export type WaStatus = {
   error?: string;
 };
 
+export type Kondisi = {
+  kode: string;
+  judul: string;
+  bisa_kirim: boolean;
+  sesi: number | null;
+  kuota: number;
+  sesi_berikutnya: number | null;
+  mulai_berikutnya: string | null;
+};
+
+export type Pengiriman = {
+  running: boolean;
+  coba: boolean;
+  sesi: number | null;
+  target: number;
+  dicoba: number;
+  terkirim: number;
+  gagal: number;
+  sekarang: string;
+  berikutnya: string;
+  berikutnya_pada: number | null;
+  stop_diminta: boolean;
+  berhenti_karena: string;
+  mulai: number | null;
+  selesai: number | null;
+  hasil: { nama: string; status: string; keterangan: string; waktu: string }[];
+};
+
+export type SesiRingkas = {
+  no: number;
+  mulai: string;
+  sampai: string;
+  kuota: number;
+  terkirim: number;
+  durasi_menit: number;
+  status: "Selesai" | "Berjalan" | "Kuota habis" | "Berikutnya" | "Belum" | "Libur";
+};
+
+export type Today = {
+  tanggal: string;
+  tanggal_panjang: string;
+  jam_sekarang: string;
+  posisi_sekarang: number;
+  kondisi: Kondisi;
+  sesi_aktif: number | null;
+  batas_harian: number;
+  terkirim_hari_ini: number;
+  dibalas_hari_ini: number;
+  belum_dikirim: number;
+  total_fasil: number;
+  sesi: SesiRingkas[];
+  pengiriman: Pengiriman;
+};
+
+export type BarisSesi = {
+  jam: string;
+  nama_fasil: string;
+  nomor: string;
+  jumlah_sekolah: number;
+  status: string;
+  keterangan: string;
+};
+
+export type SesiDetail = {
+  no: number;
+  mulai: string;
+  sampai: string;
+  kuota: number;
+  terkirim: number;
+  aktif: boolean;
+  kondisi: Kondisi;
+  sudah: BarisSesi[];
+  akan: BarisSesi[];
+};
+
+export type Fasil = {
+  nama_fasil: string;
+  nomor_tersamar: string;
+  status: string;
+  pesan: string;
+  waktu_kirim: string;
+  status_kirim: string;
+  balasan: string;
+  waktu_balasan: string;
+  sekolah: { npsn: string; nama: string; progres: number | null; prioritas: string; submit: string; reviu: string }[];
+};
+
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;

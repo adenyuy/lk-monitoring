@@ -29,6 +29,35 @@ def wa_get_status(_: str = Depends(require_login)) -> dict[str, Any]:
     return _snapshot()
 
 
+@router.post("/open/{nomor}")
+def wa_open_chat(nomor: str, _: str = Depends(require_login)) -> dict[str, Any]:
+    """Buka chat fasil di jendela WhatsApp app (tanpa mengisi pesan) untuk dibalas manual."""
+    from ..sender import sender  # hindari import melingkar
+    from ..sheets import normalize_nomor
+    from ..wa import actions
+
+    if sender.state.running:
+        raise HTTPException(409, "Pengiriman sedang berjalan. Buka chat setelah sesi selesai atau tekan Berhenti.")
+    n = normalize_nomor(nomor)
+    if not n:
+        raise HTTPException(400, "Nomor tidak valid.")
+
+    def run(b):
+        b.open()
+        res = actions.open_chat(b, n)
+        b.page.bring_to_front()
+        return res
+
+    try:
+        res = worker.call(run, timeout=90)
+    except Exception as e:
+        raise HTTPException(500, f"Chat tidak bisa dibuka: {e}") from e
+    if not res.ok:
+        raise HTTPException(400, "Nomor ini tidak terdaftar di WhatsApp." if res.alasan == "nomor_tidak_terdaftar"
+                            else "Chat tidak terbuka. Coba lagi.")
+    return {"ok": True}
+
+
 @router.post("/connect")
 def wa_connect(_: str = Depends(require_login)) -> dict[str, Any]:
     """Buka Chrome WhatsApp Web. UI lalu memantau /api/wa/status sampai 'logged_in'."""

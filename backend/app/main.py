@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
 from . import chat_refresh, config, db, paths
-from .routers import core, send, wa
+from .routers import core, send, today, wa
 from .wa.browser import worker
 
 
@@ -52,6 +52,7 @@ app.add_middleware(
 app.include_router(core.router)
 app.include_router(wa.router)
 app.include_router(send.router)
+app.include_router(today.router)
 
 
 @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)

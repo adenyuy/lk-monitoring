@@ -26,6 +26,42 @@ export function Button({
   );
 }
 
+const CHIP: Record<string, string> = {
+  ok: "var(--ok-bg)|var(--ok-fg)",
+  info: "var(--primary-soft)|var(--primary)",
+  muted: "#f2f4f7|#475467",
+  warn: "var(--warn-bg)|var(--warn-fg)",
+  bad: "var(--bad-bg)|var(--bad-fg)",
+  dark: "var(--ink)|#fff",
+};
+
+/** Label status kecil berwarna. */
+export function Chip({ tone, children }: { tone: keyof typeof CHIP; children: ReactNode }) {
+  const [bg, fg] = CHIP[tone].split("|");
+  return (
+    <span style={{ display: "inline-block", padding: "2px 9px", borderRadius: 999, fontSize: 12, fontWeight: 500,
+      whiteSpace: "nowrap", background: bg, color: fg, flex: "none" }}>
+      {children}
+    </span>
+  );
+}
+
+/** Warna chip untuk status kirim / chat. */
+export function statusTone(status: string): keyof typeof CHIP {
+  return ({
+    Dibalas: "ok", Dibaca: "info", Terkirim: "muted", Gagal: "bad", Dilewati: "warn",
+    Menunggu: "muted", Berikutnya: "info", Dicoba: "info",
+  } as Record<string, keyof typeof CHIP>)[status] ?? "muted";
+}
+
+/** Warna chip untuk prioritas sekolah. */
+export function prioritasTone(p: string): keyof typeof CHIP {
+  if (p.endsWith("1")) return "bad";
+  if (p.endsWith("2")) return "warn";
+  if (p.endsWith("3")) return "info";
+  return "ok";
+}
+
 export function Spinner({ label }: { label?: string }) {
   return <span className={s.spinner} role={label ? "status" : undefined} aria-label={label} />;
 }
