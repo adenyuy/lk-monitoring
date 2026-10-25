@@ -82,6 +82,11 @@ class Worker:
         self._q: queue.Queue[tuple[Callable[[Browser], Any] | None, Future]] = queue.Queue()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        self.browser: Browser | None = None
+
+    def browser_open(self) -> bool:
+        """True bila jendela WhatsApp app sedang terbuka (tanpa menyalakan worker)."""
+        return bool(self._thread and self._thread.is_alive() and self.browser and self.browser.is_open)
 
     def _ensure_thread(self) -> None:
         with self._lock:
@@ -99,6 +104,7 @@ class Worker:
             ready.set_exception(e)
             return
         browser = Browser(pw)
+        self.browser = browser
         ready.set_result(True)
         while True:
             fn, fut = self._q.get()

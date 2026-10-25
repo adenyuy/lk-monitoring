@@ -5,11 +5,14 @@ Fungsi `read_*` memanggil Google Sheets dan memakai cache singkat.
 """
 
 import hashlib
+import json
+import os
 import re
 import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 from . import config
@@ -226,6 +229,12 @@ cache = _Cache()
 
 
 def read_broadcast(refresh: bool = False) -> list[BroadcastRow]:
+    # KHUSUS DEVELOP: LKM_BROADCAST_FILE = file JSON [[header...], [baris...], ...] sebagai
+    # pengganti sheet Broadcast, supaya uji kirim tidak pernah menyentuh fasilitator sungguhan.
+    override = os.environ.get("LKM_BROADCAST_FILE")
+    if override:
+        return parse_broadcast(json.loads(Path(override).read_text(encoding="utf-8")))
+
     def load() -> list[BroadcastRow]:
         ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
         values = ss.values_get(f"'{config.BROADCAST_TAB}'!A1:E").get("values", [])

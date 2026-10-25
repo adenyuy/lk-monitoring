@@ -19,7 +19,7 @@ lk-monitoring/
 │   │   ├── sheets.py          # Broadcast, LK, Akses
 │   │   ├── access.py          # cek fitur per email
 │   │   ├── schedule.py        # sesi aktif, kuota efektif
-│   │   ├── queue.py           # antrean, anti-dobel
+│   │   ├── send_queue.py      # antrean, anti-dobel
 │   │   ├── sender.py          # loop kirim (thread), stop, mode coba
 │   │   ├── events.py          # SSE broadcaster
 │   │   ├── cutoff.py          # port dari tarik.py
@@ -114,12 +114,12 @@ lk-monitoring/
 
 ## Fase 5 – Penjadwal & pengiriman (± 8 jam)
 
-- [ ] **5.1 `schedule.py`**: `sesi_aktif(now)`, `kuota_efektif(...)`, `judul_hari_ini(...)`, cek akhir pekan. Unit test untuk batas jam (13.59/14.00, 22.00, Sabtu).
-- [ ] **5.2 `queue.py`**: gabungkan Broadcast + `sends` → status per fasil; anti-dobel (`nomor + hash`); deteksi nomor dobel; urutan = urutan sheet.
+- [x] **5.1 `schedule.py`**: `sesi_aktif(now)`, `kuota_efektif(...)`, `judul_hari_ini(...)`, cek akhir pekan. Unit test untuk batas jam (13.59/14.00, 22.00, Sabtu).
+- [x] **5.2 `send_queue.py`**: gabungkan Broadcast + `sends` → status per fasil; anti-dobel (`nomor + hash`); deteksi nomor dobel; urutan = urutan sheet.
   Selesai jika: test "pesan berubah → masuk antrean lagi" dan "nomor dobel → dilewati" lulus.
-- [ ] **5.3 `sender.py`**: thread kirim; untuk tiap fasil: validasi → open_chat → send/coba → catat `sends` → SSE → jeda acak; patuhi Stop, 2 gagal beruntun, logout.
-- [ ] **5.4 Router `send/start`, `send/stop`, `events`.** Tolak start bila di luar sesi / kuota 0 / sudah berjalan (pesan error jelas).
-- [ ] **5.5 Pembaruan status chat**: job tiap 15 menit + saat app dibuka → `read_chat` untuk kiriman 7 hari terakhir yang belum "Dibalas"; dijalankan hanya saat tidak sedang mengirim.
+- [x] **5.3 `sender.py`**: thread kirim; untuk tiap fasil: validasi → open_chat → send/coba → catat `sends` → SSE → jeda acak; patuhi Stop, 2 gagal beruntun, logout.
+- [x] **5.4 Router `send/start`, `send/stop`, `events`.** Tolak start bila di luar sesi / kuota 0 / sudah berjalan (pesan error jelas).
+- [x] **5.5 Pembaruan status chat**: job tiap 15 menit + saat app dibuka → `read_chat` untuk kiriman 7 hari terakhir yang belum "Dibalas"; dijalankan hanya saat tidak sedang mengirim.
 
 ## Fase 6 – Layar Hari ini (± 8 jam)
 

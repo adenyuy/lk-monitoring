@@ -1,6 +1,7 @@
 """Server lokal: API di /api, tampilan Next.js (static export) di /."""
 
 import logging
+from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -8,8 +9,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
-from . import config, db, paths
-from .routers import core, wa
+from . import chat_refresh, config, db, paths
+from .routers import core, send, wa
 from .wa.browser import worker
 
 
@@ -25,7 +26,20 @@ def _setup_logging() -> None:
 _setup_logging()
 db.connect()
 
-app = FastAPI(title="LK Monitoring", version=config.VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    chat_refresh.start_background()
+    yield
+    worker.shutdown()  # tutup Chrome WhatsApp dengan rapi
+
+
+app = FastAPI(
+    title="LK Monitoring",
+    version=config.VERSION,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
 
 # Hanya untuk `next dev` di port 3000. Di produksi web & API satu origin.
 app.add_middleware(
@@ -37,11 +51,7 @@ app.add_middleware(
 
 app.include_router(core.router)
 app.include_router(wa.router)
-
-
-@app.on_event("shutdown")
-def _shutdown() -> None:
-    worker.shutdown()  # tutup Chrome WhatsApp dengan rapi
+app.include_router(send.router)
 
 
 @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
