@@ -1,0 +1,59 @@
+/* Token desain dari mockup (lihat docs/PRD.md dan TASKS 2.1). */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #172033;
+  --ink-2: #344054;
+  --muted: #5b6474;
+  --line: #e4e7ec;
+  --line-soft: #eef0f3;
+  --primary: #2346a0;
+  --primary-hover: #1a3478;
+  --primary-soft: #f5f7fd;
+  --ok-fg: #1e5e3c;
+  --ok-bg: #e9f5ee;
+  --warn-fg: #7a4900;
+  --warn-bg: #fff4de;
+  --bad-fg: #a6282b;
+  --bad-bg: #fcecec;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-plex), system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--primary);
+}
+
+a:hover {
+  color: var(--primary-hover);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
