@@ -50,16 +50,19 @@ export function SetupFlow() {
 
   return (
     <div className={s.page}>
+      <div className={s.shell}>
         <aside className={s.side}>
           <div className={s.brand}>
             <Logo />
             LK Monitoring
           </div>
-          <h2 className={s.headline}>Siapkan sekali, kirim per sesi.</h2>
-          <p className={s.lead}>
-            Empat langkah ini cukup dilakukan sekali di laptop ini. Setelah itu kamu tinggal membuka aplikasi dan menekan
-            kirim saat sesi berjalan.
-          </p>
+          <div>
+            <h2 className={s.headline}>Siapkan sekali, kirim per sesi.</h2>
+            <p className={s.lead}>
+              Empat langkah ini cukup dilakukan sekali di laptop ini. Setelah itu tinggal buka aplikasi dan kirim saat
+              sesi berjalan.
+            </p>
+          </div>
           <ol className={s.rail} aria-label="Langkah persiapan">
             {STEPS.map((st, i) => {
               const cls = i < current ? s.done : i === current ? s.current : "";
@@ -79,14 +82,16 @@ export function SetupFlow() {
               );
             })}
           </ol>
-          <div className={s.sideFoot}>
-            <span>Tim Monitoring Revitalisasi SD 2026</span>
-            <span>Versi {me?.version ?? "–"}</span>
+          <div className={s.help}>
+            <b>Butuh bantuan?</b>
+            <span>Kalau ada langkah yang gagal, kirim tangkapan layar ke admin tim monitoring.</span>
           </div>
         </aside>
 
-        <main className={s.main}>
         <section className={s.card} aria-live="polite">
+          <div className={s.progress} aria-hidden="true">
+            <span style={{ width: `${((current + 1) / STEPS.length) * 100}%` }} />
+          </div>
           {error && !me && (
             <Notice tone="bad" title="Aplikasi belum tersambung">
               {error}. Tutup jendela ini lalu buka lagi lewat shortcut LK Monitoring.
@@ -116,7 +121,11 @@ export function SetupFlow() {
             </>
           )}
         </section>
-        </main>
+      </div>
+      <footer className={s.footer}>
+        <span>Tim Monitoring Revitalisasi SD 2026</span>
+        <span>Versi {me?.version ?? "–"}</span>
+      </footer>
     </div>
   );
 }
