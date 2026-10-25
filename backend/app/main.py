@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
 from . import config, db, paths
-from .routers import core
+from .routers import core, wa
+from .wa.browser import worker
 
 
 def _setup_logging() -> None:
@@ -35,6 +36,12 @@ app.add_middleware(
 )
 
 app.include_router(core.router)
+app.include_router(wa.router)
+
+
+@app.on_event("shutdown")
+def _shutdown() -> None:
+    worker.shutdown()  # tutup Chrome WhatsApp dengan rapi
 
 
 @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)

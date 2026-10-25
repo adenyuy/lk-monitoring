@@ -74,7 +74,7 @@ lk-monitoring/
 - [x] **1.2 `config.py`**: ID Broadcast, ID LK, nama tab, jadwal sesi `[("10:00","13:59",10), …]`, jeda 45–120, port 8787, `ACCESS_SHEET_ID` dibaca dari `settings` (bukan hardcode).
 - [x] **1.3 `db.py`**: buat tabel `settings`, `sends`, `chat_status`, `cutoff_runs` (skema di PRD §9). Fungsi kecil `get_setting/set_setting`.
   Selesai jika: test membuat & membaca setiap tabel lulus.
-- [ ] **1.4 `google_auth.py`**: alur OAuth installed app (scope `openid`, `email`, `spreadsheets`), simpan `token.json`, refresh otomatis, login ulang jika refresh gagal. Ambil email dari ID token.
+- [x] **1.4 `google_auth.py`**: alur OAuth installed app (scope `openid`, `email`, `spreadsheets`), simpan `token.json`, refresh otomatis, login ulang jika refresh gagal. Ambil email dari ID token.
   Selesai jika: `/api/me` mengembalikan email setelah login.
 - [x] **1.5 Unggah credentials**: endpoint `POST /api/setup/credentials` (file) → salin ke folder data; `/api/me` mengembalikan `needsCredentials: true` bila belum ada.
 - [x] **1.6 `sheets.py` – Broadcast**: baca `Broadcast!A:E`, normalisasi nama petugas (buang `*`, trim, casefold), ambil nomor dari `wa.me/…`, kembalikan list `{nama_fasil, nomor, pesan, hash}`.
@@ -103,13 +103,13 @@ lk-monitoring/
 
 ## Fase 4 – Mesin WhatsApp (± 10 jam, bagian paling berisiko)
 
-- [ ] **4.1 `wa/browser.py`**: Playwright `launch_persistent_context(user_data_dir=chrome-profile, channel="chrome", headless=False)`; satu instance untuk seluruh app; tutup rapi saat app berhenti.
-- [ ] **4.2 `wa/status.py`**: deteksi `qr` / `loading` / `logged_in` / `logged_out`; ambil nomor akun yang login.
-- [ ] **4.3 `wa/selectors.py`**: kumpulkan semua selektor (kotak pesan, tombol kirim, ikon status pesan, popup nomor tidak valid, daftar pesan masuk). Beri komentar tanggal dicek.
-- [ ] **4.4 `actions.open_chat(nomor, teks)`**: buka `https://web.whatsapp.com/send?phone=<nomor>&text=<urlencoded>`, tunggu kotak pesan berisi teks atau popup "nomor tidak valid" (timeout 30 dtk).
-- [ ] **4.5 `actions.send()`**: tekan Enter/tombol kirim, tunggu pesan terakhir keluar berstatus bukan jam (≤ 30 dtk). Kembalikan `terkirim` / `gagal(alasan)`.
-- [ ] **4.6 `actions.read_chat(nomor)`**: ambil status pesan keluar terakhir (terkirim/dibaca) + teks & jam pesan masuk setelahnya.
-- [ ] **4.7 Uji manual dengan mode coba** ke nomor sendiri / rekan (bukan fasil).
+- [x] **4.1 `wa/browser.py`**: Playwright `launch_persistent_context(user_data_dir=chrome-profile, channel="chrome", headless=False)`; satu instance untuk seluruh app; tutup rapi saat app berhenti.
+- [x] **4.2 `wa/status.py`**: deteksi `qr` / `loading` / `logged_in` / `logged_out`; ambil nomor akun yang login.
+- [x] **4.3 `wa/selectors.py`**: kumpulkan semua selektor (kotak pesan, tombol kirim, ikon status pesan, popup nomor tidak valid, daftar pesan masuk). Beri komentar tanggal dicek.
+- [x] **4.4 `actions.open_chat(nomor, teks)`**: buka `https://web.whatsapp.com/send?phone=<nomor>&text=<urlencoded>`, tunggu kotak pesan berisi teks atau popup "nomor tidak valid" (timeout 30 dtk).
+- [x] **4.5 `actions.send()`**: tekan Enter/tombol kirim, tunggu pesan terakhir keluar berstatus bukan jam (≤ 30 dtk). Kembalikan `terkirim` / `gagal(alasan)`.
+- [x] **4.6 `actions.read_chat(nomor)`**: ambil status pesan keluar terakhir (terkirim/dibaca) + teks & jam pesan masuk setelahnya.
+- [x] **4.7 Uji manual dengan mode coba** ke nomor sendiri / rekan (bukan fasil).
   Selesai jika: 3 percobaan berturut-turut membuka chat dan mengisi teks dengan benar; 1 kirim nyata ke nomor sendiri terdeteksi "terkirim".
 
 ## Fase 5 – Penjadwal & pengiriman (± 8 jam)
