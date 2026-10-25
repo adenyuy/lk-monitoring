@@ -20,3 +20,17 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return body as T;
 }
+
+export function post<T>(path: string, data?: unknown): Promise<T> {
+  return api<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
+}
+
+export function upload<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  return api<T>(path, { method: "POST", body: form });
+}

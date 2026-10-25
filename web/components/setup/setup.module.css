@@ -1,0 +1,440 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 56px 24px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 48px;
+  align-items: flex-start;
+  flex: 1;
+}
+
+/* ---------- kolom kiri ---------- */
+.side {
+  flex: 1 1 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--primary);
+  display: grid;
+  place-items: center;
+}
+
+.lead {
+  color: var(--muted);
+  font-size: 14px;
+  max-width: 32ch;
+  margin-top: -20px;
+}
+
+/* Rel langkah: garis penghubung yang terisi sampai langkah aktif */
+.rail {
+  list-style: none;
+  position: relative;
+}
+
+.railItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+}
+
+.railItem:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 40px;
+  bottom: -10px;
+  width: 2px;
+  background: var(--line);
+}
+
+.railItem.done:not(:last-child)::after {
+  background: var(--primary);
+}
+
+.dot {
+  position: relative;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1.5px solid #d0d5dd;
+}
+
+.done .dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.current .dot {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 4px #e3e9f8;
+}
+
+.railLabel {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.current .railLabel {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.done .railLabel {
+  color: var(--ink-2);
+}
+
+.railHint {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* ---------- kartu langkah ---------- */
+.card {
+  flex: 999 1 520px;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.stepNo {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.title {
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: -16px;
+}
+
+.desc {
+  color: var(--muted);
+  font-size: 15px;
+  max-width: 60ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.fine {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.footer {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 24px 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding-top: 32px;
+    gap: 28px;
+  }
+  .card {
+    padding: 24px;
+  }
+  .title {
+    font-size: 24px;
+  }
+}
+
+/* ---------- elemen di dalam langkah ---------- */
+.account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-control);
+  background: var(--primary-soft);
+  color: #1a3478;
+  font-size: 14px;
+}
+
+.fileLabel {
+  align-self: flex-start;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* daftar nama */
+.search {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px 0 40px;
+  border: 1px solid #d0d5dd;
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: 15px;
+  background: var(--surface)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%235B6474' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")
+    no-repeat 13px center;
+}
+
+.list {
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 16px;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface);
+  text-align: left;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.list li:first-child .option {
+  border-top: 0;
+}
+
+.option:hover {
+  background: #fafbfc;
+}
+
+.option[aria-checked="true"] {
+  background: var(--primary-soft);
+}
+
+.radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid #98a2b3;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.option[aria-checked="true"] .radio {
+  border-color: var(--primary);
+}
+
+.option[aria-checked="true"] .radio::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.optionName {
+  flex: 1;
+  font-weight: 500;
+}
+
+.badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.count {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* langkah WhatsApp */
+.qrSteps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.qrBox {
+  flex: none;
+  width: 168px;
+  height: 168px;
+  border-radius: 10px;
+  border: 1px dashed #b9c3d3;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ol {
+  flex: 1 1 240px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+/* langkah batas harian */
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.stepBtn {
+  width: 52px;
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 22px;
+}
+
+.stepBtn:not(:disabled):hover {
+  background: #f9fafb;
+}
+
+.stepBtn:disabled {
+  color: #c0c6d0;
+  cursor: not-allowed;
+}
+
+.stepValue {
+  min-width: 104px;
+  text-align: center;
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 64px;
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.batasRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+}
+
+.estimasi {
+  flex: 1 1 220px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.estimasi b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.scale {
+  display: grid;
+  grid-template-columns: 30fr 10fr 20fr;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.scale span {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+}

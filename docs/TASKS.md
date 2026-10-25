@@ -85,20 +85,20 @@ lk-monitoring/
 
 ## Fase 2 – Fondasi web (± 5 jam)
 
-- [ ] **2.1 Token desain** dari mockup di `styles/tokens.css`:
+- [x] **2.1 Token desain** dari mockup di `styles/tokens.css`:
   `--bg #F6F7F9`, `--surface #FFFFFF`, `--ink #172033`, `--muted #5B6474`, `--line #E4E7EC`, `--primary #2346A0`, `--primary-soft #F5F7FD`, `--ok #1E5E3C / #E9F5EE`, `--warn #7A4900 / #FFF4DE`, `--bad #A6282B / #FCECEC`; font IBM Plex Sans 400/500/600; radius 8 (kontrol) / 10–12 (panel).
 - [ ] **2.2 Komponen dasar**: `Button` (primary/secondary/ghost/danger), `Chip` (status), `Panel`, `Stepper`, `Toggle`, `Table`, `EmptyState`, `ErrorBanner`.
 - [ ] **2.3 `lib/api.ts`**: wrapper fetch dengan penanganan error (pesan dari backend tampil apa adanya) + `useEvents()` untuk SSE.
 - [ ] **2.4 Layout app**: header (logo, menu Hari ini / Riwayat / Tarik Cutoff*, nomor WA, nama, tombol batas harian), footer versi. *Menu Cutoff hanya bila `me.fitur` memuat `cutoff`.
-- [ ] **2.5 Penjaga rute**: belum setup → `/setup`; sudah → `/today`.
+- [x] **2.5 Penjaga rute**: belum setup → `/setup`; sudah → `/today`.
 
 ## Fase 3 – Setup berurutan (± 5 jam)
 
-- [ ] **3.1 Langkah 0 (bila perlu)**: pilih file `credentials.json`.
-- [ ] **3.2 Masuk Google**: tombol → `POST /api/auth/login` (backend membuka browser OAuth) → polling `/api/me` sampai login. Tampilkan pesan bila email tidak terdaftar di Akses.
-- [ ] **3.3 Konfirmasi nama**: daftar dari `/api/petugas`, terpilih otomatis dari Akses, tampil jumlah fasil.
-- [ ] **3.4 Hubungkan WhatsApp**: `POST /api/wa/connect` → Chrome terbuka; layar menunggu status `logged_in` lewat SSE; tampil nomor tersamar.
-- [ ] **3.5 Batas harian**: stepper ±5 (10–70), peringatan 3 tingkat, estimasi hari; simpan.
+- [x] **3.1 Langkah 0 (bila perlu)**: pilih file `credentials.json`.
+- [x] **3.2 Masuk Google**: tombol → `POST /api/auth/login` (backend membuka browser OAuth) → polling `/api/me` sampai login. Tampilkan pesan bila email tidak terdaftar di Akses.
+- [x] **3.3 Konfirmasi nama**: daftar dari `/api/petugas`, terpilih otomatis dari Akses, tampil jumlah fasil.
+- [x] **3.4 Hubungkan WhatsApp**: `POST /api/wa/connect` → Chrome terbuka; layar menunggu status `logged_in` lewat SSE; tampil nomor tersamar.
+- [x] **3.5 Batas harian**: stepper ±5 (10–70), peringatan 3 tingkat, estimasi hari; simpan.
   Selesai jika: seluruh alur bisa dilalui ulang dari Pengaturan tanpa kehilangan data.
 
 ## Fase 4 – Mesin WhatsApp (± 10 jam, bagian paling berisiko)

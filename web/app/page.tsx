@@ -1,26 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useMe } from "@/lib/hooks";
+import { Notice, Spinner } from "@/components/ui";
 
-type Health = { ok: boolean; version: string };
-
-// Halaman sementara (Fase 0): memastikan web & backend tersambung.
-// Diganti layar setup / Hari ini di Fase 2–3.
+// Pintu masuk: arahkan ke persiapan atau ke layar kerja.
 export default function Home() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const { me, error } = useMe();
 
   useEffect(() => {
-    api<Health>("/api/health").then(setHealth).catch((e) => setError(e.message));
-  }, []);
+    if (!me) return;
+    const siap = me.logged_in && !!me.access && me.settings.setup_selesai;
+    router.replace(siap ? "/today/" : "/setup/");
+  }, [me, router]);
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 40 }}>
-      <h1>LK Monitoring</h1>
-      {health && <p>Backend tersambung. Versi {health.version}.</p>}
-      {error && <p>Backend belum tersambung: {error}</p>}
-      {!health && !error && <p>Menghubungkan ke backend…</p>}
+    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      {error ? (
+        <div style={{ maxWidth: 480 }}>
+          <Notice tone="bad" title="Aplikasi belum tersambung">
+            {error}. Tutup jendela ini lalu buka lagi lewat shortcut LK Monitoring.
+          </Notice>
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--muted)" }}>
+          <Spinner label="Memuat" /> Memuat LK Monitoring…
+        </div>
+      )}
     </main>
   );
 }
