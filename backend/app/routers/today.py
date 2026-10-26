@@ -65,6 +65,37 @@ def _context() -> dict[str, Any]:
     return {"items": items, "kondisi": k, "now": now, "tanggal": tanggal, "total": total, "per": per}
 
 
+def _lk(sekolah: list) -> dict[str, int]:
+    """Ringkasan LK satu fasil: jumlah sekolah dan sebaran prioritas."""
+    out = {"jumlah": len(sekolah), "p1": 0, "p2": 0, "p3": 0, "selesai": 0}
+    for s in sekolah:
+        p = (s.prioritas or "").strip().lower()
+        key = {"prioritas 1": "p1", "prioritas 2": "p2", "prioritas 3": "p3", "selesai": "selesai"}.get(p)
+        if key:
+            out[key] += 1
+    return out
+
+
+def _rencana(ctx: dict[str, Any], no: int) -> list[send_queue.Item]:
+    """Perkiraan fasil yang akan dikirimi di sesi `no` hari ini (antrean dipotong per kuota sesi)."""
+    now, k = ctx["now"], ctx["kondisi"]
+    sesi = schedule.sesi_by_no(no)
+    t = now.hour * 60 + now.minute
+    if t > _menit(sesi.sampai) or k.kode in ("akhir_pekan", "batas_harian"):
+        return []
+    eligible = send_queue.eligible(ctx["items"])
+    batas = int(db.get_setting("batas_harian", config.BATAS_HARIAN_DEFAULT))
+    sisa_harian = max(0, batas - ctx["total"])
+    offset = 0
+    for s in config.SESI:
+        if s.no >= no:
+            break
+        if t <= _menit(s.sampai):  # sesi lebih awal yang masih/akan berjalan memakai antrean lebih dulu
+            offset += max(0, s.kuota - ctx["per"].get(s.no, 0))
+    kapasitas = max(0, min(sesi.kuota - ctx["per"].get(no, 0), sisa_harian - offset))
+    return eligible[offset: offset + kapasitas]
+
+
 @router.get("/today")
 def today(_=Depends(wa_blast)) -> dict[str, Any]:
     ctx = _context()
@@ -82,6 +113,10 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
     menit_now = now.hour * 60 + now.minute
     pct = (menit_now - RAIL_MULAI) / (RAIL_SAMPAI - RAIL_MULAI) * 100
     batas = int(db.get_setting("batas_harian", config.BATAS_HARIAN_DEFAULT))
+    sisa_menit = (_menit(aktif.sampai) - menit_now + 1) if aktif else None
+    menuju = None
+    if k.mulai_berikutnya and not k.bisa_kirim:
+        menuju = max(0, int((k.mulai_berikutnya - now).total_seconds() // 60))
 
     return {
         "tanggal": ctx["tanggal"],
@@ -90,6 +125,8 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
         "posisi_sekarang": max(0.0, min(100.0, round(pct, 2))),
         "kondisi": k.as_dict(),
         "sesi_aktif": aktif.no if aktif else None,
+        "sisa_menit_sesi": sisa_menit,
+        "menit_ke_berikutnya": menuju,
         "batas_harian": batas,
         "terkirim_hari_ini": ctx["total"],
         "dibalas_hari_ini": dibalas,
@@ -99,6 +136,7 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
             {
                 "no": s.no, "mulai": jam(s.mulai), "sampai": jam(s.sampai), "kuota": s.kuota,
                 "terkirim": ctx["per"].get(s.no, 0),
+                "perkiraan": len(_rencana(ctx, s.no)),
                 "durasi_menit": _menit(s.sampai) - _menit(s.mulai) + 1,
                 "status": _sesi_status(s, now, ctx["per"].get(s.no, 0), aktif.no if aktif else None,
                                        berikutnya.no if berikutnya else None, libur),
@@ -114,59 +152,44 @@ def session_detail(no: int, _=Depends(wa_blast)) -> dict[str, Any]:
     if no not in {s.no for s in config.SESI}:
         raise HTTPException(404, "Sesi tidak ada.")
     ctx = _context()
-    now, items, k = ctx["now"], ctx["items"], ctx["kondisi"]
+    k = ctx["kondisi"]
     sesi = schedule.sesi_by_no(no)
     sekolah = _sekolah_map()
     chats = store.chat_status_all()
-    nama_by_nomor = {i.nomor: i.nama_fasil for i in items}
 
-    def jumlah_sekolah(nomor: str) -> int:
-        return len(sekolah.get(nomor_key(nomor), []))
+    def lk(nomor: str) -> dict[str, int]:
+        return _lk(sekolah.get(nomor_key(nomor), []))
 
-    # Yang sudah diproses di sesi ini hari ini
-    baris = []
+    # Yang sudah diproses di sesi ini hari ini (terbaru di atas)
+    sudah = []
     for s in store.sends_on(ctx["tanggal"]):
         if s["sesi"] != no:
             continue
-        baris.append({
+        sudah.append({
             "jam": datetime.fromisoformat(s["waktu"]).strftime("%H.%M"),
-            "nama_fasil": s["nama_fasil"], "nomor": s["nomor"],
-            "jumlah_sekolah": jumlah_sekolah(s["nomor"]),
+            "nama_fasil": s["nama_fasil"], "nomor": s["nomor"], "lk": lk(s["nomor"]),
             "status": _status_tampil(s["status"], s["nomor"], chats) if not s["coba"] else "Dicoba",
             "keterangan": s["keterangan"],
         })
-    baris.reverse()  # terbaru di atas
+    sudah.reverse()
 
-    # Perkiraan siapa yang akan dikirimi (sesi berjalan / mendatang)
-    t = now.hour * 60 + now.minute
-    akan = []
-    if t <= _menit(sesi.sampai) and k.kode not in ("akhir_pekan", "batas_harian"):
-        eligible = send_queue.eligible(items)
-        batas = int(db.get_setting("batas_harian", config.BATAS_HARIAN_DEFAULT))
-        sisa_harian = max(0, batas - ctx["total"])
-        offset = 0
-        for s in config.SESI:
-            if s.no >= no:
-                break
-            if t <= _menit(s.sampai):  # sesi lebih awal yang masih/akan berjalan
-                offset += max(0, s.kuota - ctx["per"].get(s.no, 0))
-        kapasitas = max(0, min(sesi.kuota - ctx["per"].get(no, 0), sisa_harian - offset))
-        for j, it in enumerate(eligible[offset: offset + kapasitas]):
-            akan.append({
-                "jam": "", "nama_fasil": it.nama_fasil, "nomor": it.nomor,
-                "jumlah_sekolah": jumlah_sekolah(it.nomor),
-                "status": "Berikutnya" if (j == 0 and no == (k.sesi.no if k.sesi else None)) else "Menunggu",
-                "keterangan": "Akan dicoba ulang" if it.status == "gagal" else "",
-            })
+    aktif_no = k.sesi.no if k.sesi else None
+    akan = [
+        {
+            "jam": "", "nama_fasil": it.nama_fasil, "nomor": it.nomor, "lk": lk(it.nomor),
+            "status": "Berikutnya" if (j == 0 and no == aktif_no) else "Menunggu",
+            "keterangan": "Akan dicoba ulang" if it.status == "gagal" else "",
+        }
+        for j, it in enumerate(_rencana(ctx, no))
+    ]
 
     return {
         "no": no, "mulai": jam(sesi.mulai), "sampai": jam(sesi.sampai), "kuota": sesi.kuota,
         "terkirim": ctx["per"].get(no, 0),
         "aktif": bool(k.sesi and k.sesi.no == no and k.bisa_kirim),
         "kondisi": k.as_dict(),
-        "sudah": baris,
+        "sudah": sudah,
         "akan": akan,
-        "nama_fasil": nama_by_nomor,
     }
 
 

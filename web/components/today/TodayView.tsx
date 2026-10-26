@@ -5,9 +5,10 @@ import { api } from "@/lib/api";
 import { useEvents, usePolling } from "@/lib/hooks";
 import type { SesiDetail, Today } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
-import { SessionRail } from "./SessionRail";
-import { SessionPanel } from "./SessionPanel";
-import { ChatPanel } from "./ChatPanel";
+import { NowCard } from "./NowCard";
+import { SessionTabs } from "./SessionTabs";
+import { FasilList } from "./FasilList";
+import { FasilDrawer } from "./FasilDrawer";
 import s from "./today.module.css";
 
 export function TodayView() {
@@ -17,7 +18,7 @@ export function TodayView() {
   const [detail, setDetail] = useState<SesiDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [nomor, setNomor] = useState<string | null>(null);
-  const [versi, setVersi] = useState(0); // naik tiap ada perubahan -> panel chat ambil ulang
+  const [versi, setVersi] = useState(0); // naik tiap ada perubahan -> panel fasil ambil ulang
   const sesiRef = useRef<number | null>(null);
 
   const loadToday = useCallback(async () => {
@@ -50,7 +51,7 @@ export function TodayView() {
     setVersi((v) => v + 1);
   }, [loadToday, loadDetail]);
 
-  // Muat pertama: pilih sesi berjalan, atau sesi berikutnya, atau sesi 1
+  // Muat pertama: buka sesi berjalan, atau sesi berikutnya, atau sesi 1
   useEffect(() => {
     void (async () => {
       const t = await loadToday();
@@ -63,32 +64,22 @@ export function TodayView() {
   }, [loadToday, loadDetail]);
 
   function pilihSesi(no: number) {
+    if (no === sesiRef.current) return;
     sesiRef.current = no;
     setSesi(no);
     setDetail(null);
-    setNomor(null); // panel chat pindah ke fasil pertama di sesi ini
     void loadDetail(no);
   }
 
-  // Pilih fasil pertama di sesi bila belum ada yang dipilih
-  useEffect(() => {
-    if (!nomor && detail) {
-      const pertama = detail.sudah[0] ?? detail.akan[0];
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (pertama) setNomor(pertama.nomor);
-    }
-  }, [detail, nomor]);
+  const tutup = useCallback(() => setNomor(null), []);
 
-  // Progres kirim langsung dari backend
-  useEvents((type, data) => {
+  useEvents((type) => {
     if (type === "kirim_hasil" || type === "kirim_selesai" || type === "kirim_mulai" || type === "chat_diperbarui") {
       void refresh();
     } else if (type === "kirim_jeda" || type === "kirim_proses" || type === "kirim_stop_diminta") {
       void loadToday();
     }
-    void data;
   });
-  // Jam & status sesi bergeser seiring waktu
   usePolling(loadToday, 60000, true);
 
   if (error && !today) {
@@ -96,7 +87,7 @@ export function TodayView() {
   }
   if (!today || sesi === null) {
     return (
-      <div className={s.empty} style={{ display: "flex", justifyContent: "center", gap: 10 }}>
+      <div className={s.loading}>
         <Spinner label="Memuat" /> Membaca sheet Broadcast…
       </div>
     );
@@ -104,26 +95,11 @@ export function TodayView() {
 
   return (
     <div className={s.page}>
-      <div className={s.top}>
-        <div>
-          <div className={s.date}>{today.tanggal_panjang}</div>
-          <h1 className={s.title}>{today.kondisi.judul}</h1>
-        </div>
-        <dl className={s.stats}>
-          <div><dt>Terkirim hari ini</dt><dd>{today.terkirim_hari_ini} <small>/ {today.batas_harian}</small></dd></div>
-          <div><dt>Dibalas</dt><dd>{today.dibalas_hari_ini}</dd></div>
-          <div><dt>Belum dikirim</dt><dd>{today.belum_dikirim} <small>/ {today.total_fasil}</small></dd></div>
-        </dl>
-      </div>
-
-      <SessionRail sesi={today.sesi} dipilih={sesi} posisi={today.posisi_sekarang} jam={today.jam_sekarang}
-        onPilih={pilihSesi} />
-
-      <div className={s.cols}>
-        <SessionPanel detail={detail} loading={loadingDetail} kirim={today.pengiriman} selected={nomor}
-          onPick={setNomor} onChanged={refresh} />
-        <ChatPanel nomor={nomor} versi={versi} />
-      </div>
+      <div className={s.date}>{today.tanggal_panjang}</div>
+      <NowCard today={today} onChanged={refresh} />
+      <SessionTabs sesi={today.sesi} dipilih={sesi} onPilih={pilihSesi} />
+      <FasilList detail={detail} loading={loadingDetail} selected={nomor} onPick={setNomor} />
+      {nomor && <FasilDrawer nomor={nomor} versi={versi} onClose={tutup} />}
     </div>
   );
 }

@@ -74,7 +74,7 @@ def _resolve_static(path: str) -> Path | None:
     return None
 
 
-@app.get("/{path:path}", include_in_schema=False)
+@app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
 def web(path: str):
     if not paths.WEB_OUT_DIR.exists():
         return HTMLResponse(

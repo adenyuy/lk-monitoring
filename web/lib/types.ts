@@ -60,6 +60,7 @@ export type SesiRingkas = {
   sampai: string;
   kuota: number;
   terkirim: number;
+  perkiraan: number;
   durasi_menit: number;
   status: "Selesai" | "Berjalan" | "Kuota habis" | "Berikutnya" | "Belum" | "Libur";
 };
@@ -71,6 +72,8 @@ export type Today = {
   posisi_sekarang: number;
   kondisi: Kondisi;
   sesi_aktif: number | null;
+  sisa_menit_sesi: number | null;
+  menit_ke_berikutnya: number | null;
   batas_harian: number;
   terkirim_hari_ini: number;
   dibalas_hari_ini: number;
@@ -80,11 +83,13 @@ export type Today = {
   pengiriman: Pengiriman;
 };
 
+export type LkRingkas = { jumlah: number; p1: number; p2: number; p3: number; selesai: number };
+
 export type BarisSesi = {
   jam: string;
   nama_fasil: string;
   nomor: string;
-  jumlah_sekolah: number;
+  lk: LkRingkas;
   status: string;
   keterangan: string;
 };
