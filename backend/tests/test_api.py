@@ -47,3 +47,21 @@ def test_tampilan_dan_path_traversal():
     r = client.get("/")
     assert r.status_code == 200 and "<html" in r.text.lower()
     assert client.get("/../backend/app/config.py").status_code == 404
+
+
+def test_keluar_mengulang_persiapan(monkeypatch):
+    from app import db, google_auth
+    from app.routers import core
+    from app.sender import sender
+
+    db.set_setting("setup_selesai", True)
+    monkeypatch.setattr(google_auth, "logout", lambda: None)
+    monkeypatch.setattr(sender.state, "running", True)
+    import pytest
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException):
+        core.logout()
+    assert db.get_setting("setup_selesai") is True
+    monkeypatch.setattr(sender.state, "running", False)
+    assert core.logout() == {"ok": True}
+    assert db.get_setting("setup_selesai") is False

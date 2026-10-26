@@ -9,17 +9,13 @@ import { API_REV, type WaStatus } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
 import { WaBanner } from "./WaBanner";
 import { LockIcon, NoAccess } from "./NoAccess";
-import { Countdown } from "./Countdown";
+import { FloatDock } from "./Countdown";
 import { PANDUAN, Tour } from "./Tour";
-import { IconCutoff, IconHariIni, IconLogo, IconPanduan, IconRekap } from "./Icons";
+import { UserMenu } from "./UserMenu";
+import { IconCutoff, IconHariIni, IconLogo, IconRekap } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
-
-function inisial(nama: string) {
-  const k = nama.trim().split(/\s+/);
-  return ((k[0]?.[0] ?? "") + (k[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -108,33 +104,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className={s.menu} aria-label="Menu utama" data-tour="nav">{menu}</nav>
 
         <div className={s.sideBottom}>
-          <Countdown />
           <hr className={s.rule} />
-          <button type="button" className={s.item} onClick={() => setPanduan(true)}>
-            <span className={s.ico}><IconPanduan /></span><span className={s.lbl}>Panduan</span>
-          </button>
-          <div className={s.user} data-tour="wa">
-            <span className={s.avatar} aria-hidden="true">
-              {inisial(me.settings.nama_petugas ?? "")}
-              <i style={{ background: waDot }} />
-            </span>
-            <span className={s.lbl}>
-              <b>{me.settings.nama_petugas}</b>
-              <small>{waLabel}</small>
-              <Link href="/setup/" className={s.batas}>Batas harian {me.settings.batas_harian}</Link>
-            </span>
-          </div>
+          <UserMenu nama={me.settings.nama_petugas ?? ""} email={me.email ?? ""} waLabel={waLabel} waDot={waDot}
+            batas={me.settings.batas_harian} />
         </div>
       </aside>
 
       {/* HP: bar atas ringkas + menu bawah */}
       <header className={s.mTop}>
         <Link href="/today/" className={s.brand}><span className={s.logo}><IconLogo /></span>LK Monitoring</Link>
-        <span className={s.mTopRight}>
-          <Countdown compact />
-          <span className={s.mWa} data-tour="wa" title={waLabel}><i style={{ background: waDot }} /></span>
-          <button type="button" className={s.mHelp} onClick={() => setPanduan(true)} aria-label="Panduan"><IconPanduan /></button>
-        </span>
+        <UserMenu nama={me.settings.nama_petugas ?? ""} email={me.email ?? ""} waLabel={waLabel} waDot={waDot}
+          batas={me.settings.batas_harian} ringkas />
       </header>
       <nav className={s.mTab} aria-label="Menu utama" data-tour="nav">{menu}</nav>
 
@@ -158,6 +138,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </footer>
       </div>
 
+      <FloatDock onPanduan={() => setPanduan(true)} />
       {terkunci && <NoAccess onClose={() => setTerkunci(false)} />}
       {panduan && <Tour key={path} langkah={langkah} onClose={() => setPanduan(false)} />}
     </div>

@@ -44,7 +44,14 @@ def login() -> dict[str, Any]:
 
 @router.post("/auth/logout")
 def logout() -> dict[str, Any]:
+    """Keluar dari akun Google. Persiapan diulang supaya akun baru memilih nama petugasnya sendiri."""
+    from ..sender import sender  # hindari import melingkar
+
+    if sender.state.running:
+        raise HTTPException(409, "Pengiriman sedang berjalan. Tekan Berhenti dan tunggu selesai sebelum keluar.")
     google_auth.logout()
+    db.set_setting("setup_selesai", False)
+    sheets.cache.clear()
     return {"ok": True}
 
 
