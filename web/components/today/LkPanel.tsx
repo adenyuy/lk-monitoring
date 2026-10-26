@@ -63,14 +63,31 @@ export function LkPanel({ sekolah, onSaved }: {
   const [opsi, setOpsi] = useState<LkOpsi | null>(null);
   const [opsiError, setOpsiError] = useState<string | null>(null);
   const [buka, setBuka] = useState<string | null>(null);
+  const [pilihBlok, setPilihBlok] = useState<number | null>(null);
+  const [komBusy, setKomBusy] = useState(false);
+  const [komInfo, setKomInfo] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
 
   useEffect(() => {
     api<LkOpsi>("/api/lk/opsi").then(setOpsi).catch((e) => setOpsiError(e.message));
   }, []);
 
   const urut = [...sekolah].sort((a, b) => (URUT[a.prioritas.slice(-1)] ?? 3) - (URUT[b.prioritas.slice(-1)] ?? 3));
-  const blok = opsi?.blok_default ?? 1;
-  const label = opsi?.blok.find((b) => b.no === blok)?.label;
+  const blok = pilihBlok ?? opsi?.blok_default ?? 1;
+  const komSama = sekolah.length && sekolah.every((x) => x.komunikasi === sekolah[0].komunikasi) ? sekolah[0].komunikasi : null;
+
+  async function simpanKomunikasi(nilai: string) {
+    setKomBusy(true);
+    setKomInfo(null);
+    try {
+      await post("/api/lk/isi", { blok, sekolah: sekolah.map((x) => ({ npsn: x.npsn, komunikasi: nilai })) });
+      sekolah.forEach((x) => onSaved(x.npsn, (y) => ({ ...y, komunikasi: nilai })));
+      setKomInfo({ tone: "ok", teks: `Tersimpan ke ${sekolah.length} sekolah` });
+    } catch (e) {
+      setKomInfo({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setKomBusy(false);
+    }
+  }
   const perlu = sekolah.filter((x) => !selesai(x));
   const lengkap = perlu.filter((x) => { const k = kelengkapan(x, blok); return k.ada === k.perlu; }).length;
 
@@ -80,10 +97,30 @@ export function LkPanel({ sekolah, onSaved }: {
 
       {opsiError && <Notice tone="warn" title="Pilihan isian LK belum terbaca">{opsiError}</Notice>}
       {!opsi && !opsiError && <div className={s.muted}><Spinner label="Memuat pilihan" /> Memuat pilihan isian…</div>}
-      {opsi && (
-        <p className={s.blokNote}>
-          Alasan dan tindak lanjut ditulis ke kolom sesi <b>{label}</b> ({opsi.blok_kolom}), dipilih otomatis dari hari ini.
-        </p>
+      {opsi && sekolah.length > 0 && (
+        <div className={s.lkTop}>
+          <div className={s.seg} role="radiogroup" aria-label="Kolom sesi LK">
+            {opsi.blok.map((b) => (
+              <button key={b.no} type="button" role="radio" aria-checked={blok === b.no}
+                onClick={() => { setPilihBlok(b.no); setBuka(null); }}>
+                Sesi {b.label}{b.no === opsi.blok_default ? " (hari ini)" : ""}
+              </button>
+            ))}
+          </div>
+          <label className={s.field}>
+            <span>Status komunikasi fasil, untuk semua sekolahnya</span>
+            <span className={s.selectRow}>
+              <select value={komSama ?? "__beda"} disabled={komBusy}
+                onChange={(e) => void simpanKomunikasi(e.target.value)}>
+                {komSama === null && <option value="__beda" disabled>Berbeda antar sekolah</option>}
+                <option value="">Belum diisi</option>
+                {opsi.opsi.komunikasi.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {komBusy && <Spinner label="Menyimpan" />}
+            </span>
+          </label>
+          {komInfo && <span className={komInfo.tone === "ok" ? s.savedNote : s.errNote}>{komInfo.teks}</span>}
+        </div>
       )}
 
       {sekolah.length === 0 ? (
@@ -93,8 +130,8 @@ export function LkPanel({ sekolah, onSaved }: {
           {urut.map((x) => (
             <SchoolItem key={x.npsn} x={x} opsi={opsi} blok={blok} terbuka={buka === x.npsn}
               onToggle={() => setBuka(buka === x.npsn ? null : x.npsn)}
-              onSaved={(kom, isi) => {
-                onSaved(x.npsn, (y) => ({ ...y, komunikasi: kom, isian: { ...y.isian, [String(blok)]: isi } }));
+              onSaved={(isi) => {
+                onSaved(x.npsn, (y) => ({ ...y, isian: { ...y.isian, [String(blok)]: isi } }));
                 setBuka(berikutnya(urut, x.npsn, blok));
               }} />
           ))}
@@ -110,7 +147,7 @@ function SchoolItem({ x, opsi, blok, terbuka, onToggle, onSaved }: {
   blok: number;
   terbuka: boolean;
   onToggle: () => void;
-  onSaved: (komunikasi: string, isi: Isian) => void;
+  onSaved: (isi: Isian) => void;
 }) {
   const p = x.progres ?? 0;
   const tersimpan: Isian = { ...KOSONG, ...x.isian[String(blok)] };
@@ -137,32 +174,28 @@ function SchoolItem({ x, opsi, blok, terbuka, onToggle, onSaved }: {
             : k.ada > 0 ? <span className={s.toFill}>{k.ada} dari {k.perlu} terisi</span>
             : <span className={s.toFill}>Isi LK</span>}
         </div>
-        {x.komunikasi && <div className={s.komNote}>{x.komunikasi.replace(/^\d+\.\s*/, "")}</div>}
       </button>
       {terbuka && opsi && (
-        <SchoolForm x={x} opsi={opsi} blok={blok} awalKom={x.komunikasi} awal={tersimpan}
-          onDone={(r) => (r ? onSaved(r.kom, r.isi) : onToggle())} />
+        <SchoolForm x={x} opsi={opsi} blok={blok} awal={tersimpan}
+          onDone={(isi) => (isi ? onSaved(isi) : onToggle())} />
       )}
     </li>
   );
 }
 
-function SchoolForm({ x, opsi, blok, awalKom, awal, onDone }: {
+function SchoolForm({ x, opsi, blok, awal, onDone }: {
   x: SekolahLk;
   opsi: LkOpsi;
   blok: number;
-  awalKom: string;
   awal: Isian;
-  onDone: (r: { kom: string; isi: Isian } | null) => void;
+  onDone: (isi: Isian | null) => void;
 }) {
   const relevan = grupRelevan(x);
-  const [kom, setKom] = useState(awalKom);
   const [isi, setIsi] = useState<Isian>(awal);
   const [semua, setSemua] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const berubah = (Object.keys(isi) as IsianKey[]).filter((k) => isi[k] !== awal[k]);
-  const komBerubah = kom !== awalKom;
   const tampil = GRUP.filter((g) => semua || relevan.includes(g.kode));
 
   async function simpan() {
@@ -173,11 +206,10 @@ function SchoolForm({ x, opsi, blok, awalKom, awal, onDone }: {
         blok,
         sekolah: [{
           npsn: x.npsn,
-          ...(komBerubah ? { komunikasi: kom } : {}),
           isian: Object.fromEntries(berubah.map((k) => [k, isi[k]])),
         }],
       });
-      onDone({ kom, isi });
+      onDone(isi);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -187,14 +219,6 @@ function SchoolForm({ x, opsi, blok, awalKom, awal, onDone }: {
 
   return (
     <div className={s.form}>
-      <label className={s.fieldset}>
-        <span className={s.legend}>Status komunikasi</span>
-        <select value={kom} onChange={(e) => setKom(e.target.value)}>
-          <option value="">Belum diisi</option>
-          {kom && !opsi.opsi.komunikasi.includes(kom) && <option value={kom}>{kom}</option>}
-          {opsi.opsi.komunikasi.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </label>
       {tampil.map((g) => {
         const k1 = `${g.kode}1` as IsianKey;
         const k2 = `${g.kode}2` as IsianKey;
@@ -214,7 +238,7 @@ function SchoolForm({ x, opsi, blok, awalKom, awal, onDone }: {
       })}
       {error && <Notice tone="bad" title="Belum tersimpan">{error}</Notice>}
       <div className={s.formActions}>
-        <Button size="sm" loading={busy} disabled={berubah.length === 0 && !komBerubah} onClick={simpan}>Simpan ke LK</Button>
+        <Button size="sm" loading={busy} disabled={berubah.length === 0} onClick={simpan}>Simpan ke LK</Button>
         <Button size="sm" variant="ghost" onClick={() => onDone(null)}>Batal</Button>
         {!semua && relevan.length < 3 && (
           <button type="button" className={s.linkBtn} onClick={() => setSemua(true)}>Tampilkan semua alasan</button>
