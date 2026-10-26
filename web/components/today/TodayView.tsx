@@ -6,7 +6,6 @@ import { useEvents, usePolling } from "@/lib/hooks";
 import type { SesiDetail, Today } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
 import { NowCard } from "./NowCard";
-import { Pengingat } from "./Pengingat";
 import { SessionTabs } from "./SessionTabs";
 import { FasilList } from "./FasilList";
 import { FasilDrawer } from "./FasilDrawer";
@@ -98,7 +97,6 @@ export function TodayView() {
     <div className={s.page}>
       <div className={s.date}>{today.tanggal_panjang}</div>
       <NowCard today={today} onChanged={refresh} />
-      <Pengingat items={today.pengingat ?? []} tanggal={today.tanggal} onPick={setNomor} />
       <SessionTabs sesi={today.sesi} dipilih={sesi} onPilih={pilihSesi} />
       <FasilList detail={detail} loading={loadingDetail} selected={nomor} onPick={setNomor} />
       {nomor && <FasilDrawer nomor={nomor} versi={versi} onClose={tutup} />}

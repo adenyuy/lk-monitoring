@@ -12,7 +12,7 @@ import { LockIcon, NoAccess } from "./NoAccess";
 import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
-import { IconCutoff, IconHariIni, IconLogo, IconRekap } from "./Icons";
+import { IconCutoff, IconHariIni, IconLog, IconLogo, IconRekap } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -96,11 +96,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const menu = (
     <>
       <Link href="/rekap/" className={s.item} aria-current={aktif("/rekap/")}>
-        <span className={s.ico}><IconRekap />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru" />}</span>
+        <span className={s.ico}><IconRekap /></span>
         <span className={s.lbl}>Rekap</span>
       </Link>
       <Link href="/today/" className={s.item} aria-current={aktif("/today/")}>
         <span className={s.ico}><IconHariIni /></span><span className={s.lbl}>Hari ini</span>
+      </Link>
+      <Link href="/log/" className={s.item} aria-current={aktif("/log/")}>
+        <span className={s.ico}><IconLog />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru" />}</span>
+        <span className={s.lbl}>Log</span>
       </Link>
       {bolehCutoff ? (
         <Link href="/cutoff/" className={s.item} aria-current={aktif("/cutoff/")}>

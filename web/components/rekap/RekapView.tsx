@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import type { ChatRekap, FasilRekap, Rekap } from "@/lib/types";
 import { Chip, Notice, Spinner } from "@/components/ui";
 import { FasilDrawer } from "@/components/today/FasilDrawer";
-import { LogPerubahan } from "./LogPerubahan";
 import s from "./rekap.module.css";
 
 const PRIO = [
@@ -36,6 +35,7 @@ const FILTER: { k: Filter; label: string; cocok: (r: FasilRekap) => boolean }[] 
 
 type Kolom = "nama" | "p1" | "p2" | "p3" | "selesai" | "chat" | "isian";
 
+const PER_HAL = 15;
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 
 export function RekapView() {
@@ -45,6 +45,7 @@ export function RekapView() {
   const [cari, setCari] = useState("");
   const [urut, setUrut] = useState<{ k: Kolom; naik: boolean }>({ k: "p1", naik: false });
   const [buka, setBuka] = useState<string | null>(null);
+  const [hal, setHal] = useState(0);
 
   const muat = useCallback(async () => {
     try {
@@ -91,7 +92,7 @@ export function RekapView() {
     const aktif = urut.k === k;
     return (
       <th className={num ? s.num : undefined} aria-sort={aktif ? (urut.naik ? "ascending" : "descending") : "none"}>
-        <button type="button" onClick={() => setUrut({ k, naik: aktif ? !urut.naik : k === "nama" })}>
+        <button type="button" onClick={() => { setUrut({ k, naik: aktif ? !urut.naik : k === "nama" }); setHal(0); }}>
           {label}<span aria-hidden="true" className={s.sortIcon}>{aktif ? (urut.naik ? "↑" : "↓") : ""}</span>
         </button>
       </th>
@@ -130,42 +131,32 @@ export function RekapView() {
         </dl>
       </section>
 
-      <div className={s.grid3}>
-        <section className={s.card} aria-labelledby="h-p1" data-tour="p1">
-          <div className={s.cardHead}><h2 id="h-p1">Prioritas 1</h2><span>{p1.sekolah} sekolah, {p1.fasil} fasil</span></div>
-          <Meter label="Fasil P1 sudah dihubungi" a={p1.fasil_dihubungi} b={p1.fasil} />
-          <Meter label="Fasil P1 sudah membalas" a={p1.fasil_membalas} b={p1.fasil} />
-          <Meter label="Sekolah P1 yang fasilnya sudah dihubungi" a={p1.sekolah_dihubungi} b={p1.sekolah} />
-        </section>
-
-        <section className={s.card} aria-labelledby="h-isian" data-tour="isian">
-          <div className={s.cardHead}><h2 id="h-isian">Isian LK</h2><span>{data.isian.perlu} sekolah perlu diisi</span></div>
-          {data.isian.blok.map((b) => (
-            <Meter key={b.no} label={`Sesi ${b.label} (${b.kolom})`} a={b.lengkap} b={data.isian.perlu}
-              badge={b.no === data.blok.no ? "hari ini" : undefined} />
+      <section className={s.card} aria-labelledby="h-p1" data-tour="p1">
+        <div className={s.cardHead}>
+          <h2 id="h-p1">Fasil Prioritas 1</h2>
+          <span>{p1.fasil} fasil dengan {p1.sekolah} sekolah P1</span>
+        </div>
+        <ol className={s.funnel}>
+          {[
+            { label: "Fasil P1", n: p1.fasil, ket: "punya sekolah P1" },
+            { label: "Dihubungi", n: p1.fasil_dihubungi, ket: "Broadcast terkirim" },
+            { label: "Membalas", n: p1.fasil_membalas, ket: "fasil sudah membalas" },
+            { label: "LK lengkap", n: p1.fasil_lk_lengkap, ket: `isian sesi ${data.blok.label}` },
+          ].map((x, i) => (
+            <li key={x.label}>
+              <span className={s.fLabel}>{x.label}</span>
+              <b className={s.fNum}>{x.n}{i > 0 && <small> {pct(x.n, p1.fasil)}%</small>}</b>
+              <span className={s.fTrack} aria-hidden="true">
+                <span style={{ width: `${i === 0 ? 100 : pct(x.n, p1.fasil)}%` }} />
+              </span>
+              <span className={s.fKet}>{x.ket}</span>
+            </li>
           ))}
-          <p className={s.note}>Lengkap = status komunikasi dan semua alasan yang relevan sudah terisi.</p>
-        </section>
-
-        <section className={s.card} aria-labelledby="h-kom">
-          <div className={s.cardHead}><h2 id="h-kom">Status komunikasi</h2><span>per sekolah</span></div>
-          <ul className={s.bars}>
-            {data.isian.komunikasi.map((k) => (
-              <li key={k.label}>
-                <span className={s.barLabel}>{k.label.replace(/^\d+\.\s*/, "")}</span>
-                <span className={s.barTrack}><span style={{ width: `${pct(k.jumlah, data.isian.perlu)}%` }}
-                  className={k.label === "Belum diisi" ? s.barMuted : undefined} /></span>
-                <span className={s.barVal}>{k.jumlah}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-
-      <LogPerubahan />
+        </ol>
+      </section>
 
       {data.luar_broadcast.fasil > 0 && (
-        <button type="button" className={s.luar} onClick={() => setFilter("luar")}>
+        <button type="button" className={s.luar} onClick={() => { setFilter("luar"); setHal(0); }}>
           <b>{data.luar_broadcast.fasil} fasil tidak masuk Broadcast</b>
           <span>
             {data.luar_broadcast.p1_sekolah
@@ -178,15 +169,12 @@ export function RekapView() {
       <section className={s.card} aria-labelledby="h-tabel" data-tour="tabel">
         <div className={s.cardHead}>
           <h2 id="h-tabel">Per fasil</h2>
-          <span className={s.tools}>
-            <input className={s.search} type="search" placeholder="Cari nama fasil" value={cari}
-              onChange={(e) => setCari(e.target.value)} aria-label="Cari nama fasil" />
-            <button type="button" className={s.csvBtn} onClick={() => unduhCsv(baris, data.week)}>Unduh CSV</button>
-          </span>
+          <input className={s.search} type="search" placeholder="Cari nama fasil" value={cari}
+            onChange={(e) => { setCari(e.target.value); setHal(0); }} aria-label="Cari nama fasil" />
         </div>
         <div className={s.filters} role="group" aria-label="Saring">
           {FILTER.map((f) => (
-            <button key={f.k} type="button" aria-pressed={filter === f.k} onClick={() => setFilter(f.k)}>
+            <button key={f.k} type="button" aria-pressed={filter === f.k} onClick={() => { setFilter(f.k); setHal(0); }}>
               {f.label} <span>{data.fasil.filter(f.cocok).length}</span>
             </button>
           ))}
@@ -206,7 +194,7 @@ export function RekapView() {
               </tr>
             </thead>
             <tbody>
-              {baris.map((r) => (
+              {baris.slice(hal * PER_HAL, (hal + 1) * PER_HAL).map((r) => (
                 <tr key={r.nomor || r.nama} onClick={() => r.nomor && setBuka(r.nomor)} className={r.nomor ? s.click : undefined}>
                   <td>
                     <button type="button" className={s.nameBtn} disabled={!r.nomor} onClick={() => setBuka(r.nomor)}>
@@ -243,42 +231,24 @@ export function RekapView() {
           </table>
           {baris.length === 0 && <div className={s.empty}>Tidak ada fasil yang cocok dengan saringan ini.</div>}
         </div>
+        {baris.length > PER_HAL && (
+          <nav className={s.pager} aria-label="Halaman tabel">
+            <span>{hal * PER_HAL + 1}–{Math.min(baris.length, (hal + 1) * PER_HAL)} dari {baris.length} fasil</span>
+            <div>
+              <button type="button" onClick={() => setHal(hal - 1)} disabled={hal === 0} aria-label="Halaman sebelumnya">‹</button>
+              {Array.from({ length: Math.ceil(baris.length / PER_HAL) }, (_, i) => (
+                <button key={i} type="button" aria-current={i === hal ? "page" : undefined} onClick={() => setHal(i)}>
+                  {i + 1}
+                </button>
+              ))}
+              <button type="button" onClick={() => setHal(hal + 1)} disabled={(hal + 1) * PER_HAL >= baris.length}
+                aria-label="Halaman berikutnya">›</button>
+            </div>
+          </nav>
+        )}
       </section>
 
       {buka && <FasilDrawer nomor={buka} versi={0} onClose={tutup} />}
-    </div>
-  );
-}
-
-/** Unduh baris tabel (sesuai saringan) sebagai CSV, rapi dibuka di Excel. */
-function unduhCsv(rows: FasilRekap[], week: string) {
-  const kepala = ["Fasil", "Nomor", "Masuk Broadcast", "Sekolah", "P1", "P2", "P3", "Selesai", "Chat",
-    "Isian LK lengkap", "Isian LK perlu", ...TAHAP];
-  const sel = (v: string | number | boolean) => {
-    const t = typeof v === "boolean" ? (v ? "Ya" : "Tidak") : String(v);
-    return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
-  };
-  const isi = rows.map((r) => [r.nama, r.nomor_tersamar, r.di_broadcast, r.sekolah, r.p1, r.p2, r.p3, r.selesai,
-    CHAT[r.chat].label, r.isian_lengkap, r.isian_perlu, ...r.tahap].map(sel).join(";"));
-  // BOM + pemisah titik koma: Excel Indonesia langsung membaca kolom dengan benar
-  const blob = new Blob(["﻿" + [kepala.map(sel).join(";"), ...isi].join("\r\n")], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `rekap-week${week}-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function Meter({ label, a, b, badge }: { label: string; a: number; b: number; badge?: string }) {
-  return (
-    <div className={s.meter}>
-      <div className={s.meterTop}>
-        <span>{label}{badge && <em className={s.badge}>{badge}</em>}</span>
-        <b>{a}<small> / {b}</small></b>
-      </div>
-      <span className={s.meterTrack} role="img" aria-label={`${a} dari ${b}`}>
-        <span style={{ width: `${pct(a, b)}%` }} />
-      </span>
     </div>
   );
 }

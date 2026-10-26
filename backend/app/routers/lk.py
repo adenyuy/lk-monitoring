@@ -5,11 +5,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import db, tahap
+from .. import aktivitas, db, tahap
 from ..sheets import (
     BLOK_KOLOM, ISIAN_KEYS, KOMUNIKASI_KOLOM, LkWriteError, normalize_petugas, read_lk, read_validasi, write_isian,
 )
 from .deps import require_feature
+
+from ..sheets import nomor_lk, week_aktif  # noqa: E402
 
 router = APIRouter(prefix="/api/lk")
 wa_blast = require_feature("wa_blast")
@@ -55,7 +57,7 @@ class IsiReq(BaseModel):
 @router.post("/isi")
 def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
     petugas = normalize_petugas(db.get_setting("nama_petugas") or "")
-    week = db.get_setting("week", "1")
+    week = week_aktif()
     try:
         semua = read_lk(week)
     except Exception as e:
@@ -100,4 +102,17 @@ def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
             s.komunikasi = it.komunikasi.strip()
         for k, v in it.isian.items():
             s.isian.setdefault(blok, {})[k] = v.strip()
+
+    # Riwayat per fasil: satu catatan per fasil yang sekolahnya diisi
+    per_fasil: dict[str, list] = {}
+    for s, _, it in perubahan:
+        nomors = nomor_lk(s)
+        per_fasil.setdefault(nomors[0] if nomors else f"nama:{s.fasil}", []).append((s, it))
+    for nomor, isi in per_fasil.items():
+        kom = {it.komunikasi.strip() for _, it in isi if it.komunikasi}
+        teks = f"Sesi {BLOK_LABEL[blok]}: {len(isi)} sekolah disimpan ({', '.join(s.nama for s, _ in isi[:4])}"
+        teks += f", +{len(isi) - 4} lagi)" if len(isi) > 4 else ")"
+        if kom:
+            teks += f". Status komunikasi: {', '.join(sorted(kom))}"
+        aktivitas.catat(nomor, "lk", teks, isi[0][0].fasil)
     return {"disimpan": len(perubahan), "blok": blok}

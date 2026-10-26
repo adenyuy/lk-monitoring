@@ -300,6 +300,40 @@ def read_lk(week: str, refresh: bool = False) -> list[Sekolah]:
     return cache.get(f"lk:{tab}", config.LK_CACHE_SECONDS, load, refresh)
 
 
+def daftar_week() -> list[str]:
+    """Nomor WEEK yang ada di LK, mis. ['1', '2']."""
+    def load():
+        ss = gspread_client().open_by_key(config.LK_SHEET_ID)
+        out = []
+        for w in ss.worksheets():
+            m = re.fullmatch(rf"{re.escape(config.LK_WEEK_PREFIX)}(\d+)", w.title.strip())
+            if m:
+                out.append(m.group(1))
+        return sorted(out, key=int)
+    return cache.get("lk_weeks", 300, load)
+
+
+def week_aktif() -> str:
+    """WEEK yang dipakai: tab 'WEEK n' terbaru di LK (admin membuatnya tiap minggu).
+
+    Bila LK tidak terbaca, pakai WEEK terakhir yang tersimpan. Saat pindah WEEK, dicatat di log perubahan.
+    """
+    from . import db, perubahan  # hindari import melingkar
+
+    simpan = str(db.get_setting("week", "1") or "1")
+    try:
+        weeks = daftar_week()
+    except Exception:
+        return simpan
+    if not weeks:
+        return simpan
+    baru = weeks[-1]
+    if baru != simpan:
+        db.set_setting("week", baru)
+        perubahan.catat_pindah_week(simpan, baru)
+    return baru
+
+
 def lk_tab(week: str) -> str:
     return f"{config.LK_WEEK_PREFIX}{week}" if str(week).isdigit() else str(week)
 
@@ -356,7 +390,7 @@ def nomor_milik() -> set[str]:
     petugas = db.get_setting("nama_petugas") or ""
     out = {r.nomor for r in filter_petugas(read_broadcast(), petugas) if r.nomor}
     try:
-        lk = read_lk(db.get_setting("week", "1"))
+        lk = read_lk(week_aktif())
         for s in lk:
             if normalize_petugas(s.petugas) == normalize_petugas(petugas):
                 out.update(nomor_lk(s))

@@ -19,7 +19,7 @@ def _read_version() -> str:
 
 VERSION = _read_version()
 # Naikkan tiap ada endpoint baru; tampilan membandingkannya untuk mendeteksi server yang belum di-restart.
-API_REV = 10
+API_REV = 11
 
 # --- Server ---
 HOST = "127.0.0.1"  # hanya bisa diakses dari laptop ini
@@ -78,5 +78,7 @@ JEDA_MAX_DETIK = 120
 BATAS_HARIAN_DEFAULT = 40
 BATAS_HARIAN_MIN = 10
 BATAS_HARIAN_MAX = 70
+BATAS_HARIAN_AMAN = 50  # di atas ini wajib mengetik KALIMAT_RISIKO
+KALIMAT_RISIKO = "risiko ditanggung sendiri"
 BATAS_KUNING = 40  # > nilai ini: peringatan kuning
 BATAS_MERAH = 50  # > nilai ini: peringatan merah (nomor pernah diblokir di pesan ke-51)

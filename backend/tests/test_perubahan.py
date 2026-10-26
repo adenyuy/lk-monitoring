@@ -43,13 +43,15 @@ def test_kalender_dan_log_per_hari_dengan_sesi(monkeypatch):
 
     with db.tx() as c:
         c.execute("DELETE FROM perubahan")
+        c.execute("DELETE FROM aktivitas")
+        c.execute("DELETE FROM sends")
         for w in ("2026-10-23T10:15:00", "2026-10-23T14:30:00", "2026-10-26T09:00:00"):
             c.execute("INSERT INTO perubahan(waktu, sumber, judul, ringkasan, rincian) VALUES(?,?,?,?,?)",
                       (w, "lk", "LK WEEK 1", "x", "[]"))
     k = perubahan.kalender(date(2026, 10, 1))
     assert k["bulan"] == "2026-10"
-    assert k["hari"] == [{"tanggal": "2026-10-23", "broadcast": 0, "lk": 2},
-                         {"tanggal": "2026-10-26", "broadcast": 0, "lk": 1}]
+    assert k["hari"] == [{"tanggal": "2026-10-23", "broadcast": 0, "lk": 2, "fasil": 0},
+                         {"tanggal": "2026-10-26", "broadcast": 0, "lk": 1, "fasil": 0}]
     assert k["paling_awal"] == "2026-10-23"
     assert perubahan.kalender(date(2026, 11, 1))["hari"] == []
     hari = perubahan.daftar(tanggal="2026-10-23")

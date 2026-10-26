@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from .. import cutoff, db, schedule
 from .deps import require_feature
 
+from ..sheets import week_aktif  # noqa: E402
+
 router = APIRouter(prefix="/api/cutoff")
 admin = require_feature("cutoff")
 MAKS_BYTE = 60 * 1024 * 1024
@@ -27,7 +29,7 @@ def _minggu1(riwayat: list[dict]) -> date:
         if str(r["week"]).isdigit():
             d = date.fromisoformat(r["waktu"][:10])
             return _senin(d) - timedelta(weeks=int(r["week"]) - 1)
-    aktif = int(db.get_setting("week", "1") or 1)
+    aktif = int(week_aktif() or 1)
     return _senin(schedule.now().date()) - timedelta(weeks=aktif - 1)
 
 
@@ -40,7 +42,7 @@ def info(_=Depends(admin)) -> dict[str, Any]:
     riw = cutoff.riwayat()
     return {
         "weeks": weeks,
-        "week_aktif": db.get_setting("week", "1"),
+        "week_aktif": week_aktif(),
         "week1_senin": _minggu1(riw).isoformat(),
         "hari_ini": schedule.now().date().isoformat(),
         "riwayat": riw,

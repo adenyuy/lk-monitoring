@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import events, schedule, store, tagging
+from .. import aktivitas, events, schedule, store, tagging
 from ..sender import sender
 from ..sheets import normalize_nomor, nomor_milik
 from ..wa import actions
@@ -96,5 +96,8 @@ def balas(nomor: str, req: BalasReq, _=Depends(wa_blast)) -> dict[str, Any]:
         raise HTTPException(502, f"Balasan belum terkirim: {res.keterangan}")
     if req.jenis == "tanya_lk":
         store.set_tahap(n, "ditanya", True, "template", schedule.now().isoformat(timespec="seconds"))
+    ringkas = " ".join(teks.split())
+    ringkas = ringkas if len(ringkas) <= 90 else ringkas[:89] + "…"
+    aktivitas.catat(n, "balas", ("Tanya isian LK: " if req.jenis == "tanya_lk" else "Pesan: ") + ringkas)
     info, rows = thread
     return _hasil(n, info, rows)

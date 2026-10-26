@@ -69,3 +69,11 @@ def test_tindak_lanjut_yang_membalas_didahulukan(monkeypatch):
     assert [f["nama"] for f in p["fasil"]] == ["Fasil B", "Fasil A"]
     assert p["judul"] == "1 fasil sudah membalas, isian LK-nya belum lengkap"
     assert config.SESI[0].kuota == 10
+
+
+def test_broadcast_selesai_arahkan_ke_tindak_lanjut(monkeypatch):
+    _bersih(monkeypatch)
+    it = _item("6281200000001", "Fasil A")
+    it.status = "terkirim"
+    p = today._pengingat(_ctx("2026-10-28 11:00", [it], {}, 0), libur=False)
+    assert p[0]["jenis"] == "broadcast_selesai"

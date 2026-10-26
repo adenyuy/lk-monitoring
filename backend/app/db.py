@@ -55,6 +55,16 @@ CREATE TABLE IF NOT EXISTS perubahan (
     rincian   TEXT NOT NULL DEFAULT '[]'
 );
 
+CREATE TABLE IF NOT EXISTS aktivitas (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    waktu     TEXT NOT NULL,
+    nomor     TEXT NOT NULL,
+    nama      TEXT NOT NULL DEFAULT '',
+    jenis     TEXT NOT NULL,            -- dibaca | dibalas | balas | lk | tahap | ulang
+    ringkasan TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS aktivitas_waktu ON aktivitas(waktu);
+
 CREATE TABLE IF NOT EXISTS kirim_ulang (
     nomor  TEXT PRIMARY KEY,
     waktu  TEXT NOT NULL                -- saat diminta; berlaku sampai ada kiriman terkirim sesudahnya

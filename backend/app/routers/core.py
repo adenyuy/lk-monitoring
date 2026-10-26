@@ -5,9 +5,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from .. import config, db, google_auth, sheets
+from .. import config, db, google_auth, schedule, sheets
 from ..access import AccessError, access_for
 from .deps import require_access, require_login
+
+from ..sheets import week_aktif  # noqa: E402
 
 router = APIRouter(prefix="/api")
 
@@ -62,7 +64,7 @@ def _settings() -> dict[str, Any]:
         "nama_petugas": db.get_setting("nama_petugas"),
         "batas_harian": db.get_setting("batas_harian", config.BATAS_HARIAN_DEFAULT),
         "kirim_akhir_pekan": db.get_setting("kirim_akhir_pekan", False),
-        "week": db.get_setting("week", "1"),
+        "week": week_aktif(),
         "wa_terhubung": db.get_setting("wa_terhubung", False),
         "setup_selesai": db.get_setting("setup_selesai", False),
     }
@@ -105,6 +107,7 @@ class SettingsIn(BaseModel):
     kirim_akhir_pekan: bool | None = None
     week: str | None = Field(None, pattern=r"^\d{1,2}$")
     setup_selesai: bool | None = None
+    konfirmasi_risiko: str | None = Field(None, max_length=100)
 
 
 @router.get("/settings")
@@ -114,7 +117,13 @@ def get_settings(_: str = Depends(require_login)) -> dict[str, Any]:
 
 @router.post("/settings")
 def save_settings(body: SettingsIn, _: str = Depends(require_login)) -> dict[str, Any]:
-    for key, value in body.model_dump(exclude_none=True).items():
+    if body.batas_harian is not None and body.batas_harian > config.BATAS_HARIAN_AMAN:
+        if " ".join((body.konfirmasi_risiko or "").lower().split()) != config.KALIMAT_RISIKO:
+            raise HTTPException(400, f"Batas di atas {config.BATAS_HARIAN_AMAN} wajib dikonfirmasi dengan mengetik "
+                                     f"“{config.KALIMAT_RISIKO}”.")
+        db.set_setting("risiko_disetujui", {"batas": body.batas_harian,
+                                            "waktu": schedule.now().isoformat(timespec="seconds")})
+    for key, value in body.model_dump(exclude_none=True, exclude={"konfirmasi_risiko"}).items():
         if key == "nama_petugas":
             value = sheets.clean_petugas(value)
             if not value:

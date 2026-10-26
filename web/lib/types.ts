@@ -82,11 +82,10 @@ export type Today = {
   total_fasil: number;
   sesi: SesiRingkas[];
   pengiriman: Pengiriman;
-  pengingat: Pengingat[];
 };
 
 export type Pengingat = {
-  jenis: "terlewat" | "lanjut" | "minggu_baru" | "tindak_lanjut";
+  jenis: "terlewat" | "lanjut" | "minggu_baru" | "broadcast_selesai" | "tindak_lanjut";
   judul: string;
   isi: string;
   total?: number;
@@ -156,10 +155,11 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 10;
+export const API_REV = 11;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
+export const KALIMAT_RISIKO = "risiko ditanggung sendiri";
 
 export type Percakapan = {
   status: "belum_ada" | "terkirim" | "dibaca" | "dibalas";
@@ -192,7 +192,7 @@ export type Rekap = {
   blok: { no: number; label: string; kolom: string };
   sekolah: { total: number; p1: number; p2: number; p3: number; selesai: number };
   fasil_total: number;
-  p1: { sekolah: number; fasil: number; fasil_dihubungi: number; fasil_membalas: number; sekolah_dihubungi: number };
+  p1: { sekolah: number; fasil: number; fasil_dihubungi: number; fasil_membalas: number; fasil_lk_lengkap: number; sekolah_dihubungi: number };
   isian: {
     perlu: number;
     blok: { no: number; label: string; kolom: string; lengkap: number }[];
@@ -236,7 +236,22 @@ export type Perubahan = {
 
 export type KalenderLog = {
   bulan: string; // YYYY-MM
-  hari: { tanggal: string; broadcast: number; lk: number }[];
+  hari: { tanggal: string; broadcast: number; lk: number; fasil: number }[];
   paling_awal: string;
   hari_ini: string;
 };
+
+export type Aktivitas = {
+  id: string;
+  waktu: string;
+  nomor: string;
+  nama: string;
+  jenis: "kirim" | "gagal" | "dibaca" | "dibalas" | "balas" | "lk" | "tahap" | "ulang";
+  label: string;
+  ringkasan: string;
+  sesi: number;
+  sesi_label: string;
+};
+
+export type LogHari = { tanggal: string; perubahan: Perubahan[]; aktivitas: Aktivitas[] };
+export type FasilTercatat = { nomor: string; nama: string; terakhir: string };

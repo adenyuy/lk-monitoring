@@ -580,3 +580,29 @@
   border-radius: 999px;
   margin-bottom: 6px;
 }
+
+.risiko {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid #f2c7c8;
+  border-radius: var(--radius-panel);
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+  font-size: 13.5px;
+}
+
+.risiko input {
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid #e3a5a7;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.risiko input:focus {
+  outline: 2px solid var(--bad-fg);
+  outline-offset: -1px;
+}

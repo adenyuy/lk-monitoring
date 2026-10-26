@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
+import { FasilDrawer } from "@/components/today/FasilDrawer";
 import { LockIcon } from "./NoAccess";
+import { NotifList, useNotif } from "./Notif";
 import { IconCutoff, IconHariIni, IconLog, IconPanduan, IconRekap, IconTanya } from "./Icons";
 import s from "./app.module.css";
 
@@ -112,6 +114,8 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
   const baruDigeser = useRef(false);
   const tombol = useRef<HTMLButtonElement>(null);
   const timerDiam = useRef<number | undefined>(undefined);
+  const nf = useNotif(adaBaru);
+  const [fasil, setFasil] = useState<string | null>(null);
 
   const bangun = useCallback(() => {
     setDiam(false);
@@ -207,6 +211,8 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
       return;
     }
     setMenu(true);
+    nf.tandaiDilihat();
+    void nf.muat();
   }
 
   const C = 2 * Math.PI * 24;
@@ -232,21 +238,22 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
           onClick={onClick}
           aria-haspopup="dialog"
           aria-expanded={menu}
-          aria-label={`Menu cepat. ${cd.judul}. ${cd.ket} ${hms(cd.detik)}`}
+          aria-label={`Menu cepat${nf.baru ? `, ${nf.baru} notifikasi baru` : ""}. ${cd.judul}. ${cd.ket} ${hms(cd.detik)}`}
         >
           <svg width={UKURAN} height={UKURAN} viewBox="0 0 56 56" aria-hidden="true">
             <circle cx="28" cy="28" r="24" className={s.cdTrack} />
             <circle cx="28" cy="28" r="24" className={s.cdBar} strokeDasharray={C} strokeDashoffset={C * (1 - cd.pct)} />
           </svg>
           <span aria-hidden="true">{cd.ada ? singkat(cd.detik) : "…"}</span>
-          {adaBaru && <i className={s.assistDot} aria-hidden="true" />}
+          {nf.baru > 0 && <i className={s.assistDot} aria-hidden="true">{nf.baru}</i>}
         </button>
         {!geser && cd.ada && (
           <div className={s.assistPop} role="status" aria-live="off">
             <b>{cd.judul}</b>
             <small>{cd.ket}</small>
             <span className={s.cdTime}>{hms(cd.detik)}</span>
-            <em>Ketuk untuk menu, seret untuk memindahkan</em>
+            {nf.baru > 0 && <strong className={s.assistPopNf}>{nf.baru} notifikasi baru</strong>}
+            <em>Ketuk untuk notifikasi dan menu, seret untuk memindahkan</em>
           </div>
         )}
       </div>
@@ -265,10 +272,17 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
                 </div>
                 <span className={s.cdTime}>{hms(cd.detik)}</span>
               </div>
+              <div className={s.amNotif}>
+                <h3>Notifikasi{nf.items.length > 0 && <span>{nf.items.length}</span>}</h3>
+                <NotifList items={nf.items} onTutup={nf.sembunyikan} onLink={tutupMenu}
+                  onFasil={(n) => { setMenu(false); setFasil(n); }} />
+              </div>
               <div className={s.amGrid}>
                 <Tile href="/rekap/" label="Rekap" icon={<IconRekap />} current={kini("/rekap/")} onPick={tutupMenu}
-                  titik={adaBaru} autoFocus />
+                  autoFocus />
                 <Tile href="/today/" label="Hari ini" icon={<IconHariIni />} current={kini("/today/")} onPick={tutupMenu} />
+                <Tile href="/log/" label="Log" icon={<IconLog />} current={kini("/log/")} onPick={tutupMenu}
+                  titik={adaBaru} />
                 {bolehCutoff ? (
                   <Tile href="/cutoff/" label="Tarik Cutoff" icon={<IconCutoff />} current={kini("/cutoff/")}
                     onPick={tutupMenu} />
@@ -276,7 +290,6 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
                   <Tile label="Tarik Cutoff" icon={<IconCutoff />} kunci
                     onPick={() => { setMenu(false); onTerkunci(); }} />
                 )}
-                <Tile href="/rekap/#perubahan" label="Log perubahan" icon={<IconLog />} onPick={tutupMenu} />
                 <Tile label="Panduan" icon={<IconPanduan />} onPick={() => { setMenu(false); onPanduan(); }} />
                 <Tile href="/faq/" label="Tanya jawab" icon={<IconTanya />} current={kini("/faq/")} onPick={tutupMenu} />
               </div>
@@ -284,6 +297,7 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
           </div>
         </div>
       )}
+      {fasil && <FasilDrawer nomor={fasil} versi={0} onClose={() => { setFasil(null); void nf.muat(); }} />}
     </>
   );
 }

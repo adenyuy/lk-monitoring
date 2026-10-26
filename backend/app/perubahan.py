@@ -170,6 +170,14 @@ def _baris(r: Any) -> dict[str, Any]:
     return {**dict(r), "rincian": json.loads(r["rincian"]), "sesi": no, "sesi_label": label}
 
 
+def catat_pindah_week(lama: str, baru: str) -> None:
+    try:
+        _simpan_log("lk", f"LK WEEK {baru}", f"Pindah dari WEEK {lama} ke WEEK {baru}",
+                    [f"Tab WEEK {baru} ditemukan di LK. Hari ini, Rekap, dan isian LK sekarang memakai WEEK {baru}."])
+    except Exception:
+        log.exception("Gagal mencatat pindah WEEK")
+
+
 def daftar(batas: int = 50, tanggal: str | None = None) -> list[dict[str, Any]]:
     """Log terbaru di atas. Dengan `tanggal` (YYYY-MM-DD): semua log hari itu."""
     if tanggal:
@@ -182,7 +190,9 @@ def daftar(batas: int = 50, tanggal: str | None = None) -> list[dict[str, Any]]:
 
 
 def kalender(bulan: date) -> dict[str, Any]:
-    """Jumlah log per hari dalam satu bulan (`bulan` = tanggal 1 bulan itu)."""
+    """Jumlah catatan per hari dalam satu bulan (`bulan` = tanggal 1 bulan itu): perubahan data + aktivitas fasil."""
+    from . import aktivitas
+
     akhir = (bulan.replace(day=28) + timedelta(days=4)).replace(day=1)
     rows = db.query(
         "SELECT substr(waktu, 1, 10) AS tgl, sumber, COUNT(*) AS n FROM perubahan "
@@ -190,14 +200,17 @@ def kalender(bulan: date) -> dict[str, Any]:
         (bulan.isoformat(), akhir.isoformat()),
     )
     hari: dict[str, dict[str, int]] = {}
+    kosong = {"broadcast": 0, "lk": 0, "fasil": 0}
     for r in rows:
-        h = hari.setdefault(r["tgl"], {"broadcast": 0, "lk": 0})
+        h = hari.setdefault(r["tgl"], dict(kosong))
         h[r["sumber"]] = h.get(r["sumber"], 0) + r["n"]
+    for tgl, n in aktivitas.per_hari(bulan, akhir).items():
+        hari.setdefault(tgl, dict(kosong))["fasil"] = n
     pertama = db.query("SELECT MIN(waktu) AS w FROM perubahan")
-    paling_awal = (pertama[0]["w"] or "")[:10] if pertama else ""
+    awal = [x for x in ((pertama[0]["w"] or "")[:10] if pertama else "", aktivitas.paling_awal()) if x]
     return {
         "bulan": bulan.strftime("%Y-%m"),
         "hari": [{"tanggal": k, **v} for k, v in sorted(hari.items())],
-        "paling_awal": paling_awal,
+        "paling_awal": min(awal) if awal else "",
         "hari_ini": schedule.now().date().isoformat(),
     }

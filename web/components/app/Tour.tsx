@@ -6,15 +6,14 @@ import s from "./app.module.css";
 export type Langkah = { target: string; judul: string; isi: string };
 
 const UMUM: Langkah[] = [
-  { target: "nav", judul: "Menu", isi: "Pindah halaman di sini: Rekap, Hari ini, dan Tarik Cutoff. Di laptop, arahkan kursor ke menu untuk melihat namanya." },
-  { target: "dock", judul: "Tombol bulat", isi: "Lingkarannya hitung mundur sesi; arahkan kursor untuk melihat menit dan detiknya. Ketuk untuk pindah halaman, membuka log perubahan, panduan, atau tanya jawab. Seret untuk memindahkannya ke mana saja." },
+  { target: "nav", judul: "Menu", isi: "Pindah halaman di sini: Rekap, Hari ini, Log, dan Tarik Cutoff. Di laptop, arahkan kursor ke menu untuk melihat namanya." },
+  { target: "dock", judul: "Tombol bulat", isi: "Lingkarannya hitung mundur sesi. Angka merah = notifikasi baru, misalnya sesi terlewat, fasil yang perlu dichat lagi, atau perubahan data. Ketuk untuk membuka notifikasi dan pindah halaman. Seret untuk memindahkannya ke mana saja." },
 ];
 
 /** Langkah panduan per halaman. `target` = nilai atribut data-tour di elemen. */
 export const PANDUAN: Record<string, Langkah[]> = {
   "/today/": [
     ...UMUM,
-    { target: "pengingat", judul: "Pengingat", isi: "Muncul bila ada sesi yang terlewat, antrean lanjutan dari kemarin, atau fasil yang perlu dichat lagi. Klik nama fasil untuk langsung membuka chat dan LK-nya." },
     { target: "now", judul: "Mulai kirim di sini", isi: "Tekan Kirim untuk mengirim pesan Broadcast sesi ini satu per satu. Nyalakan Mode coba bila ingin melihat prosesnya tanpa benar-benar mengirim." },
     { target: "sesi", judul: "Lima sesi hari ini", isi: "Pilih sesi untuk melihat fasil yang sudah dan akan dikirimi di sesi itu." },
     { target: "fasil", judul: "Daftar fasil", isi: "Batang warna menunjukkan prioritas sekolah binaannya. Klik satu fasil untuk membuka LK dan chat WhatsApp-nya berdampingan." },
@@ -23,11 +22,15 @@ export const PANDUAN: Record<string, Langkah[]> = {
   "/rekap/": [
     ...UMUM,
     { target: "prio", judul: "Sekolah per prioritas", isi: "P1 belum submit laporan 50%, P2 sudah submit tapi progres di bawah 50%, P3 belum direviu." },
-    { target: "p1", judul: "Kemajuan P1", isi: "Berapa fasil P1 yang sudah dihubungi dan membalas." },
-    { target: "isian", judul: "Isian LK", isi: "Berapa sekolah yang status komunikasi dan alasannya sudah lengkap, per sesi LK." },
+    { target: "p1", judul: "Fasil Prioritas 1", isi: "Dari semua fasil P1: berapa yang sudah dihubungi, membalas, dan isian LK-nya lengkap." },
     { target: "tabel", judul: "Per fasil", isi: "Urutkan dengan klik judul kolom, saring dengan tombol di atas tabel, lalu klik fasil untuk membuka LK dan chat-nya." },
   ],
   "/faq/": [...UMUM],
+  "/log/": [
+    ...UMUM,
+    { target: "logtab", judul: "Dua cara melihat log", isi: "Per hari: semua yang terjadi di satu tanggal, dikelompokkan per sesi. Riwayat per fasil: kapan fasil itu dikirimi Broadcast, membaca, membalas, dan kapan LK-nya diisi." },
+    { target: "kalender", judul: "Kalender", isi: "Pilih tanggal. Angka di kotak = jumlah catatan hari itu; makin gelap, makin banyak." },
+  ],
   "/cutoff/": [
     ...UMUM,
     { target: "kalender", judul: "Riwayat tarik", isi: "Kotak besar = tarik mingguan per WEEK, kotak kecil = tarik harian per hari. Hijau berarti sudah ditarik." },

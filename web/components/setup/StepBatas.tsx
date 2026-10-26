@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, post } from "@/lib/api";
-import { BATAS, type Petugas } from "@/lib/types";
+import { BATAS, KALIMAT_RISIKO, type Petugas } from "@/lib/types";
 import { Button, Notice } from "@/components/ui";
 import s from "./setup.module.css";
 
@@ -51,6 +51,9 @@ export function StepBatas({
       .catch(() => undefined); // perkiraan hanya pelengkap
   }, [jumlahFasil, namaPetugas]);
   const [saving, setSaving] = useState(false);
+  const [konfirmasi, setKonfirmasi] = useState("");
+  const berisiko = batas > BATAS.merah;
+  const cocok = konfirmasi.trim().toLowerCase().split(/\s+/).join(" ") === KALIMAT_RISIKO;
   const [error, setError] = useState<string | null>(null);
   const n = nada(batas);
   const posisi = ((batas - BATAS.min) / (BATAS.max - BATAS.min)) * 100;
@@ -59,7 +62,9 @@ export function StepBatas({
     setSaving(true);
     setError(null);
     try {
-      await post("/api/settings", { batas_harian: batas, setup_selesai: true });
+      await post("/api/settings", {
+        batas_harian: batas, setup_selesai: true, ...(berisiko ? { konfirmasi_risiko: konfirmasi } : {}),
+      });
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -105,10 +110,21 @@ export function StepBatas({
       </div>
 
       <Notice tone={n.tone} title={n.judul}>{n.isi}</Notice>
+      {berisiko && (
+        <div className={s.risiko}>
+          <label htmlFor="konfirmasi-risiko">
+            Batas di atas {BATAS.merah} melebihi batas aman tim. Bila nomor diblokir WhatsApp, risikonya ditanggung
+            sendiri. Untuk melanjutkan, ketik <b>{KALIMAT_RISIKO}</b>:
+          </label>
+          <input id="konfirmasi-risiko" type="text" autoComplete="off" spellCheck={false} value={konfirmasi}
+            onChange={(e) => setKonfirmasi(e.target.value)} placeholder={KALIMAT_RISIKO}
+            aria-invalid={konfirmasi.length > 0 && !cocok} />
+        </div>
+      )}
       {error && <Notice tone="bad" title="Belum tersimpan">{error}</Notice>}
 
       <div className={s.actions}>
-        <Button loading={saving} onClick={save}>Simpan batas {batas} dan mulai</Button>
+        <Button loading={saving} onClick={save} disabled={berisiko && !cocok}>Simpan batas {batas} dan mulai</Button>
         <Button variant="ghost" onClick={onBack}>Kembali</Button>
       </div>
     </>

@@ -40,7 +40,80 @@ function ContohHari() {
   );
 }
 
+const MINGGU = [
+  { hari: "Senin", kerja: "Broadcast", lk: "Senin–Rabu" },
+  { hari: "Selasa", kerja: "Broadcast", lk: "Senin–Rabu" },
+  { hari: "Rabu", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
+  { hari: "Kamis", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
+  { hari: "Jumat", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
+];
+
+/** Contoh satu minggu untuk 69 fasil dengan batas harian 40. */
+function ContohMinggu() {
+  return (
+    <figure className={s.contoh}>
+      <ol className={s.minggu}>
+        {MINGGU.map((m, i) => (
+          <li key={m.hari} className={m.kerja === "Broadcast" ? s.mgKirim : s.mgTl}>
+            <b>{m.hari}</b>
+            <span>{m.kerja === "Broadcast" ? (i === 0 ? "Broadcast 40 fasil" : "Broadcast 29 fasil") : "Chat tindak lanjut"}</span>
+            <small>Isi LK sesi {m.lk}</small>
+          </li>
+        ))}
+      </ol>
+      <figcaption>
+        Contoh 69 fasil dengan batas 40 per hari: Broadcast selesai Selasa. Rabu sampai Jumat dipakai untuk menanyakan
+        isian LK ke fasil yang belum membalas atau belum lengkap. Senin berikutnya siklus diulang dengan WEEK baru.
+      </figcaption>
+    </figure>
+  );
+}
+
 const GRUP: { judul: string; isi: T[] }[] = [
+  {
+    judul: "Alur mingguan",
+    isi: [
+      {
+        id: "alur-minggu",
+        q: "Seperti apa alur kerja satu minggu?",
+        a: (
+          <>
+            <p>Awal minggu untuk <b>Broadcast</b>: pesan progres dikirim ke semua fasil di sheet Broadcast, dibagi per
+              sesi sampai batas harian. Sisa minggu untuk <b>tindak lanjut</b>: chat fasil satu per satu, tanyakan alasan
+              sekolah yang belum submit atau progresnya di bawah 50%, lalu isi LK.</p>
+            <ContohMinggu />
+          </>
+        ),
+      },
+      {
+        id: "hari-ketiga",
+        q: "Broadcast sudah terkirim semua dalam dua hari. Hari ketiga ngapain?",
+        a: (
+          <>
+            <p>Tindak lanjut. Tombol bulat menampilkan notifikasi <b>Broadcast minggu ini sudah terkirim ke semua
+              fasil</b> dan daftar fasil yang perlu dichat lagi: yang sudah membalas tapi isian LK-nya belum lengkap
+              ditaruh paling atas, lalu yang belum membalas.</p>
+            <p>Klik nama fasil, pakai template <b>Tanya belum submit</b>, <b>Tanya progres</b>, atau <b>Tanya belum
+              reviu</b>, lalu isi jawabannya di panel LK (kolom sesi Rabu–Jumat). Broadcast tidak dikirim ulang otomatis
+              sampai Senin.</p>
+          </>
+        ),
+      },
+      {
+        id: "week-2",
+        q: "Bagaimana dengan WEEK 2, WEEK 3, dan seterusnya?",
+        a: (
+          <>
+            <p>Siklusnya sama setiap minggu. Begitu admin membuat tab <b>WEEK n</b> baru di LK, aplikasi otomatis
+              memakai tab itu untuk Hari ini, Rekap, dan isian LK. Perpindahannya tercatat di <Link href="/log/">Log</Link>.</p>
+            <p>Hari Senin semua fasil di sheet Broadcast masuk antrean lagi. Isi pesannya mengikuti data progres terbaru
+              di sheet, jadi pesan minggu kedua memang membahas progres yang baru. Fasil yang semua sekolahnya sudah
+              selesai biasanya tidak ada lagi di Broadcast, jadi tidak dikirimi.</p>
+          </>
+        ),
+      },
+    ],
+  },
   {
     judul: "Sesi dan antrean kirim",
     isi: [
@@ -51,7 +124,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
           <>
             <p>Tidak. Fasil yang belum dikirimi tetap di antrean dan jadi yang pertama dikirim di sesi berikutnya, begitu
               Anda menekan <b>Kirim</b> lagi. Aplikasi tidak mengirim sendiri tanpa ditekan.</p>
-            <p>Di <Link href="/today/">Hari ini</Link> muncul pengingat kuning <b>Sesi n terlewat</b> yang menyebut berapa
+            <p>Tombol bulat menampilkan notifikasi <b>Sesi n terlewat</b> yang menyebut berapa
               pesan masih bisa dikirim hari itu.</p>
           </>
         ),
@@ -76,7 +149,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
           <>
             <p>Kuota tiap sesi dan batas harian mulai dari nol lagi. Antrean melanjutkan fasil yang <b>belum dikirimi minggu
               ini</b>. Fasil yang sudah dikirimi minggu ini tidak dikirimi lagi, walaupun isi Broadcast-nya berubah.</p>
-            <p>Pagi harinya Hari ini menampilkan pengingat <b>Lanjutan dari kemarin</b> dengan jumlah fasil yang masih
+            <p>Pagi harinya tombol bulat menampilkan notifikasi <b>Lanjutan dari kemarin</b> dengan jumlah fasil yang masih
               menunggu.</p>
           </>
         ),
@@ -118,7 +191,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
             <p>Boleh. Membaca dan membalas chat serta mengisi LK tidak terikat jam sesi dan tidak memakai kuota sesi.
               Chat hanya dikunci sementara saat pengiriman Broadcast sedang berjalan. Tekan <b>Berhenti</b> atau tunggu
               sampai selesai.</p>
-            <p>Supaya tidak ada yang terlupa, Hari ini menampilkan daftar <b>fasil yang sudah membalas tapi isian LK-nya
+            <p>Supaya tidak ada yang terlupa, notifikasi di tombol bulat menampilkan daftar <b>fasil yang sudah membalas tapi isian LK-nya
               belum lengkap</b>, lalu yang belum membalas. Klik namanya untuk membuka chat dan LK-nya.</p>
           </>
         ),
@@ -149,7 +222,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
         id: "broadcast-berubah",
         q: "Isi Broadcast berubah setelah pesannya terkirim. Dikirim ulang?",
         a: (
-          <p>Tidak otomatis. Perubahannya tercatat di <Link href="/rekap/#perubahan">Log perubahan</Link>. Bila memang perlu
+          <p>Tidak otomatis. Perubahannya tercatat di <Link href="/log/">Log</Link>. Bila memang perlu
             kirim susulan, buka panel fasil lalu tekan <b>Kirim ulang broadcast</b>. Pesannya ikut di sesi berikutnya.</p>
         ),
       },
@@ -174,11 +247,11 @@ const GRUP: { judul: string; isi: T[] }[] = [
       },
       {
         id: "log",
-        q: "Kenapa Log perubahan masih kosong?",
+        q: "Kenapa Log masih kosong?",
         a: (
           <p>Bacaan pertama Broadcast dan LK hanya dipakai sebagai patokan. Catatan baru muncul setelah ada yang berbeda
-            dari bacaan sebelumnya. Pilih tanggal di kalender untuk melihat perubahan hari-hari sebelumnya, dikelompokkan
-            per sesi. Log disimpan 90 hari.</p>
+            dari bacaan sebelumnya. Riwayat per fasil (Broadcast terkirim, dibaca, dibalas, LK diisi) mulai tercatat sejak
+            versi ini. Pilih tanggal di kalender untuk melihat hari-hari sebelumnya. Log disimpan 90 hari.</p>
         ),
       },
     ],
@@ -191,7 +264,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
         q: "Tombol bulat di layar menghalangi. Bisa dipindah?",
         a: (
           <p>Bisa. Seret ke mana saja, nanti menempel ke tepi kiri atau kanan. Posisinya diingat. Ketuk sekali untuk pindah
-            halaman, membuka Log perubahan, Panduan, atau halaman ini.</p>
+            halaman, melihat notifikasi, membuka Panduan, atau halaman ini.</p>
         ),
       },
       {
@@ -207,6 +280,8 @@ const GRUP: { judul: string; isi: T[] }[] = [
 
 export function FaqView() {
   const [buka, setBuka] = useState<string | null>(null);
+  const [cari, setCari] = useState("");
+  const [grup, setGrup] = useState<string | null>(null);
 
   // Buka pertanyaan dari tautan (#sesi-terlewat dan sebagainya)
   useEffect(() => {
@@ -217,22 +292,51 @@ export function FaqView() {
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
   }, []);
 
+  const q = cari.trim().toLowerCase();
+  const tampil = GRUP
+    .filter((g) => !grup || g.judul === grup)
+    .map((g) => ({ ...g, isi: g.isi.filter((x) => !q || x.q.toLowerCase().includes(q)) }))
+    .filter((g) => g.isi.length);
+
   return (
     <div className={s.page}>
       <header className={s.head}>
         <h1>Tanya jawab</h1>
-        <p>Hal yang sering ditanyakan soal sesi, antrean kirim, chat, dan isian LK.</p>
+        <p>Hal yang sering ditanyakan soal alur mingguan, sesi, chat, dan isian LK. Klik kartu untuk membaca jawabannya.</p>
       </header>
-      {GRUP.map((g, gi) => (
+
+      <div className={s.tools}>
+        <input type="search" className={s.search} placeholder="Cari pertanyaan" value={cari}
+          onChange={(e) => setCari(e.target.value)} aria-label="Cari pertanyaan" />
+        <div className={s.chips} role="group" aria-label="Topik">
+          <button type="button" aria-pressed={!grup} onClick={() => setGrup(null)}>Semua</button>
+          {GRUP.map((g) => (
+            <button key={g.judul} type="button" aria-pressed={grup === g.judul} onClick={() => setGrup(g.judul)}>
+              {g.judul}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tampil.length === 0 && <p className={s.kosong}>Tidak ada pertanyaan yang cocok dengan “{cari}”.</p>}
+      {tampil.map((g, gi) => (
         <section key={g.judul} className={s.grup} aria-labelledby={`faq-g${gi}`}>
           <h2 id={`faq-g${gi}`}>{g.judul}</h2>
-          <div className={s.list}>
-            {g.isi.map((t) => (
-              <details key={t.id} id={t.id} className={s.item} open={buka === t.id || undefined}>
-                <summary>{t.q}</summary>
-                <div className={s.ans}>{t.a}</div>
-              </details>
-            ))}
+          <div className={s.cards}>
+            {g.isi.map((t) => {
+              const terbuka = buka === t.id;
+              return (
+                <article key={t.id} id={t.id} className={`${s.cardQ} ${terbuka ? s.cardOpen : ""}`}>
+                  <button type="button" className={s.qBtn} aria-expanded={terbuka}
+                    onClick={() => setBuka(terbuka ? null : t.id)}>
+                    <span className={s.qMark} aria-hidden="true">?</span>
+                    <span className={s.qText}>{t.q}</span>
+                    <span className={s.qChev} aria-hidden="true" />
+                  </button>
+                  {terbuka && <div className={s.ans}>{t.a}</div>}
+                </article>
+              );
+            })}
           </div>
         </section>
       ))}

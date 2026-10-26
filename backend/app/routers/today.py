@@ -6,12 +6,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .. import config, db, schedule, send_queue, store, tahap
+from .. import aktivitas, config, db, schedule, send_queue, store, tahap
 from ..schedule import jam
 from ..sender import NotAllowed, sender
 from ..sheets import filter_petugas, nomor_key, read_broadcast, read_lk, sekolah_per_fasil
 from ..wa.status import mask
 from .deps import require_feature, require_login
+
+from ..sheets import week_aktif  # noqa: E402
 
 router = APIRouter(prefix="/api")
 wa_blast = require_feature("wa_blast")
@@ -28,7 +30,7 @@ def _sekolah_map() -> dict[str, list]:
     """{nomor_key: [Sekolah]} milik petugas dari LK WEEK n. Kosong bila LK tidak terbaca."""
     try:
         petugas = db.get_setting("nama_petugas") or ""
-        return sekolah_per_fasil(read_lk(db.get_setting("week", "1")), petugas)
+        return sekolah_per_fasil(read_lk(week_aktif()), petugas)
     except Exception:
         return {}
 
@@ -140,6 +142,11 @@ def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
                             "isi": f"Semua {belum} fasil di Broadcast masuk antrean lagi. Isian LK minggu ini "
                                    f"mulai di sesi Senin–Rabu (kolom P–U)."})
 
+    if not libur and not belum and items and any(i.status == "terkirim" for i in items):
+        out.append({"jenis": "broadcast_selesai", "judul": "Broadcast minggu ini sudah terkirim ke semua fasil",
+                     "isi": "Sisa minggu ini untuk tindak lanjut: chat fasil yang belum membalas dan lengkapi isian "
+                            "LK. Senin depan Broadcast dikirim lagi dengan data progres terbaru."})
+
     # Chat yang perlu ditindaklanjuti: sudah dikirimi minggu ini, isian LK belum lengkap
     smap = _sekolah_map()
     if smap:
@@ -224,8 +231,16 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
             for s in config.SESI
         ],
         "pengiriman": sender.snapshot(),
-        "pengingat": _pengingat(ctx, libur),
     }
+
+
+@router.get("/pengingat")
+def pengingat(_=Depends(wa_blast)) -> dict[str, Any]:
+    """Notifikasi untuk tombol bulat: sesi terlewat, lanjutan, tindak lanjut chat."""
+    ctx = _context()
+    akhir_pekan_ok = bool(db.get_setting("kirim_akhir_pekan", False))
+    libur = schedule.is_weekend(ctx["now"].date()) and not akhir_pekan_ok
+    return {"tanggal": ctx["tanggal"], "items": _pengingat(ctx, libur)}
 
 
 @router.get("/sessions/{no}")
@@ -334,10 +349,13 @@ class TahapReq(BaseModel):
 def fasil_tahap(nomor: str, req: TahapReq, _=Depends(wa_blast)) -> dict[str, Any]:
     if req.kode not in {k for k, _ in tahap.TAHAP} or req.kode == "lk_lengkap":
         raise HTTPException(400, "Tahap ini tidak bisa dicentang manual.")
+    label = dict(tahap.TAHAP)[req.kode]
     if req.selesai is None:
         store.delete_tahap(nomor, req.kode)
+        aktivitas.catat(nomor, "tahap", f"Centang manual “{label}” dihapus, kembali otomatis")
     else:
         store.set_tahap(nomor, req.kode, req.selesai, "manual", schedule.now().isoformat(timespec="seconds"))
+        aktivitas.catat(nomor, "tahap", f"“{label}” ditandai {'selesai' if req.selesai else 'belum'} secara manual")
     return fasil_detail(nomor)
 
 
@@ -349,6 +367,7 @@ class UlangReq(BaseModel):
 def fasil_kirim_ulang(nomor: str, req: UlangReq, _=Depends(wa_blast)) -> dict[str, Any]:
     """Minta pesan Broadcast dikirim ulang ke fasil ini di sesi berikutnya (sekali)."""
     store.set_ulang(nomor, schedule.now().isoformat(timespec="seconds") if req.aktif else None)
+    aktivitas.catat(nomor, "ulang", "Kirim ulang Broadcast diminta" if req.aktif else "Permintaan kirim ulang dibatalkan")
     return fasil_detail(nomor)
 
 

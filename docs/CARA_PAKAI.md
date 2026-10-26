@@ -26,7 +26,7 @@ Aplikasi memandu 4 langkah:
 1. **Masuk Google.** Unggah `credentials.json`, lalu pilih akun Google kamu di jendela yang muncul.
 2. **Pilih nama petugas.** Nama kamu biasanya sudah terpilih dari daftar akses.
 3. **Hubungkan WhatsApp.** Jendela Chrome khusus terbuka. Scan QR pakai HP: WhatsApp → Perangkat tertaut → Tautkan perangkat. Jendela ini **jangan ditutup** selama mengirim.
-4. **Batas harian.** Disarankan 40 pesan per hari. Di atas 50 risiko blokir naik.
+4. **Batas harian.** Disarankan 40 pesan per hari. Di atas 50 wajib mengetik **risiko ditanggung sendiri**, karena risiko blokir naik.
 
 ## 3. Sehari-hari
 
@@ -35,11 +35,18 @@ Aplikasi memandu 4 langkah:
 - **Kartu Sekarang**: sesi yang berjalan dan tombol **Kirim N pesan**. Pesan dikirim satu per satu dengan jeda acak 45–120 detik, lalu berhenti sendiri saat kuota sesi habis.
 - Nyalakan **Mode coba** bila ingin melihat prosesnya tanpa benar-benar mengirim.
 - Jadwal sesi: 10.00–13.59 (10), 14.00–15.59 (10), 16.00–18.59 (15), 19.00–20.59 (15), 21.00–22.00 (10).
-- **Tombol bulat** melayang = hitung mundur sesi. Arahkan kursor untuk melihat menit dan detiknya. Ketuk untuk menu cepat (Rekap, Hari ini, Tarik Cutoff, Log perubahan, Panduan, Tanya jawab). Seret untuk memindahkannya; posisinya diingat.
-- **Pengingat** di bawah kartu Sekarang:
+- **Tombol bulat** melayang = hitung mundur sesi. Arahkan kursor untuk melihat menit dan detiknya. Seret untuk memindahkannya; posisinya diingat.
+- Angka merah di tombol bulat = **notifikasi** baru. Ketuk untuk melihatnya dan pindah halaman:
   - **Sesi n terlewat**: fasil yang belum dikirimi tetap di antrean dan ikut di sesi berikutnya. Kuota sesi tidak menumpuk, tapi batas harian 40 biasanya masih bisa dikejar.
-  - **Lanjutan dari kemarin** / **Minggu baru dimulai**: berapa fasil yang masih menunggu.
+  - **Lanjutan dari kemarin**, **Minggu baru dimulai**, **Broadcast minggu ini sudah terkirim**.
   - **Fasil yang perlu dichat lagi**: sudah dikirimi minggu ini tapi isian LK-nya belum lengkap. Klik namanya untuk membuka chat dan LK.
+  - **Ada perubahan data baru** di Broadcast atau LK.
+
+### Alur satu minggu
+
+- **Senin–Selasa**: Broadcast ke semua fasil di sheet Broadcast (40 per hari), isi LK sesi Senin–Rabu.
+- **Rabu–Jumat**: tindak lanjut lewat chat (template Tanya belum submit / progres / reviu), isi LK sesi Rabu–Jumat.
+- **Senin berikutnya**: aplikasi otomatis memakai tab **WEEK** terbaru di LK, dan Broadcast dikirim lagi dengan data progres terbaru.
 
 ### Panel fasil (klik nama fasil)
 
@@ -53,9 +60,13 @@ Aplikasi memandu 4 langkah:
 
 ### Rekap
 
-Jumlah sekolah P1/P2/P3/Selesai, fasil P1 yang sudah dihubungi, isian LK, status komunikasi, fasil yang tidak masuk Broadcast, dan tabel per fasil yang bisa diurutkan, disaring, dan **diunduh CSV**.
+Jumlah sekolah P1/P2/P3/Selesai, alur fasil P1 (dihubungi → membalas → LK lengkap), fasil yang tidak masuk Broadcast, dan tabel per fasil (15 per halaman) yang bisa diurutkan dan disaring.
 
-**Perubahan data** berbentuk kalender: makin gelap kotaknya, makin banyak perubahan Broadcast/LK di hari itu. Klik tanggal untuk melihat isinya, dikelompokkan per sesi. Log disimpan 90 hari.
+### Log
+
+- **Per hari**: pilih tanggal di kalender untuk melihat perubahan data Broadcast/LK dan aktivitas fasil hari itu, dikelompokkan per sesi.
+- **Riwayat per fasil**: kapan fasil dikirimi Broadcast, membaca, membalas, ditanya lewat aplikasi, dan kapan LK-nya diisi.
+- Disimpan 90 hari.
 
 ### Tarik Cutoff (khusus admin cutoff)
 

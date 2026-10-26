@@ -287,12 +287,6 @@ def riwayat() -> list[dict[str, Any]]:
 
 def daftar_week() -> list[str]:
     """Nomor WEEK yang ada di LK, mis. ['1', '2']."""
-    def load():
-        ss = gspread_client().open_by_key(config.LK_SHEET_ID)
-        out = []
-        for w in ss.worksheets():
-            m = re.fullmatch(rf"{re.escape(config.LK_WEEK_PREFIX)}(\d+)", w.title.strip())
-            if m:
-                out.append(m.group(1))
-        return sorted(out, key=int)
-    return cache.get("lk_weeks", 300, load)
+    from .sheets import daftar_week as dw
+
+    return dw()

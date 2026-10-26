@@ -51,6 +51,9 @@ def to_refresh(since_tanggal: str) -> list[str]:
 
 
 def save_chat_status(nomor: str, status: str, balasan: str, dicek: str) -> None:
+    lama = db.query("SELECT status, balasan_terakhir FROM chat_status WHERE nomor = ?", (nomor,))
+    lama_st = lama[0]["status"] if lama else ""
+    lama_bls = lama[0]["balasan_terakhir"] if lama else ""
     with db.tx() as c:
         c.execute(
             "INSERT INTO chat_status(nomor, status, balasan_terakhir, waktu_balasan, dicek) VALUES(?,?,?,?,?) "
@@ -60,6 +63,14 @@ def save_chat_status(nomor: str, status: str, balasan: str, dicek: str) -> None:
             "THEN excluded.dicek ELSE chat_status.waktu_balasan END, dicek=excluded.dicek",
             (nomor, status, balasan, dicek if balasan else "", dicek),
         )
+    # Riwayat per fasil: catat saat pesan baru terbaca / ada balasan baru
+    from . import aktivitas
+
+    if status == "dibalas" and balasan and balasan != lama_bls:
+        ringkas = " ".join(balasan.split())
+        aktivitas.catat(nomor, "dibalas", "Balasan: " + (ringkas if len(ringkas) <= 90 else ringkas[:89] + "…"))
+    elif status == "dibaca" and lama_st in ("", "terkirim"):
+        aktivitas.catat(nomor, "dibaca", "Pesan sudah dibaca fasil")
 
 
 def chat_status_all() -> dict[str, dict[str, Any]]:

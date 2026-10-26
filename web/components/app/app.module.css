@@ -222,13 +222,21 @@
 
 .assistDot {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  top: -4px;
+  right: -4px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
   background: #d92d20;
   box-shadow: 0 0 0 2px var(--surface);
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .cdTrack {
@@ -342,7 +350,9 @@
 }
 
 .amPanel {
-  width: min(328px, 100%);
+  width: min(384px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   padding: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -379,6 +389,169 @@
 .amHead .cdTime {
   margin: 0;
   font-size: 22px;
+}
+
+.assistPopNf {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #b42318;
+}
+
+.amNotif {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.amNotif h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 6px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.amNotif h3 span {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: center;
+}
+
+.nfEmpty {
+  margin: 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.nfList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nf {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+}
+
+.nfIco {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.nf_terlewat .nfIco {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.nf_tindak_lanjut .nfIco,
+.nf_broadcast_selesai .nfIco {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.nfBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nfBody b {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.nfBody p {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.nfChips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.nfChips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+.nfChips button:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.nfChips i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c4cad4;
+}
+
+.nfChips i.chipBalas {
+  background: #12a150;
+}
+
+.nfChips a,
+.nfAksi a {
+  font-size: 12px;
+  color: var(--primary);
+  align-self: center;
+}
+
+.nfAksi {
+  display: flex;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.nfAksi:empty {
+  display: none;
+}
+
+.nfAksi button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-decoration: underline;
 }
 
 .amGrid {
@@ -668,7 +841,7 @@
     inset: auto 0 0 0;
     z-index: 20;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     background: var(--surface);
     border-top: 1px solid var(--line);
     padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
@@ -952,4 +1125,8 @@
   .cdBar {
     transition: none;
   }
+}
+
+.chipBalas {
+  background: #12a150;
 }

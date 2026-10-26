@@ -11,6 +11,8 @@ from ..sheets import filter_petugas, nomor_key, nomor_lk, normalize_petugas, rea
 from ..wa.status import mask
 from .deps import require_feature
 
+from ..sheets import week_aktif  # noqa: E402
+
 router = APIRouter(prefix="/api")
 wa_blast = require_feature("wa_blast")
 
@@ -32,7 +34,7 @@ def _status_chat(sends: list[dict], chat: dict | None, manual_terkirim: bool) ->
 @router.get("/rekap")
 def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
     petugas = db.get_setting("nama_petugas") or ""
-    week = db.get_setting("week", "1")
+    week = week_aktif()
     try:
         bc = filter_petugas(read_broadcast(), petugas)
         lk = [s for s in read_lk(week) if normalize_petugas(s.petugas) == normalize_petugas(petugas)]
@@ -101,6 +103,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
             "fasil": len(p1_rows),
             "fasil_dihubungi": sum(1 for r in p1_rows if r["nomor"] in dihubungi),
             "fasil_membalas": sum(1 for r in p1_rows if r["chat"] == "dibalas"),
+            "fasil_lk_lengkap": sum(1 for r in p1_rows if r["isian_perlu"] and r["isian_lengkap"] >= r["isian_perlu"]),
             "sekolah_dihubungi": sum(r["p1"] for r in p1_rows if r["nomor"] in dihubungi),
         },
         "isian": {
