@@ -140,3 +140,9 @@ export type LkOpsi = {
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
+
+export type Percakapan = {
+  status: "belum_ada" | "terkirim" | "dibaca" | "dibalas";
+  dibaca_pada: string;
+  pesan: { keluar: boolean; teks: string; waktu: string; status: string }[];
+};

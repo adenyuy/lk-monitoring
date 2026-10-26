@@ -51,7 +51,13 @@ def refresh_once() -> dict:
         _lock.release()
 
 
+PERTAMA_DETIK = 60  # cek pertama tak lama setelah aplikasi jalan
+
+
 def _loop() -> None:
+    _wake.wait(PERTAMA_DETIK)
+    _wake.clear()
+    refresh_once()
     while True:
         _wake.wait(INTERVAL_DETIK)
         _wake.clear()

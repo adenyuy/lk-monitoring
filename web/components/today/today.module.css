@@ -903,10 +903,83 @@
   font-style: italic;
 }
 
-.waFoot {
+.sideWa .thread {
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sideWa h3 .linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.waNote {
+  font-size: 12.5px;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.composer {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e6e1d8;
+}
+
+.composer textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  padding: 9px 11px;
+  resize: vertical;
+}
+
+.composer textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+  border-color: var(--primary);
+}
+
+.composerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   font-size: 12px;
   color: var(--muted);
+}
+
+/* Laptop: kolom LK dan WhatsApp masing-masing bergulir, kotak balas selalu terlihat */
+@media (min-width: 861px) {
+  .compare {
+    overflow: hidden;
+  }
+
+  .side {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .sideWa {
+    overflow: hidden;
+  }
+
+  .sideWa .thread {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 /* ---------- layar kecil ---------- */

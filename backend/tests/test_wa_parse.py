@@ -36,3 +36,25 @@ def test_status_menunggu_dan_terkirim():
 def test_samarkan_nomor():
     assert mask("6281234567890") == "0812•••7890"
     assert mask("") == ""
+
+
+def _row(out, text, status=""):
+    return actions.Row("x", out, status, text)
+
+
+def test_balasan_tetap_terhitung_walau_petugas_membalas_lagi():
+    rows = [_row(True, "Pengumuman", "read"), _row(False, "Siap bu, segera saya ingatkan"),
+            _row(True, "Terima kasih pak", "delivered")]
+    info = actions.chat_info(rows)
+    assert info.status == "dibalas" and info.balasan == ["Siap bu, segera saya ingatkan"]
+
+
+def test_status_tanpa_balasan():
+    assert actions.chat_info([_row(True, "Pengumuman", "read")]).status == "dibaca"
+    assert actions.chat_info([_row(True, "Pengumuman", "delivered")]).status == "terkirim"
+    assert actions.chat_info([_row(False, "Halo")]).status == "belum_ada"
+
+
+def test_waktu_pesan():
+    assert actions._waktu("[10:37, 26/10/2026] Budi: ") == "10.37, 26/10/2026"
+    assert actions._waktu("") == ""

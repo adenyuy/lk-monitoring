@@ -1,22 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import type { Fasil } from "@/lib/types";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { LkPanel } from "./LkPanel";
+import { WaPanel } from "./WaPanel";
 import { inisial } from "./FasilList";
 import s from "./today.module.css";
-
-/** Tampilkan *teks* gaya WhatsApp sebagai huruf tebal. */
-function formatWa(teks: string) {
-  return teks.split(/(\*[^*\n]+\*)/g).map((bagian, i) =>
-    bagian.length > 2 && bagian.startsWith("*") && bagian.endsWith("*")
-      ? <b key={i}>{bagian.slice(1, -1)}</b>
-      : bagian,
-  );
-}
-
 
 function toneStatus(st: string) {
   if (st.startsWith("Sudah")) return "ok" as const;
@@ -42,6 +33,14 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
     return () => { batal = true; };
   }, [nomor, versi]);
 
+  const muatUlang = useCallback(async () => {
+    try {
+      setData(await api<Fasil>(`/api/fasil/${nomor}`));
+    } catch {
+      /* status di kepala panel cukup diperbarui saat dibuka lagi */
+    }
+  }, [nomor]);
+
   useEffect(() => {
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -64,8 +63,6 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
       setOpening(false);
     }
   }
-
-  const gagal = data?.status_kirim === "gagal";
 
   return (
     <div className={s.scrim} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -94,31 +91,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
                 ...d, sekolah: d.sekolah.map((x) => (npsn.includes(x.npsn) ? ubah(x) : x)),
               })} />
 
-            <section className={`${s.side} ${s.sideWa}`} aria-label="Di WhatsApp">
-              <h3>Di WhatsApp <span>{!data.waktu_kirim ? "belum dikirim" : gagal ? "gagal terkirim" : `dikirim ${data.waktu_kirim}`}</span></h3>
-              <div className={s.thread}>
-                {data.pesan ? (
-                  <div className={`${s.msg} ${s.msgOut} ${gagal ? s.msgFail : ""}`}>
-                    <div className={s.bubble}>{formatWa(data.pesan)}</div>
-                    <div className={s.msgMeta}>
-                      {!data.waktu_kirim ? "Belum dikirim, pratinjau dari sheet Broadcast"
-                        : gagal ? `Gagal dikirim ${data.waktu_kirim}, akan dicoba ulang` : `Dikirim ${data.waktu_kirim}`}
-                    </div>
-                  </div>
-                ) : (
-                  <p className={s.muted}>Pesan untuk fasil ini tidak ada di sheet Broadcast.</p>
-                )}
-                {data.balasan ? (
-                  <div className={s.msg}>
-                    <div className={s.bubble}>{formatWa(data.balasan)}</div>
-                    <div className={s.msgMeta}>Balasan terakhir{data.waktu_balasan ? `, dicek ${data.waktu_balasan.slice(11, 16).replace(":", ".")}` : ""}</div>
-                  </div>
-                ) : data.waktu_kirim && !gagal ? (
-                  <p className={s.waiting}>Belum ada balasan.</p>
-                ) : null}
-              </div>
-              <p className={s.waFoot}>Dibaca dari WhatsApp Web, hanya untuk dilihat. Balas lewat WhatsApp Web.</p>
-            </section>
+            <WaPanel nomor={nomor} data={data} onChanged={() => void muatUlang()} />
           </div>
         )}
       </aside>

@@ -106,8 +106,10 @@ _ROWS_JS = """
     const labels = [...r.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label') || '');
     const titles = [...r.querySelectorAll('svg title')].map(t => t.textContent || '');
     const icons = [...r.querySelectorAll('[data-icon]')].map(e => e.getAttribute('data-icon') || '');
+    const pre = r.querySelector('[data-pre-plain-text]');
     return {
       id: r.getAttribute('data-id') || '',
+      pre: pre ? pre.getAttribute('data-pre-plain-text') || '' : '',
       text: text || '',
       labels, titles, icons,
       tailOut: !!r.querySelector(tailOut),
@@ -124,6 +126,14 @@ class Row:
     out: bool
     status: str  # pending | sent | delivered | read | '' (pesan masuk)
     text: str
+    waktu: str = ""  # "10.37, 26/10/2026" dari atribut data-pre-plain-text, bila ada
+
+
+def _waktu(pre: str) -> str:
+    """'[10:37, 26/10/2026] Nama: ' -> '10.37, 26/10/2026'."""
+    if not pre.startswith("[") or "]" not in pre:
+        return ""
+    return pre[1 : pre.index("]")].replace(":", ".").strip()
 
 
 def _status_of(raw: dict) -> str:
@@ -152,7 +162,7 @@ def rows(page: Page) -> list[Row]:
     for r in raw:
         st = _status_of(r)
         is_out = _is_out(r, st)
-        out.append(Row(r["id"], is_out, st if is_out else "", r["text"].strip()))
+        out.append(Row(r["id"], is_out, st if is_out else "", r["text"].strip(), _waktu(r.get("pre", ""))))
     return out
 
 
@@ -181,20 +191,40 @@ def send(b: Browser, timeout: float = 30) -> SendResult:
     return SendResult("gagal", "Pesan tidak muncul di chat setelah menekan kirim.")
 
 
-def read_chat(b: Browser, nomor: str) -> ChatInfo:
-    """Status pesan keluar terakhir + pesan masuk setelahnya, di chat `nomor`."""
-    res = open_chat(b, nomor)
-    if not res.ok:
+def chat_info(all_rows: list[Row]) -> ChatInfo:
+    """Status chat dari baris yang terlihat. Balasan = pesan masuk setelah pesan keluar PERTAMA,
+    supaya balasan fasil tetap terhitung walau petugas sudah membalas lagi sesudahnya."""
+    first_out = next((i for i, r in enumerate(all_rows) if r.out), -1)
+    if first_out < 0:
         return ChatInfo("belum_ada")
-    b.page.wait_for_timeout(1500)  # beri waktu riwayat chat dimuat
-
-    all_rows = rows(b.page)
-    last_out = max((i for i, r in enumerate(all_rows) if r.out), default=-1)
-    if last_out < 0:
-        return ChatInfo("belum_ada")
-    balasan = [r.text for r in all_rows[last_out + 1 :] if not r.out and r.text]
+    last_out = max(i for i, r in enumerate(all_rows) if r.out)
+    balasan = [r.text for r in all_rows[first_out + 1 :] if not r.out and r.text]
     if balasan:
         status = "dibalas"
     else:
         status = "dibaca" if all_rows[last_out].status == "read" else "terkirim"
     return ChatInfo(status, all_rows[last_out].text, balasan)
+
+
+def read_thread(b: Browser, nomor: str) -> tuple[ChatInfo, list[Row]]:
+    """Buka chat `nomor` lalu kembalikan status + semua pesan yang terlihat."""
+    res = open_chat(b, nomor)
+    if not res.ok:
+        return ChatInfo("belum_ada"), []
+    b.page.wait_for_timeout(1500)  # beri waktu riwayat chat dimuat
+    all_rows = rows(b.page)
+    return chat_info(all_rows), all_rows
+
+
+def read_chat(b: Browser, nomor: str) -> ChatInfo:
+    return read_thread(b, nomor)[0]
+
+
+def reply(b: Browser, nomor: str, teks: str) -> SendResult:
+    """Kirim satu pesan balasan ke `nomor`."""
+    res = open_chat(b, nomor, teks)
+    if not res.ok:
+        alasan = {"nomor_tidak_terdaftar": "Nomor tidak terdaftar di WhatsApp.",
+                  "teks_tidak_terisi": "Teks balasan tidak masuk ke kotak pesan."}.get(res.alasan, "Chat tidak terbuka.")
+        return SendResult("gagal", alasan)
+    return send(b)
