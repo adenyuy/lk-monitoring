@@ -2,6 +2,7 @@
 
 export type Me = {
   version: string;
+  api_rev?: number;
   needs_credentials: boolean;
   login: { status: "idle" | "running" | "done" | "error"; error: string };
   logged_in: boolean;
@@ -137,6 +138,9 @@ export type LkOpsi = {
   blok_default: number;
   blok: { no: number; label: string }[];
 };
+
+// Harus sama dengan backend/app/config.py API_REV
+export const API_REV = 4;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;

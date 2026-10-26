@@ -66,6 +66,7 @@ def me() -> dict[str, Any]:
     """Satu endpoint untuk menentukan layar mana yang ditampilkan UI."""
     out: dict[str, Any] = {
         "version": config.VERSION,
+        "api_rev": config.API_REV,
         "needs_credentials": not google_auth.has_credentials(),
         "login": {"status": google_auth.login_state.status, "error": google_auth.login_state.error},
         "logged_in": False,

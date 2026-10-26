@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useMe, usePolling } from "@/lib/hooks";
-import type { WaStatus } from "@/lib/types";
+import { API_REV, type WaStatus } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
 import { WaBanner } from "./WaBanner";
 import s from "./app.module.css";
@@ -98,6 +98,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      {me.api_rev !== API_REV && (
+        <div className={s.bannerWrap}>
+          <div className={`${s.banner} ${s.bannerWarn}`} role="alert">
+            <div className={s.bannerText}>
+              <b>Server aplikasi perlu dijalankan ulang</b>
+              <span>Tampilan sudah versi baru, tapi server masih versi lama, jadi sebagian fitur belum jalan.
+                Tutup jendela server (Ctrl+C), lalu jalankan lagi.</span>
+            </div>
+          </div>
+        </div>
+      )}
       <WaBanner wa={wa} onChange={setWa} />
       <main className={s.main}>{children}</main>
       <footer className={s.footer}>

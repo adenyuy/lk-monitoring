@@ -143,6 +143,17 @@
   from { opacity: 0; transform: translateY(-6px); }
 }
 
+.bannerWarn {
+  background: var(--warn-bg);
+  border-color: #f0d9a8;
+  border-left-color: #b7791f;
+}
+
+.bannerWarn .bannerText,
+.bannerWarn .bannerText b {
+  color: var(--warn-fg);
+}
+
 .bannerIcon {
   flex: none;
 }
