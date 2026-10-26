@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import db, schedule
+from .. import db, tahap
 from ..sheets import (
     BLOK_KOLOM, ISIAN_KEYS, KOMUNIKASI_KOLOM, LkWriteError, normalize_petugas, read_lk, read_validasi, write_isian,
 )
@@ -21,8 +21,7 @@ MAKS_TEKS = 500
 
 
 def blok_default() -> int:
-    """Senin–Selasa isi blok 1, Rabu dan seterusnya blok 2."""
-    return 1 if schedule.now().weekday() <= 1 else 2
+    return tahap.blok_hari_ini()
 
 
 def _opsi() -> dict[str, list[str]]:
@@ -37,6 +36,7 @@ def opsi(_=Depends(wa_blast)) -> dict[str, Any]:
     return {
         "opsi": _opsi(),
         "blok_default": blok_default(),
+        "blok_kolom": tahap.BLOK_KOLOM_LABEL[blok_default()],
         "blok": [{"no": b, "label": BLOK_LABEL[b]} for b in BLOK_KOLOM],
     }
 
@@ -48,7 +48,7 @@ class Isian(BaseModel):
 
 
 class IsiReq(BaseModel):
-    blok: int = Field(ge=1, le=2)
+    blok: int | None = Field(None, ge=1, le=2)  # kosong = otomatis dari hari
     sekolah: list[Isian] = Field(min_length=1, max_length=100)
 
 
@@ -62,6 +62,7 @@ def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
         raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
     milik = {s.npsn: s for s in semua if normalize_petugas(s.petugas) == petugas}
     opsi_lk = _opsi()
+    blok = req.blok or blok_default()
 
     perubahan = []
     for it in req.sekolah:
@@ -82,7 +83,7 @@ def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
                 raise HTTPException(400, f"Isian terlalu panjang (maks {MAKS_TEKS} karakter).")
             if k in OPSI_UNTUK and v and v not in opsi_lk[OPSI_UNTUK[k]]:
                 raise HTTPException(400, f"Alasan '{v}' tidak ada di pilihan.")
-            sel[BLOK_KOLOM[req.blok][ISIAN_KEYS.index(k)]] = v
+            sel[BLOK_KOLOM[blok][ISIAN_KEYS.index(k)]] = v
         if sel:
             perubahan.append((s, sel, it))
 
@@ -98,5 +99,5 @@ def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
         if it.komunikasi is not None:
             s.komunikasi = it.komunikasi.strip()
         for k, v in it.isian.items():
-            s.isian.setdefault(req.blok, {})[k] = v.strip()
-    return {"disimpan": len(perubahan)}
+            s.isian.setdefault(blok, {})[k] = v.strip()
+    return {"disimpan": len(perubahan), "blok": blok}

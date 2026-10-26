@@ -5,9 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import db, events, schedule, store
+from .. import events, schedule, store
 from ..sender import sender
-from ..sheets import filter_petugas, normalize_nomor, read_broadcast
+from ..sheets import normalize_nomor, nomor_milik
 from ..wa import actions
 from ..wa.browser import worker
 from .deps import require_feature
@@ -23,9 +23,9 @@ def _nomor_fasil(nomor: str) -> str:
     if not n:
         raise HTTPException(400, "Nomor tidak valid.")
     try:
-        milik = {r.nomor for r in filter_petugas(read_broadcast(), db.get_setting("nama_petugas") or "")}
+        milik = nomor_milik()
     except Exception as e:
-        raise HTTPException(502, f"Sheet Broadcast tidak bisa dibaca: {e}") from e
+        raise HTTPException(502, f"Sheet Broadcast/LK tidak bisa dibaca: {e}") from e
     if n not in milik:
         raise HTTPException(403, "Nomor ini bukan fasil petugas ini.")
     return n
@@ -69,6 +69,7 @@ def baca(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
 
 class BalasReq(BaseModel):
     pesan: str = Field(min_length=1, max_length=MAKS_BALASAN)
+    jenis: str = ""  # 'tanya_lk' bila dari template pertanyaan isian LK
 
 
 @router.post("/{nomor}/balas")
@@ -89,5 +90,7 @@ def balas(nomor: str, req: BalasReq, _=Depends(wa_blast)) -> dict[str, Any]:
     res, thread = _jalan(run, timeout=120)
     if res.status != "terkirim":
         raise HTTPException(502, f"Balasan belum terkirim: {res.keterangan}")
+    if req.jenis == "tanya_lk":
+        store.set_tahap(n, "ditanya", True, "template", schedule.now().isoformat(timespec="seconds"))
     info, rows = thread
     return _hasil(n, info, rows)

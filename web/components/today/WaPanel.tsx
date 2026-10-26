@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { post } from "@/lib/api";
-import type { Fasil, Percakapan } from "@/lib/types";
+import type { Fasil, Percakapan, SekolahLk } from "@/lib/types";
+import { grupRelevan } from "./LkPanel";
 import { Button, Spinner } from "@/components/ui";
 import s from "./today.module.css";
 
@@ -15,6 +16,49 @@ function formatWa(teks: string) {
   );
 }
 
+function salam() {
+  const h = new Date().getHours();
+  return h < 11 ? "Selamat pagi" : h < 15 ? "Selamat siang" : h < 18 ? "Selamat sore" : "Selamat malam";
+}
+
+const persen = (x: SekolahLk) => (x.progres === null ? "" : ` (${x.progres.toFixed(1).replace(".", ",")}%)`);
+const daftar = (xs: SekolahLk[], pakaiPersen = false) =>
+  xs.map((x, i) => `${i + 1}. ${x.nama}${pakaiPersen ? persen(x) : ""}`).join("\n");
+
+type Template = { kode: string; label: string; teks: string; tanya: boolean };
+
+/** Template pesan untuk menanyakan isian LK, hanya yang relevan dengan sekolah fasil ini. */
+function templates(nama: string, sekolah: SekolahLk[]): Template[] {
+  const aktif = sekolah.filter((x) => x.prioritas.trim().toLowerCase() !== "selesai");
+  const pembuka = `${salam()} Bapak/Ibu ${nama}, izin menindaklanjuti informasi sebelumnya.`;
+  const tutup = "Terima kasih 🙏";
+  const progres = aktif.filter((x) => grupRelevan(x).includes("a"));
+  const submit = aktif.filter((x) => x.submit !== "Ya");
+  const reviu = aktif.filter((x) => grupRelevan(x).includes("c"));
+  const out: Template[] = [];
+  if (submit.length) out.push({ kode: "submit", label: `Tanya belum submit (${submit.length})`, tanya: true,
+    teks: `${pembuka} Untuk sekolah berikut, laporan kemajuan pekerjaan 50% belum disubmit di aplikasi:
+
+${daftar(submit)}
+
+Boleh dibantu informasikan kendalanya apa, dan kapan rencana laporannya diunggah? ${tutup}` });
+  if (progres.length) out.push({ kode: "progres", label: `Tanya progres < 50% (${progres.length})`, tanya: true,
+    teks: `${pembuka} Untuk sekolah berikut, progres fisiknya masih di bawah 50%:
+
+${daftar(progres, true)}
+
+Boleh dibantu informasikan kendala di lapangan dan rencana tindak lanjutnya? ${tutup}` });
+  if (reviu.length) out.push({ kode: "reviu", label: `Tanya belum reviu (${reviu.length})`, tanya: true,
+    teks: `${pembuka} Laporan kemajuan 50% sekolah berikut sudah diajukan, tetapi belum direviu:
+
+${daftar(reviu)}
+
+Mohon bantuannya untuk mereviu, atau informasikan bila ada kendala. ${tutup}` });
+  out.push({ kode: "makasih", label: "Terima kasih", tanya: false,
+    teks: `Terima kasih atas informasinya, Bapak/Ibu ${nama}. Sudah kami catat ${"🙏"}` });
+  return out;
+}
+
 const CENTANG: Record<string, string> = { read: "Dibaca", delivered: "Diterima", sent: "Terkirim", pending: "Menunggu" };
 
 /** Kolom "Di WhatsApp": baca percakapan langsung dari WhatsApp app dan balas dari sini. */
@@ -25,6 +69,7 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
   const [teks, setTeks] = useState("");
   const [mengirim, setMengirim] = useState(false);
   const [kirimError, setKirimError] = useState<string | null>(null);
+  const [jenis, setJenis] = useState("");
   const threadRef = useRef<HTMLDivElement>(null);
 
   const baca = useCallback(async () => {
@@ -56,8 +101,9 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
     setMengirim(true);
     setKirimError(null);
     try {
-      setChat(await post<Percakapan>(`/api/chat/${nomor}/balas`, { pesan: isi }));
+      setChat(await post<Percakapan>(`/api/chat/${nomor}/balas`, { pesan: isi, jenis }));
       setTeks("");
+      setJenis("");
       onChanged();
     } catch (e) {
       setKirimError(e instanceof Error ? e.message : String(e));
@@ -118,8 +164,16 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
       {catatan && <p className={s.waNote}>{catatan}</p>}
 
       <div className={s.composer}>
-        <textarea rows={2} maxLength={2000} placeholder="Tulis balasan untuk fasil…" value={teks}
-          onChange={(e) => setTeks(e.target.value)} aria-label="Balasan"
+        <div className={s.templates} aria-label="Template pesan">
+          {templates(data.nama_fasil, data.sekolah).map((t) => (
+            <button key={t.kode} type="button" className={s.tpl}
+              onClick={() => { setTeks(t.teks); setJenis(t.tanya ? "tanya_lk" : ""); }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <textarea rows={teks.length > 120 ? 6 : 2} maxLength={2000} placeholder="Tulis balasan untuk fasil…" value={teks}
+          onChange={(e) => { setTeks(e.target.value); if (!e.target.value) setJenis(""); }} aria-label="Balasan"
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void kirim(); } }} />
         <div className={s.composerRow}>
           <span>Ctrl + Enter untuk kirim</span>

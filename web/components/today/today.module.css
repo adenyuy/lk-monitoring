@@ -695,8 +695,176 @@
   background: #f8f9fb;
 }
 
+.schoolOpen {
+  background: #f3f6fd;
+  border: 1px solid #d6e0f5;
+  border-radius: 12px;
+  padding: 2px 12px 12px;
+  margin: 6px -4px;
+}
+
+.school + .schoolOpen,
+.schoolOpen + .school {
+  border-top-color: transparent;
+}
+
 .schoolOpen .schoolBtn {
-  background: var(--primary-soft);
+  margin: 0;
+  width: 100%;
+  padding: 10px 0;
+}
+
+.schoolOpen .schoolBtn:hover {
+  background: none;
+}
+
+.schoolOpen .form {
+  background: var(--surface);
+  border: 1px solid #e3e9f6;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.komNote {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.komNote::before {
+  content: "Komunikasi: ";
+  color: var(--muted);
+}
+
+.blokNote {
+  font-size: 12.5px;
+  color: var(--muted);
+  background: #f8f9fb;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.blokNote b {
+  color: var(--ink-2);
+}
+
+.legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+/* ---------- template & tahap ---------- */
+.templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tpl {
+  border: 1px solid #d9d3c7;
+  background: #fffdf8;
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+
+.tpl:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tahapWrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.tahap {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tahap li {
+  display: flex;
+  align-items: center;
+}
+
+.tahap li + li::before {
+  content: "";
+  width: 18px;
+  height: 2px;
+  background: var(--line);
+  margin-right: 4px;
+}
+
+.tahap li.tahapOk + li::before {
+  background: #9fd3b4;
+}
+
+.tahap button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.tahap button:not(:disabled):hover {
+  background: #f2f4f7;
+}
+
+.tahap button:disabled {
+  cursor: default;
+}
+
+.tahapDot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1.5px solid #c5ccd6;
+  color: var(--muted);
+}
+
+.tahapOk .tahapDot {
+  background: var(--ok-fg);
+  border-color: var(--ok-fg);
+  color: #fff;
+}
+
+.tahapOk .tahapLabel {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.tahapManual .tahapDot {
+  border-style: dashed;
+}
+
+.luarBc {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border-radius: 999px;
+  padding: 2px 10px;
 }
 
 .filled {
@@ -1032,6 +1200,10 @@
 
   .itemSub > span:last-child {
     white-space: normal;
+  }
+
+  .tahap li + li::before {
+    display: none;
   }
 
   .compare {

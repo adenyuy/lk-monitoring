@@ -37,6 +37,21 @@ CREATE TABLE IF NOT EXISTS chat_status (
     dicek             TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS chat_tahap (
+    nomor  TEXT NOT NULL,
+    tahap  TEXT NOT NULL,               -- terkirim | dibaca | dibalas | ditanya | lk_lengkap
+    nilai  INTEGER NOT NULL,            -- 1 dicentang, 0 dibatalkan (menimpa deteksi otomatis)
+    sumber TEXT NOT NULL,               -- manual | template
+    waktu  TEXT NOT NULL,
+    PRIMARY KEY (nomor, tahap)
+);
+
+CREATE TABLE IF NOT EXISTS tag_warna (
+    nomor  TEXT PRIMARY KEY,
+    warna  TEXT NOT NULL,               -- hijau | kuning | merah (yang sudah tertulis di Broadcast P1)
+    waktu  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS cutoff_runs (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     waktu     TEXT NOT NULL,

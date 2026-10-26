@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
-import type { Fasil } from "@/lib/types";
+import type { Fasil, Tahap } from "@/lib/types";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { LkPanel } from "./LkPanel";
 import { WaPanel } from "./WaPanel";
@@ -80,6 +80,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
             </svg>
           </button>
         </header>
+        {data && <TahapBar nomor={nomor} tahap={data.tahap} diBroadcast={data.di_broadcast} onChange={setData} />}
         {openError && <div className={s.drawerNote}><Notice tone="warn" title="Chat belum terbuka">{openError}</Notice></div>}
         {error && <div className={s.drawerNote}><Notice tone="bad" title="Data fasil tidak terbaca">{error}</Notice></div>}
         {!data && !error && <div className={s.empty}><Spinner label="Memuat" /></div>}
@@ -87,14 +88,56 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
         {data && (
           <div className={s.compare}>
             <LkPanel sekolah={data.sekolah}
-              onSaved={(npsn, ubah) => setData((d) => d && {
-                ...d, sekolah: d.sekolah.map((x) => (npsn.includes(x.npsn) ? ubah(x) : x)),
-              })} />
+              onSaved={(npsn, ubah) => {
+                setData((d) => d && { ...d, sekolah: d.sekolah.map((x) => (x.npsn === npsn ? ubah(x) : x)) });
+                void muatUlang(); // perbarui tahap "Isian LK lengkap"
+              }} />
 
             <WaPanel nomor={nomor} data={data} onChanged={() => void muatUlang()} />
           </div>
         )}
       </aside>
+    </div>
+  );
+}
+
+/** Urutan komunikasi dengan fasil. Klik tahap untuk mencentang manual (mis. bila chat lewat HP). */
+function TahapBar({ nomor, tahap, diBroadcast, onChange }: {
+  nomor: string;
+  tahap: Tahap[];
+  diBroadcast: boolean;
+  onChange: (f: Fasil) => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function ubah(t: Tahap) {
+    if (t.kode === "lk_lengkap") return;
+    setBusy(t.kode);
+    try {
+      // manual -> kembali otomatis; otomatis -> centang/hapus centang manual
+      const selesai = t.sumber === "manual" ? null : !t.selesai;
+      onChange(await post<Fasil>(`/api/fasil/${nomor}/tahap`, { kode: t.kode, selesai }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className={s.tahapWrap}>
+      <ol className={s.tahap} aria-label="Tahap komunikasi">
+        {tahap.map((t, i) => (
+          <li key={t.kode} className={`${t.selesai ? s.tahapOk : ""} ${t.sumber === "manual" ? s.tahapManual : ""}`}>
+            <button type="button" disabled={t.kode === "lk_lengkap" || busy !== null} onClick={() => void ubah(t)}
+              title={t.kode === "lk_lengkap" ? "Terisi otomatis dari isian LK"
+                : t.sumber === "manual" ? "Dicentang manual. Klik untuk kembali ke deteksi otomatis"
+                : "Klik untuk menandai manual, misalnya bila chat lewat HP"}>
+              <span className={s.tahapDot} aria-hidden="true">{t.selesai ? "✓" : i + 1}</span>
+              <span className={s.tahapLabel}>{t.label}{t.sumber === "manual" ? " (manual)" : ""}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      {!diBroadcast && <span className={s.luarBc}>Tidak masuk Broadcast</span>}
     </div>
   );
 }

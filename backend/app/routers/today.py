@@ -4,8 +4,9 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
-from .. import config, db, schedule, send_queue, store
+from .. import config, db, schedule, send_queue, store, tahap
 from ..schedule import jam
 from ..sender import NotAllowed, sender
 from ..sheets import filter_petugas, nomor_key, read_broadcast, read_lk, sekolah_per_fasil
@@ -215,8 +216,13 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
     else:
         status = "Belum dikirim"
 
+    blok = tahap.blok_hari_ini()
+    nama_lk = sekolah[0].fasil if sekolah else ""
     return {
-        "nama_fasil": row.nama_fasil if row else (last["nama_fasil"] if last else "Fasilitator"),
+        "nama_fasil": row.nama_fasil if row else (last["nama_fasil"] if last else (nama_lk or "Fasilitator")),
+        "di_broadcast": row is not None,
+        "blok": {"no": blok, "label": tahap.BLOK_LABEL[blok], "kolom": tahap.BLOK_KOLOM_LABEL[blok]},
+        "tahap": tahap.hitung(nomor, sekolah, sends, chat, store.tahap_all().get(nomor, {}), blok),
         "nomor_tersamar": mask(nomor),
         "status": status,
         "pesan": row.pesan if row else "",
@@ -231,3 +237,19 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
             for s in sorted(sekolah, key=lambda x: (x.prioritas or "Z", x.nama))
         ],
     }
+
+
+class TahapReq(BaseModel):
+    kode: str
+    selesai: bool | None  # None = kembalikan ke deteksi otomatis
+
+
+@router.post("/fasil/{nomor}/tahap")
+def fasil_tahap(nomor: str, req: TahapReq, _=Depends(wa_blast)) -> dict[str, Any]:
+    if req.kode not in {k for k, _ in tahap.TAHAP} or req.kode == "lk_lengkap":
+        raise HTTPException(400, "Tahap ini tidak bisa dicentang manual.")
+    if req.selesai is None:
+        store.delete_tahap(nomor, req.kode)
+    else:
+        store.set_tahap(nomor, req.kode, req.selesai, "manual", schedule.now().isoformat(timespec="seconds"))
+    return fasil_detail(nomor)

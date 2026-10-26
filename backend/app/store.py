@@ -65,3 +65,42 @@ def save_chat_status(nomor: str, status: str, balasan: str, dicek: str) -> None:
 def chat_status_all() -> dict[str, dict[str, Any]]:
     rows = db.query("SELECT * FROM chat_status")
     return {r["nomor"]: dict(r) for r in rows}
+
+
+# ---------- tahap chat ----------
+
+def set_tahap(nomor: str, tahap: str, nilai: bool, sumber: str, waktu: str) -> None:
+    with db.tx() as c:
+        c.execute(
+            "INSERT INTO chat_tahap(nomor, tahap, nilai, sumber, waktu) VALUES(?,?,?,?,?) "
+            "ON CONFLICT(nomor, tahap) DO UPDATE SET nilai=excluded.nilai, sumber=excluded.sumber, waktu=excluded.waktu",
+            (nomor, tahap, int(nilai), sumber, waktu),
+        )
+
+
+def tahap_all() -> dict[str, dict[str, dict]]:
+    """{nomor: {tahap: {nilai, sumber, waktu}}}"""
+    out: dict[str, dict[str, dict]] = {}
+    for r in db.query("SELECT nomor, tahap, nilai, sumber, waktu FROM chat_tahap"):
+        out.setdefault(r["nomor"], {})[r["tahap"]] = {"nilai": bool(r["nilai"]), "sumber": r["sumber"], "waktu": r["waktu"]}
+    return out
+
+
+def delete_tahap(nomor: str, tahap: str) -> None:
+    with db.tx() as c:
+        c.execute("DELETE FROM chat_tahap WHERE nomor = ? AND tahap = ?", (nomor, tahap))
+
+
+# ---------- tag warna Broadcast P1 ----------
+
+def tag_all() -> dict[str, str]:
+    return {r["nomor"]: r["warna"] for r in db.query("SELECT nomor, warna FROM tag_warna")}
+
+
+def set_tag(nomor: str, warna: str, waktu: str) -> None:
+    with db.tx() as c:
+        c.execute(
+            "INSERT INTO tag_warna(nomor, warna, waktu) VALUES(?,?,?) "
+            "ON CONFLICT(nomor) DO UPDATE SET warna=excluded.warna, waktu=excluded.waktu",
+            (nomor, warna, waktu),
+        )

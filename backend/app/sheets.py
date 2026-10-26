@@ -330,3 +330,24 @@ def write_isian(week: str, perubahan: list[tuple["Sekolah", dict[str, str]]]) ->
         for s, sel in perubahan for kolom, nilai in sel.items()
     ]
     ss.values_batch_update({"valueInputOption": "RAW", "data": data})
+
+
+def nomor_lk(s: "Sekolah") -> list[str]:
+    """Nomor fasil (format 62…) dari sel No Fasil di LK; bisa lebih dari satu."""
+    return [n for n in (normalize_nomor(p) for p in re.split(r"[,/;]", s.nomor_fasil)) if n]
+
+
+def nomor_milik() -> set[str]:
+    """Semua nomor fasil petugas ini: dari sheet Broadcast dan dari LK."""
+    from . import db  # hindari import melingkar saat modul dimuat
+
+    petugas = db.get_setting("nama_petugas") or ""
+    out = {r.nomor for r in filter_petugas(read_broadcast(), petugas) if r.nomor}
+    try:
+        lk = read_lk(db.get_setting("week", "1"))
+        for s in lk:
+            if normalize_petugas(s.petugas) == normalize_petugas(petugas):
+                out.update(nomor_lk(s))
+    except Exception:
+        pass  # LK tidak terbaca: cukup nomor dari Broadcast
+    return out

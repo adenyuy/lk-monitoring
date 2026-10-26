@@ -107,8 +107,13 @@ export type SesiDetail = {
   akan: BarisSesi[];
 };
 
+export type Tahap = { kode: string; label: string; selesai: boolean; sumber: "otomatis" | "manual" | "template"; waktu: string };
+
 export type Fasil = {
   nama_fasil: string;
+  di_broadcast: boolean;
+  blok: { no: number; label: string; kolom: string };
+  tahap: Tahap[];
   nomor_tersamar: string;
   status: string;
   pesan: string;
@@ -136,6 +141,7 @@ export type SekolahLk = {
 export type LkOpsi = {
   opsi: { komunikasi: string[]; alasan_progres: string[]; alasan_submit: string[]; alasan_reviu: string[] };
   blok_default: number;
+  blok_kolom: string;
   blok: { no: number; label: string }[];
 };
 

@@ -74,7 +74,7 @@ def test_endpoint_isi_menulis_dan_memperbarui_cache(monkeypatch):
     data, ditulis = _endpoint(monkeypatch)
     req = lk.IsiReq(blok=2, sekolah=[lk.Isian(npsn="11112222", komunikasi="0. Terhubung",
                                               isian={"b1": "6. Lainnya", "b2": "Dihubungi ulang besok"})])
-    assert lk.isi(req) == {"disimpan": 1}
+    assert lk.isi(req) == {"disimpan": 1, "blok": 2}
     assert ditulis[0][1] == {"I": "0. Terhubung", "X": "6. Lainnya", "Y": "Dihubungi ulang besok"}
     assert data[0].komunikasi == "0. Terhubung" and data[0].isian[2]["b1"] == "6. Lainnya"
 
