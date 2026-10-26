@@ -226,7 +226,8 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
         "waktu_balasan": (chat or {}).get("waktu_balasan", ""),
         "sekolah": [
             {"npsn": s.npsn, "nama": s.nama, "progres": s.progres, "prioritas": s.prioritas,
-             "submit": s.submit, "reviu": s.reviu}
+             "submit": s.submit, "reviu": s.reviu, "komunikasi": s.komunikasi,
+             "isian": {str(b): v for b, v in s.isian.items()}}
             for s in sorted(sekolah, key=lambda x: (x.prioritas or "Z", x.nama))
         ],
     }

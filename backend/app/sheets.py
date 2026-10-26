@@ -127,9 +127,23 @@ def petugas_summary(rows: list[BroadcastRow]) -> list[dict[str, Any]]:
 
 
 # ---------- LK WEEK n ----------
-# Range dibaca: B..O mulai baris LK_FIRST_ROW. Indeks relatif terhadap kolom B.
-_B, _C, _D, _E, _F, _G, _H = 0, 1, 2, 3, 4, 5, 6
+# Range dibaca: B..AA mulai baris LK_FIRST_ROW. Indeks relatif terhadap kolom B.
+_B, _C, _D, _E, _F, _G, _H, _I = 0, 1, 2, 3, 4, 5, 6, 7
 _J, _K, _L, _M, _N, _O = 8, 9, 10, 11, 12, 13
+
+# Kolom isian LK. Status komunikasi (I) satu per baris; alasan + tindak lanjut ada dua blok:
+# blok 1 = sesi Senin–Rabu (P..U), blok 2 = sesi Rabu–Jumat (V..AA).
+ISIAN_KEYS = ("a1", "a2", "b1", "b2", "c1", "c2")
+BLOK_KOLOM = {1: ("P", "Q", "R", "S", "T", "U"), 2: ("V", "W", "X", "Y", "Z", "AA")}
+KOMUNIKASI_KOLOM = "I"
+
+
+def _col_index(letter: str) -> int:
+    """'B' -> 0, 'AA' -> 25 (relatif terhadap kolom B)."""
+    n = 0
+    for ch in letter:
+        n = n * 26 + (ord(ch) - 64)
+    return n - 2
 
 
 @dataclass
@@ -146,6 +160,8 @@ class Sekolah:
     submit: str
     reviu: str
     nomor_keys: list[str] = field(default_factory=list)
+    komunikasi: str = ""
+    isian: dict[int, dict[str, str]] = field(default_factory=dict)  # {blok: {a1..c2: nilai}}
 
 
 def _progres(v: Any) -> float | None:
@@ -186,8 +202,25 @@ def parse_lk(values: list[list[Any]], first_row: int = config.LK_FIRST_ROW) -> l
                 submit=_cell(r, _N) or _cell(r, _K),
                 reviu=_cell(r, _O) or _cell(r, _L),
                 nomor_keys=keys,
+                komunikasi=_cell(r, _I),
+                isian={
+                    b: {k: _cell(r, _col_index(col)) for k, col in zip(ISIAN_KEYS, cols)}
+                    for b, cols in BLOK_KOLOM.items()
+                },
             )
         )
+    return out
+
+
+def parse_validasi(values: list[list[Any]]) -> dict[str, list[str]]:
+    """Tab 'validasi' (baris 1 = judul): A komunikasi, B alasan progres, C alasan submit, D alasan reviu."""
+    keys = ("komunikasi", "alasan_progres", "alasan_submit", "alasan_reviu")
+    out: dict[str, list[str]] = {k: [] for k in keys}
+    for r in values[1:]:
+        for i, k in enumerate(keys):
+            v = _cell(r, i)
+            if v:
+                out[k].append(v)
     return out
 
 
@@ -248,8 +281,52 @@ def read_lk(week: str, refresh: bool = False) -> list[Sekolah]:
 
     def load() -> list[Sekolah]:
         ss = gspread_client().open_by_key(config.LK_SHEET_ID)
-        rng = f"'{tab}'!B{config.LK_FIRST_ROW}:O"
+        rng = f"'{tab}'!B{config.LK_FIRST_ROW}:AA"
         values = ss.values_get(rng, params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
         return parse_lk(values)
 
     return cache.get(f"lk:{tab}", config.LK_CACHE_SECONDS, load, refresh)
+
+
+def lk_tab(week: str) -> str:
+    return f"{config.LK_WEEK_PREFIX}{week}" if str(week).isdigit() else str(week)
+
+
+def read_validasi(refresh: bool = False) -> dict[str, list[str]]:
+    def load() -> dict[str, list[str]]:
+        ss = gspread_client().open_by_key(config.LK_SHEET_ID)
+        return parse_validasi(ss.values_get("'validasi'!A1:D").get("values", []))
+
+    return cache.get("validasi", config.LK_CACHE_SECONDS, load, refresh)
+
+
+class LkWriteError(Exception):
+    pass
+
+
+def _npsn(v: Any) -> str:
+    return re.sub(r"\.0+$", "", str(v if v is not None else "").strip())
+
+
+def write_isian(week: str, perubahan: list[tuple["Sekolah", dict[str, str]]]) -> None:
+    """Tulis sel isian LK. `perubahan` = [(sekolah, {kolom: nilai})]. Baris dicek dulu lewat NPSN
+    (kolom C) supaya tidak menulis ke sekolah lain bila urutan sheet sudah berubah."""
+    if not perubahan:
+        return
+    tab = lk_tab(week)
+    ss = gspread_client().open_by_key(config.LK_SHEET_ID)
+    cek = ss.values_batch_get([f"'{tab}'!C{s.baris}" for s, _ in perubahan],
+                              params={"valueRenderOption": "UNFORMATTED_VALUE"})
+    for (s, _), vr in zip(perubahan, cek.get("valueRanges", [])):
+        got = _npsn((vr.get("values") or [[""]])[0][0])
+        if got != s.npsn:
+            cache.clear()
+            raise LkWriteError(
+                f"Baris {s.baris} di {tab} sekarang berisi NPSN {got or '(kosong)'}, bukan {s.npsn}. "
+                "Urutan sheet berubah. Muat ulang lalu isi lagi."
+            )
+    data = [
+        {"range": f"'{tab}'!{kolom}{s.baris}", "values": [[nilai]]}
+        for s, sel in perubahan for kolom, nilai in sel.items()
+    ]
+    ss.values_batch_update({"valueInputOption": "RAW", "data": data})

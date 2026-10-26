@@ -609,7 +609,7 @@
 }
 
 .school {
-  padding: 10px 0;
+  padding: 2px 0;
 }
 
 .school + .school {
@@ -671,9 +671,177 @@
 }
 
 .schoolMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 12px;
   color: var(--muted);
   margin-top: 3px;
+}
+
+.schoolBtn {
+  display: block;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  width: calc(100% + 16px);
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  text-align: left;
+  color: inherit;
+}
+
+.schoolBtn:hover {
+  background: #f8f9fb;
+}
+
+.schoolOpen .schoolBtn {
+  background: var(--primary-soft);
+}
+
+.filled {
+  color: var(--ok-fg);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.filled::before {
+  content: "✓ ";
+}
+
+.toFill {
+  color: var(--primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ---------- isian LK ---------- */
+.lkTop {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  margin: 0 -4px;
+  background: #f8f9fb;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+.seg {
+  display: flex;
+  padding: 3px;
+  background: #eceff3;
+  border-radius: 8px;
+}
+
+.seg button {
+  flex: 1;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.seg button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(23, 32, 51, 0.12);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.selectRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form select,
+.field select,
+.form textarea {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.form textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.form select:focus,
+.field select:focus,
+.form textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+  border-color: var(--primary);
+}
+
+.savedNote {
+  font-size: 12.5px;
+  color: var(--ok-fg);
+}
+
+.errNote {
+  font-size: 12.5px;
+  color: var(--bad-fg);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 6px;
+  animation: formIn 0.18s ease;
+}
+
+@keyframes formIn {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+.fieldset {
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldset legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.linkBtn {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-size: 12.5px;
+  font-weight: 500;
 }
 
 .sideWa {
@@ -810,6 +978,7 @@
 @media (prefers-reduced-motion: reduce) {
   .dot_now,
   .liveDot,
+  .form,
   .scrim,
   .drawer {
     animation: none;

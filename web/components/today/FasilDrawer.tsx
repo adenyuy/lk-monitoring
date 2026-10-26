@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import type { Fasil } from "@/lib/types";
-import { Button, Chip, Notice, Spinner, prioritasTone } from "@/components/ui";
+import { Button, Chip, Notice, Spinner } from "@/components/ui";
+import { LkPanel } from "./LkPanel";
 import { inisial } from "./FasilList";
 import s from "./today.module.css";
 
@@ -16,12 +17,6 @@ function formatWa(teks: string) {
   );
 }
 
-function prioritasLabel(p: string) {
-  if (p.endsWith("1")) return "Belum submit";
-  if (p.endsWith("2")) return "Di bawah 50%";
-  if (p.endsWith("3")) return "Belum reviu";
-  return p || "–";
-}
 
 function toneStatus(st: string) {
   if (st.startsWith("Sudah")) return "ok" as const;
@@ -30,7 +25,6 @@ function toneStatus(st: string) {
   return "muted" as const;
 }
 
-const URUT: Record<string, number> = { "1": 0, "2": 1, "3": 2 };
 
 /** Panel geser: LK sekolah binaan di kiri, chat WhatsApp di kanan. */
 export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: number; onClose: () => void }) {
@@ -72,9 +66,6 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
   }
 
   const gagal = data?.status_kirim === "gagal";
-  const sekolah = data
-    ? [...data.sekolah].sort((a, b) => (URUT[a.prioritas.slice(-1)] ?? 3) - (URUT[b.prioritas.slice(-1)] ?? 3))
-    : [];
 
   return (
     <div className={s.scrim} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -98,36 +89,10 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
 
         {data && (
           <div className={s.compare}>
-            <section className={s.side} aria-label="Di LK">
-              <h3>Di LK <span>{data.sekolah.length} sekolah</span></h3>
-              {sekolah.length === 0 ? (
-                <p className={s.muted}>Nomor ini tidak ditemukan di LK WEEK yang dipilih.</p>
-              ) : (
-                <ul className={s.schools}>
-                  {sekolah.map((x) => {
-                    const p = x.progres ?? 0;
-                    return (
-                      <li key={x.npsn} className={s.school}>
-                        <div className={s.schoolTop}>
-                          <span className={s.schoolName}>{x.nama}</span>
-                          <Chip tone={prioritasTone(x.prioritas)}>{prioritasLabel(x.prioritas)}</Chip>
-                        </div>
-                        <div className={s.schoolBar}>
-                          <span className={s.track}>
-                            <span className={p >= 50 ? s.fillOk : s.fillLow} style={{ width: `${Math.min(100, p)}%` }} />
-                            <span className={s.half} aria-hidden="true" />
-                          </span>
-                          <span className={s.pct}>{x.progres === null ? "–" : `${x.progres.toFixed(1).replace(".", ",")}%`}</span>
-                        </div>
-                        <div className={s.schoolMeta}>
-                          NPSN {x.npsn}, submit {x.submit || "Tidak"}, reviu {x.reviu || "–"}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
+            <LkPanel sekolah={data.sekolah}
+              onSaved={(npsn, ubah) => setData((d) => d && {
+                ...d, sekolah: d.sekolah.map((x) => (npsn.includes(x.npsn) ? ubah(x) : x)),
+              })} />
 
             <section className={`${s.side} ${s.sideWa}`} aria-label="Di WhatsApp">
               <h3>Di WhatsApp <span>{!data.waktu_kirim ? "belum dikirim" : gagal ? "gagal terkirim" : `dikirim ${data.waktu_kirim}`}</span></h3>

@@ -115,7 +115,27 @@ export type Fasil = {
   status_kirim: string;
   balasan: string;
   waktu_balasan: string;
-  sekolah: { npsn: string; nama: string; progres: number | null; prioritas: string; submit: string; reviu: string }[];
+  sekolah: SekolahLk[];
+};
+
+export type IsianKey = "a1" | "a2" | "b1" | "b2" | "c1" | "c2";
+export type Isian = Record<IsianKey, string>;
+
+export type SekolahLk = {
+  npsn: string;
+  nama: string;
+  progres: number | null;
+  prioritas: string;
+  submit: string;
+  reviu: string;
+  komunikasi: string;
+  isian: Record<string, Isian>; // per blok: "1" Senin–Rabu, "2" Rabu–Jumat
+};
+
+export type LkOpsi = {
+  opsi: { komunikasi: string[]; alasan_progres: string[]; alasan_submit: string[]; alasan_reviu: string[] };
+  blok_default: number;
+  blok: { no: number; label: string }[];
 };
 
 // Batas harian (sama dengan backend/app/config.py)
