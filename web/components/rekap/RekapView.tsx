@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { ChatRekap, FasilRekap, Rekap } from "@/lib/types";
 import { Chip, Notice, Spinner } from "@/components/ui";
 import { FasilDrawer } from "@/components/today/FasilDrawer";
+import { LogPerubahan } from "./LogPerubahan";
 import s from "./rekap.module.css";
 
 const PRIO = [
@@ -161,6 +162,8 @@ export function RekapView() {
         </section>
       </div>
 
+      <LogPerubahan />
+
       {data.luar_broadcast.fasil > 0 && (
         <button type="button" className={s.luar} onClick={() => setFilter("luar")}>
           <b>{data.luar_broadcast.fasil} fasil tidak masuk Broadcast</b>
@@ -175,8 +178,11 @@ export function RekapView() {
       <section className={s.card} aria-labelledby="h-tabel" data-tour="tabel">
         <div className={s.cardHead}>
           <h2 id="h-tabel">Per fasil</h2>
-          <input className={s.search} type="search" placeholder="Cari nama fasil" value={cari}
-            onChange={(e) => setCari(e.target.value)} aria-label="Cari nama fasil" />
+          <span className={s.tools}>
+            <input className={s.search} type="search" placeholder="Cari nama fasil" value={cari}
+              onChange={(e) => setCari(e.target.value)} aria-label="Cari nama fasil" />
+            <button type="button" className={s.csvBtn} onClick={() => unduhCsv(baris, data.week)}>Unduh CSV</button>
+          </span>
         </div>
         <div className={s.filters} role="group" aria-label="Saring">
           {FILTER.map((f) => (
@@ -242,6 +248,25 @@ export function RekapView() {
       {buka && <FasilDrawer nomor={buka} versi={0} onClose={tutup} />}
     </div>
   );
+}
+
+/** Unduh baris tabel (sesuai saringan) sebagai CSV, rapi dibuka di Excel. */
+function unduhCsv(rows: FasilRekap[], week: string) {
+  const kepala = ["Fasil", "Nomor", "Masuk Broadcast", "Sekolah", "P1", "P2", "P3", "Selesai", "Chat",
+    "Isian LK lengkap", "Isian LK perlu", ...TAHAP];
+  const sel = (v: string | number | boolean) => {
+    const t = typeof v === "boolean" ? (v ? "Ya" : "Tidak") : String(v);
+    return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const isi = rows.map((r) => [r.nama, r.nomor_tersamar, r.di_broadcast, r.sekolah, r.p1, r.p2, r.p3, r.selesai,
+    CHAT[r.chat].label, r.isian_lengkap, r.isian_perlu, ...r.tahap].map(sel).join(";"));
+  // BOM + pemisah titik koma: Excel Indonesia langsung membaca kolom dengan benar
+  const blob = new Blob(["﻿" + [kepala.map(sel).join(";"), ...isi].join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `rekap-week${week}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function Meter({ label, a, b, badge }: { label: string; a: number; b: number; badge?: string }) {

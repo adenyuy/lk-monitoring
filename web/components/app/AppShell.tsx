@@ -45,6 +45,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [siap]);
   usePolling(cekWa, 30000, siap);
 
+  // Titik di menu Rekap bila ada perubahan Broadcast/LK yang belum dilihat
+  const [adaBaru, setAdaBaru] = useState(false);
+  const cekPerubahan = async () => {
+    try {
+      const r = await api<{ items: { id: number }[] }>("/api/perubahan?batas=1");
+      let dilihat = 0;
+      try { dilihat = Number(localStorage.getItem("lkm-perubahan-dilihat") ?? 0); } catch { /* abaikan */ }
+      setAdaBaru(!!r.items[0] && r.items[0].id > dilihat);
+    } catch {
+      /* hanya penanda */
+    }
+  };
+  useEffect(() => {
+    if (!siap) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void cekPerubahan();
+    const sudah = () => setAdaBaru(false);
+    window.addEventListener("lkm-perubahan-dilihat", sudah);
+    return () => window.removeEventListener("lkm-perubahan-dilihat", sudah);
+  }, [siap]);
+  usePolling(cekPerubahan, 60000, siap);
+
   if (error && !me) {
     return (
       <div className={s.center}>
@@ -74,7 +96,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const menu = (
     <>
       <Link href="/rekap/" className={s.item} aria-current={aktif("/rekap/")}>
-        <span className={s.ico}><IconRekap /></span><span className={s.lbl}>Rekap</span>
+        <span className={s.ico}><IconRekap />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru" />}</span>
+        <span className={s.lbl}>Rekap</span>
       </Link>
       <Link href="/today/" className={s.item} aria-current={aktif("/today/")}>
         <span className={s.ico}><IconHariIni /></span><span className={s.lbl}>Hari ini</span>

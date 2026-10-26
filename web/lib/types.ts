@@ -147,7 +147,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 8;
+export const API_REV = 9;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -219,3 +219,5 @@ export type CutoffCek = {
   kolom: string;
   peringatan: string;
 };
+
+export type Perubahan = { id: number; waktu: string; sumber: "broadcast" | "lk"; judul: string; ringkasan: string; rincian: string[] };

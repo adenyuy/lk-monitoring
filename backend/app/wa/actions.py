@@ -3,6 +3,7 @@
 Semua fungsi menerima `Browser` dan harus dipanggil lewat `worker.call(...)`.
 """
 
+import re
 import time
 from dataclasses import dataclass, field
 from urllib.parse import quote
@@ -100,11 +101,29 @@ def clear_draft(b: Browser) -> None:
 
 _ROWS_JS = """
 ([rowSels, textSels, tailOut, tailIn]) => {
+  // WhatsApp menampilkan baris "1. ..." sebagai daftar bernomor (<ol>); nomornya dari CSS sehingga
+  // hilang di innerText. Salin elemen ke luar layar, tulis nomornya sebagai teks, lalu baca.
+  const teks = (el) => {
+    if (!el.querySelector('ol, ul')) return el.innerText;
+    const c = el.cloneNode(true);
+    c.querySelectorAll('ol').forEach(ol => {
+      const mulai = Number(ol.getAttribute('start') || 1);
+      [...ol.children].forEach((li, i) => li.prepend(document.createTextNode((mulai + i) + '. ')));
+    });
+    c.querySelectorAll('ul > li').forEach(li => li.prepend(document.createTextNode('• ')));
+    const wadah = document.createElement('div');
+    wadah.style.cssText = 'position:fixed;left:-99999px;top:0;width:600px;white-space:pre-wrap';
+    wadah.appendChild(c);
+    document.body.appendChild(wadah);
+    const hasil = c.innerText;
+    wadah.remove();
+    return hasil;
+  };
   let rows = [];
   for (const s of rowSels) { rows = [...document.querySelectorAll(s)]; if (rows.length) break; }
   return rows.map(r => {
     let text = '';
-    for (const s of textSels) { const el = r.querySelector(s); if (el) { text = el.innerText; break; } }
+    for (const s of textSels) { const el = r.querySelector(s); if (el) { text = teks(el); break; } }
     const labels = [...r.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label') || '');
     const titles = [...r.querySelectorAll('svg title')].map(t => t.textContent || '');
     const icons = [...r.querySelectorAll('[data-icon]')].map(e => e.getAttribute('data-icon') || '');
@@ -129,6 +148,12 @@ class Row:
     status: str  # pending | sent | delivered | read | '' (pesan masuk)
     text: str
     waktu: str = ""  # "10.37, 26/10/2026" dari atribut data-pre-plain-text, bila ada
+
+
+def rapikan(teks: str) -> str:
+    """Buang spasi di ujung baris dan baris kosong berlebih (daftar WhatsApp menambah jarak)."""
+    baris = [b.rstrip() for b in teks.replace("\r", "").split("\n")]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(baris)).strip()
 
 
 def _waktu(pre: str) -> str:
@@ -164,7 +189,7 @@ def rows(page: Page) -> list[Row]:
     for r in raw:
         st = _status_of(r)
         is_out = _is_out(r, st)
-        out.append(Row(r["id"], is_out, st if is_out else "", r["text"].strip(), _waktu(r.get("pre", ""))))
+        out.append(Row(r["id"], is_out, st if is_out else "", rapikan(r["text"]), _waktu(r.get("pre", ""))))
     return out
 
 

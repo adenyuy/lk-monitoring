@@ -275,7 +275,11 @@ def read_broadcast(refresh: bool = False) -> list[BroadcastRow]:
     def load() -> list[BroadcastRow]:
         ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
         values = ss.values_get(f"'{config.BROADCAST_TAB}'!A1:E").get("values", [])
-        return parse_broadcast(values)
+        rows = parse_broadcast(values)
+        from . import perubahan  # hindari import melingkar
+
+        perubahan.catat_broadcast(rows)
+        return rows
 
     return cache.get("broadcast", config.BROADCAST_CACHE_SECONDS, load, refresh)
 
@@ -287,7 +291,11 @@ def read_lk(week: str, refresh: bool = False) -> list[Sekolah]:
         ss = gspread_client().open_by_key(config.LK_SHEET_ID)
         rng = f"'{tab}'!B{config.LK_FIRST_ROW}:AA"
         values = ss.values_get(rng, params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
-        return parse_lk(values)
+        data = parse_lk(values)
+        from . import perubahan  # hindari import melingkar
+
+        perubahan.catat_lk(tab, data)
+        return data
 
     return cache.get(f"lk:{tab}", config.LK_CACHE_SECONDS, load, refresh)
 

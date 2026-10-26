@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS chat_tahap (
     PRIMARY KEY (nomor, tahap)
 );
 
+CREATE TABLE IF NOT EXISTS perubahan (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    waktu     TEXT NOT NULL,
+    sumber    TEXT NOT NULL,            -- broadcast | lk
+    judul     TEXT NOT NULL,
+    ringkasan TEXT NOT NULL,
+    rincian   TEXT NOT NULL DEFAULT '[]'
+);
+
 CREATE TABLE IF NOT EXISTS kirim_ulang (
     nomor  TEXT PRIMARY KEY,
     waktu  TEXT NOT NULL                -- saat diminta; berlaku sampai ada kiriman terkirim sesudahnya

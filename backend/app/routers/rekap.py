@@ -117,3 +117,10 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
         },
         "fasil": rows,
     }
+
+
+@router.get("/perubahan")
+def daftar_perubahan(batas: int = 50, _=Depends(wa_blast)) -> dict[str, Any]:
+    from .. import perubahan
+
+    return {"items": perubahan.daftar(max(1, min(batas, 200)))}

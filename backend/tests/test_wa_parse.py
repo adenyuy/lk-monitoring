@@ -58,3 +58,8 @@ def test_status_tanpa_balasan():
 def test_waktu_pesan():
     assert actions._waktu("[10:37, 26/10/2026] Budi: ") == "10.37, 26/10/2026"
     assert actions._waktu("") == ""
+
+
+def test_rapikan_teks_daftar():
+    teks = "Untuk sekolah berikut:\n\n\n\n1. SD A (39,6%)  \n2. SD B\n\n\n\nTerima kasih"
+    assert actions.rapikan(teks) == "Untuk sekolah berikut:\n\n1. SD A (39,6%)\n2. SD B\n\nTerima kasih"
