@@ -28,6 +28,7 @@ class OpenResult:
 class SendResult:
     status: str  # 'terkirim' | 'gagal'
     keterangan: str = ""
+    centang: str = ""  # sent | delivered | read (ikon pesan terakhir saat dicek)
 
 
 @dataclass
@@ -35,6 +36,7 @@ class ChatInfo:
     status: str  # 'belum_ada' | 'terkirim' | 'dibaca' | 'dibalas'
     pesan_keluar_terakhir: str = ""
     balasan: list[str] = field(default_factory=list)
+    centang: str = ""  # ikon pesan keluar PERTAMA (broadcast): sent | delivered | read
 
 
 def _norm(s: str) -> str:
@@ -185,7 +187,13 @@ def send(b: Browser, timeout: float = 30) -> SendResult:
         page.wait_for_timeout(700)
         new_out = [r for r in rows(page) if r.out and r.id not in before_ids]
         if new_out and new_out[-1].status in ("sent", "delivered", "read"):
-            return SendResult("terkirim")
+            # tunggu sebentar: centang dua biasanya muncul 1-3 detik setelah centang satu
+            for _ in range(5):
+                if new_out[-1].status != "sent":
+                    break
+                page.wait_for_timeout(700)
+                new_out = [r for r in rows(page) if r.out and r.id not in before_ids] or new_out
+            return SendResult("terkirim", centang=new_out[-1].status)
     if new_out:
         return SendResult("gagal", "Pesan masih menunggu (ikon jam) setelah 30 detik.")
     return SendResult("gagal", "Pesan tidak muncul di chat setelah menekan kirim.")
@@ -203,7 +211,7 @@ def chat_info(all_rows: list[Row]) -> ChatInfo:
         status = "dibalas"
     else:
         status = "dibaca" if all_rows[last_out].status == "read" else "terkirim"
-    return ChatInfo(status, all_rows[last_out].text, balasan)
+    return ChatInfo(status, all_rows[last_out].text, balasan, all_rows[first_out].status)
 
 
 def read_thread(b: Browser, nomor: str) -> tuple[ChatInfo, list[Row]]:

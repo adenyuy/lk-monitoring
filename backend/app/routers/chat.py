@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import events, schedule, store
+from .. import events, schedule, store, tagging
 from ..sender import sender
 from ..sheets import normalize_nomor, nomor_milik
 from ..wa import actions
@@ -39,6 +39,10 @@ def _siap() -> None:
 
 
 def _hasil(nomor: str, info: actions.ChatInfo, rows: list[actions.Row]) -> dict[str, Any]:
+    if info.status in ("dibaca", "dibalas") or info.centang in ("delivered", "read"):
+        manual = store.tahap_all().get(nomor, {}).get("terkirim", {}).get("nilai")
+        if manual or any(x["status"] == "terkirim" and not x["coba"] for x in store.sends_real() if x["nomor"] == nomor):
+            tagging.tandai(nomor, "hijau")
     if info.status != "belum_ada":
         balasan = info.balasan[-1] if info.balasan else ""
         store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"))

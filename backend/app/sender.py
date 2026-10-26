@@ -12,7 +12,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Protocol
 
-from . import config, db, events, schedule, send_queue, store
+from . import config, db, events, schedule, send_queue, store, tagging
 from .sheets import BroadcastRow, filter_petugas, read_broadcast
 from .wa import actions
 from .wa.browser import BrowserClosed, worker
@@ -227,12 +227,16 @@ class Sender:
     def _proses(self, item: send_queue.Item, coba: bool) -> tuple[str, str]:
         res = self.wa.open_chat(item.nomor, item.pesan)
         if not res.ok:
+            if res.alasan == "nomor_tidak_terdaftar" and not coba:
+                tagging.tandai(item.nomor, "merah")
             return "gagal", ALASAN_GAGAL.get(res.alasan, res.alasan)
         if coba:
             self.sleep(2)  # supaya terlihat di layar
             self.wa.clear_draft()
             return "dicoba", "Mode coba, tidak dikirim"
         r = self.wa.send()
+        if r.status == "terkirim":
+            tagging.tandai(item.nomor, tagging.warna_kirim(getattr(r, "centang", "")))
         return r.status, r.keterangan
 
     def _jeda(self, nama_berikutnya: str, coba: bool) -> None:

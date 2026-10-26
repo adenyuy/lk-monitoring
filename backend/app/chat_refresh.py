@@ -8,7 +8,7 @@ import logging
 import threading
 from datetime import timedelta
 
-from . import events, schedule, store
+from . import events, schedule, store, tagging
 from .sender import sender
 from .wa import actions
 from .wa.browser import worker
@@ -39,6 +39,8 @@ def refresh_once() -> dict:
             info = worker.call(lambda b, n=nomor: actions.read_chat(b, n), timeout=120)
             if info.status == "belum_ada":
                 continue
+            if info.status in ("dibaca", "dibalas") or info.centang in ("delivered", "read"):
+                tagging.tandai(nomor, "hijau")
             balasan = info.balasan[-1] if info.balasan else ""
             store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"))
             diperbarui += 1

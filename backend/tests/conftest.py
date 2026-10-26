@@ -7,5 +7,6 @@ from pathlib import Path
 # Harus di-set sebelum modul app diimpor.
 os.environ["LKM_DATA_DIR"] = tempfile.mkdtemp(prefix="lkm-test-")
 os.environ.pop("LKM_ACCESS_SHEET_ID", None)
+os.environ["LKM_TAG_OFF"] = "1"  # jangan pernah mewarnai sheet Broadcast sungguhan saat test
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
