@@ -69,6 +69,8 @@ export type SesiRingkas = {
 export type Today = {
   tanggal: string;
   tanggal_panjang: string;
+  week: string;
+  blok_lk: string;
   jam_sekarang: string;
   posisi_sekarang: number;
   kondisi: Kondisi;
@@ -84,12 +86,17 @@ export type Today = {
   pengiriman: Pengiriman;
 };
 
+export type FasilTindakLanjut = {
+  nomor: string; nama: string; kategori: "membalas" | "menunggu" | "manual"; alasan: string; dibalas: boolean;
+  di_broadcast: boolean; p1: number; p2: number; p3: number; lengkap: number; perlu: number;
+};
+
 export type Pengingat = {
-  jenis: "terlewat" | "lanjut" | "minggu_baru" | "broadcast_selesai" | "tindak_lanjut";
+  jenis: "terlewat" | "lanjut" | "minggu_baru" | "broadcast_selesai" | "tindak_lanjut" | "chat_manual";
   judul: string;
   isi: string;
   total?: number;
-  fasil?: { nomor: string; nama: string; dibalas: boolean; alasan: string }[];
+  fasil?: FasilTindakLanjut[];
 };
 
 export type LkRingkas = { jumlah: number; p1: number; p2: number; p3: number; selesai: number };
@@ -155,7 +162,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 11;
+export const API_REV = 12;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -186,6 +193,8 @@ export type FasilRekap = {
   tahap: boolean[];
 };
 
+export type Alur = { fasil: number; sekolah: number; dihubungi: number; membalas: number; lk_lengkap: number };
+
 export type Rekap = {
   tanggal_panjang: string;
   week: string;
@@ -198,7 +207,8 @@ export type Rekap = {
     blok: { no: number; label: string; kolom: string; lengkap: number }[];
     komunikasi: { label: string; jumlah: number }[];
   };
-  luar_broadcast: { fasil: number; p1_sekolah: number };
+  alur: Record<"semua" | "p1" | "p2" | "p3", Alur>;
+  luar_broadcast: { fasil: number; sekolah: number; perlu: number; p1_sekolah: number; p1_progres_50: number; dihubungi: number };
   fasil: FasilRekap[];
 };
 

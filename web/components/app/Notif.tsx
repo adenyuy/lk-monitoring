@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
-import type { Pengingat } from "@/lib/types";
+import type { FasilTindakLanjut, Pengingat } from "@/lib/types";
 import s from "./app.module.css";
 
 const KUNCI_TUTUP = "lkm-pengingat-ditutup";
@@ -59,7 +59,7 @@ export function useNotif(adaBaru: boolean) {
       isi: "Broadcast atau LK berubah sejak terakhir Anda membuka Log.", kunci: "log-baru", href: "/log/",
     }] : []),
     ...(data?.items ?? [])
-      .filter((x) => x.jenis === "tindak_lanjut" || !tutup.includes(x.judul))
+      .filter((x) => x.jenis === "tindak_lanjut" || x.jenis === "chat_manual" || !tutup.includes(x.judul))
       .map((x) => ({ ...x, kunci: `${data?.tanggal}|${x.jenis}|${x.judul}` })),
   ];
   const baru = items.filter((x) => !dilihat.includes(x.kunci)).length;
@@ -83,7 +83,7 @@ function Ikon({ jenis }: { jenis: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {jenis === "tindak_lanjut"
+      {jenis === "tindak_lanjut" || jenis === "chat_manual"
         ? <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.5 8.5 0 1 1 21 11.5z" />
         : <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>}
     </svg>
@@ -91,8 +91,8 @@ function Ikon({ jenis }: { jenis: string }) {
 }
 
 /** Daftar notifikasi di menu tombol bulat. */
-export function NotifList({ items, onFasil, onTutup, onLink }: {
-  items: Notif[]; onFasil: (nomor: string) => void; onTutup: (judul: string) => void; onLink: () => void;
+export function NotifList({ items, onDaftar, onTutup, onLink }: {
+  items: Notif[]; onDaftar: (x: Notif) => void; onTutup: (judul: string) => void; onLink: () => void;
 }) {
   if (!items.length) {
     return <p className={s.nfEmpty}>Tidak ada notifikasi. Semua aman.</p>;
@@ -105,28 +105,17 @@ export function NotifList({ items, onFasil, onTutup, onLink }: {
           <div className={s.nfBody}>
             <b>{x.judul}</b>
             <p>{x.isi}</p>
-            {x.fasil && (
-              <ul className={s.nfChips}>
-                {x.fasil.map((f) => (
-                  <li key={f.nomor}>
-                    <button type="button" onClick={() => onFasil(f.nomor)} title={f.alasan}>
-                      <i className={f.dibalas ? s.chipBalas : undefined} aria-hidden="true" />
-                      {f.nama}
-                      <span className="sr-only">, {f.alasan}</span>
-                    </button>
-                  </li>
-                ))}
-                {!!x.total && x.total > x.fasil.length && (
-                  <li><Link href="/rekap/" onClick={onLink}>+{x.total - x.fasil.length} lainnya</Link></li>
-                )}
-              </ul>
-            )}
             <div className={s.nfAksi}>
+              {x.fasil && x.fasil.length > 0 && (
+                <button type="button" className={s.nfDaftar} onClick={() => onDaftar(x)}>
+                  Lihat daftar ({x.fasil.length})
+                </button>
+              )}
               {x.href && <Link href={x.href} onClick={onLink}>Buka Log</Link>}
               {(x.jenis === "terlewat" || x.jenis === "lanjut") && !x.href && (
                 <Link href="/faq/#sesi-terlewat" onClick={onLink}>Kenapa begini?</Link>
               )}
-              {x.jenis !== "tindak_lanjut" && !x.href && (
+              {!x.fasil && !x.href && (
                 <button type="button" onClick={() => onTutup(x.judul)}>Mengerti</button>
               )}
             </div>
@@ -134,5 +123,75 @@ export function NotifList({ items, onFasil, onTutup, onLink }: {
         </li>
       ))}
     </ul>
+  );
+}
+
+const KATEGORI: Record<FasilTindakLanjut["kategori"], string> = {
+  membalas: "Sudah membalas, LK belum lengkap",
+  menunggu: "Belum membalas",
+  manual: "Di luar Broadcast, belum dihubungi",
+};
+
+/** Popup daftar fasil dari notifikasi, tiap baris menuju panel fasil di Hari ini. */
+export function DaftarFasil({ item, onBuka, onClose }: {
+  item: Notif; onBuka: (nomor: string) => void; onClose: () => void;
+}) {
+  const ada = (Object.keys(KATEGORI) as FasilTindakLanjut["kategori"][])
+    .filter((k) => item.fasil?.some((f) => f.kategori === k));
+  const [kat, setKat] = useState<FasilTindakLanjut["kategori"] | "semua">("semua");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const tampil = (item.fasil ?? []).filter((f) => kat === "semua" || f.kategori === kat);
+  return (
+    <div className={s.dfWrap}>
+      <div className={s.amBackdrop} onClick={onClose} />
+      <div className={s.dfPanel} role="dialog" aria-modal="true" aria-labelledby="df-judul">
+        <div className={s.dfHead}>
+          <div>
+            <h2 id="df-judul">{item.judul}</h2>
+            <p>Klik fasil untuk membuka LK dan chat-nya di Hari ini.</p>
+          </div>
+          <button type="button" className={s.dfX} onClick={onClose} aria-label="Tutup">×</button>
+        </div>
+        {ada.length > 1 && (
+          <div className={s.dfTabs} role="group" aria-label="Saring">
+            <button type="button" aria-pressed={kat === "semua"} onClick={() => setKat("semua")}>
+              Semua <span>{item.fasil?.length}</span>
+            </button>
+            {ada.map((k) => (
+              <button key={k} type="button" aria-pressed={kat === k} onClick={() => setKat(k)}>
+                {KATEGORI[k]} <span>{item.fasil?.filter((f) => f.kategori === k).length}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <ul className={s.dfList}>
+          {tampil.map((f) => (
+            <li key={f.nomor}>
+              <button type="button" onClick={() => onBuka(f.nomor)}>
+                <i className={f.kategori === "membalas" ? s.chipBalas : f.kategori === "manual" ? s.chipManual : undefined}
+                  aria-hidden="true" />
+                <span className={s.dfNama}>
+                  <b>{f.nama}</b>
+                  <small>{f.alasan}</small>
+                </span>
+                <span className={s.dfPrio}>
+                  {f.p1 > 0 && <em className={s.pr1}>P1 {f.p1}</em>}
+                  {f.p2 > 0 && <em className={s.pr2}>P2 {f.p2}</em>}
+                  {f.p3 > 0 && <em className={s.pr3}>P3 {f.p3}</em>}
+                </span>
+                <span className={s.dfLk}>LK {f.lengkap}/{f.perlu}</span>
+                <span className={s.dfGo} aria-hidden="true">›</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }

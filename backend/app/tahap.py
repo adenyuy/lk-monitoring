@@ -3,13 +3,14 @@
 Dipakai panel fasil dan halaman Rekap supaya hitungannya sama.
 """
 
+from datetime import timedelta
 from typing import Any
 
 from . import schedule
 from .sheets import Sekolah
 
 TAHAP = (
-    ("terkirim", "Broadcast terkirim"),
+    ("terkirim", "Sudah dihubungi"),
     ("dibaca", "Dibaca"),
     ("dibalas", "Fasil membalas"),
     ("ditanya", "Isian LK ditanyakan"),
@@ -48,19 +49,77 @@ def perlu_isian(s: Sekolah) -> bool:
     return s.prioritas.strip().lower() != "selesai"
 
 
-def hitung(nomor: str, sekolah: list[Sekolah], sends: list[dict], chat: dict | None,
+def senin_iso() -> str:
+    """Awal minggu ini (Senin 00.00) dalam format ISO, untuk membandingkan string waktu."""
+    d = schedule.now().date()
+    return (d - timedelta(days=d.weekday())).isoformat()
+
+
+def kontak_minggu() -> dict[str, dict[str, bool]]:
+    """Status kontak per nomor MINGGU INI (Senin–Minggu).
+
+    terkirim = Broadcast terkirim atau chat dikirim dari aplikasi; dibaca / dibalas dari pengecekan chat.
+    Minggu berikutnya semuanya mulai dari belum lagi.
+    """
+    from . import db
+
+    senin = senin_iso()
+    out: dict[str, dict[str, bool]] = {}
+
+    def e(n: str) -> dict[str, bool]:
+        return out.setdefault(n, {"terkirim": False, "dibaca": False, "dibalas": False, "gagal": False})
+
+    kirim_akhir: dict[str, str] = {}
+    for r in db.query("SELECT nomor, status, waktu FROM sends WHERE coba = 0 AND waktu >= ? ORDER BY waktu, id",
+                      (senin,)):
+        if r["status"] == "terkirim":
+            e(r["nomor"])["terkirim"] = True
+            kirim_akhir[r["nomor"]] = max(kirim_akhir.get(r["nomor"], ""), r["waktu"])
+        elif r["status"] == "gagal" and not e(r["nomor"])["terkirim"]:
+            e(r["nomor"])["gagal"] = True
+    for r in db.query("SELECT nomor, jenis, waktu FROM aktivitas WHERE waktu >= ?", (senin,)):
+        x = e(r["nomor"])
+        if r["jenis"] == "balas":
+            x["terkirim"] = True
+            kirim_akhir[r["nomor"]] = max(kirim_akhir.get(r["nomor"], ""), r["waktu"])
+        elif r["jenis"] == "dibaca":
+            x["dibaca"] = True
+        elif r["jenis"] == "dibalas":
+            x["dibaca"] = x["dibalas"] = True
+    for r in db.query("SELECT nomor, status, waktu_balasan, dicek FROM chat_status"):
+        x = out.get(r["nomor"])
+        if not x or not x["terkirim"]:
+            continue  # status chat lama (minggu lalu) tidak dihitung
+        # Status chat dicek setelah pesan minggu ini dikirim -> berlaku untuk pesan itu
+        if r["status"] in ("dibaca", "dibalas") and (r["dicek"] or "") >= kirim_akhir.get(r["nomor"], ""):
+            x["dibaca"] = True
+        if r["status"] == "dibalas" and (r["waktu_balasan"] or "") >= senin:
+            x["dibalas"] = True
+    for x in out.values():
+        if x["terkirim"]:
+            x["gagal"] = False
+    return out
+
+
+def manual_minggu(manual: dict[str, dict]) -> dict[str, dict]:
+    """Centang manual hanya berlaku di minggu saat dicentang."""
+    senin = senin_iso()
+    return {k: v for k, v in manual.items() if (v.get("waktu") or "") >= senin}
+
+
+def hitung(nomor: str, sekolah: list[Sekolah], kontak: dict[str, bool] | None,
            manual: dict[str, dict], blok: int) -> list[dict[str, Any]]:
-    """Status tiap tahap untuk satu fasil. Centang manual menimpa deteksi otomatis."""
-    terkirim = any(x["status"] == "terkirim" and not x["coba"] for x in sends)
-    st = (chat or {}).get("status", "")
+    """Status tiap tahap untuk satu fasil minggu ini. Centang manual (minggu ini) menimpa deteksi otomatis."""
+    k = kontak or {}
     perlu = [x for x in sekolah if perlu_isian(x)]
     auto = {
-        "terkirim": terkirim,
-        "dibaca": st in ("dibaca", "dibalas"),
-        "dibalas": st == "dibalas",
+        "terkirim": bool(k.get("terkirim")),
+        "dibaca": bool(k.get("dibaca")),
+        "dibalas": bool(k.get("dibalas")),
         "ditanya": False,
         "lk_lengkap": bool(perlu) and all(sekolah_lengkap(x, blok) for x in perlu),
     }
+    manual = manual_minggu(manual)
     out = []
     for kode, label in TAHAP:
         m = manual.get(kode)

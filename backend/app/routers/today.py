@@ -1,5 +1,6 @@
 """Layar Hari ini: ringkasan, rel sesi, isi sesi, detail fasilitator."""
 
+from collections import Counter
 from datetime import datetime
 from typing import Any
 
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 from .. import aktivitas, config, db, schedule, send_queue, store, tahap
 from ..schedule import jam
 from ..sender import NotAllowed, sender
-from ..sheets import filter_petugas, nomor_key, read_broadcast, read_lk, sekolah_per_fasil
+from ..sheets import filter_petugas, nomor_key, nomor_lk, read_broadcast, read_lk, sekolah_per_fasil
 from ..wa.status import mask
 from .deps import require_feature, require_login
 
@@ -99,7 +100,6 @@ def _rencana(ctx: dict[str, Any], no: int) -> list[send_queue.Item]:
     return eligible[offset: offset + kapasitas]
 
 
-MAKS_TINDAK_LANJUT = 8
 
 
 def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
@@ -147,39 +147,57 @@ def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
                      "isi": "Sisa minggu ini untuk tindak lanjut: chat fasil yang belum membalas dan lengkapi isian "
                             "LK. Senin depan Broadcast dikirim lagi dengan data progres terbaru."})
 
-    # Chat yang perlu ditindaklanjuti: sudah dikirimi minggu ini, isian LK belum lengkap
+    # Daftar tindak lanjut: semua fasil milik petugas (Broadcast + LK) yang isian LK-nya belum lengkap
     smap = _sekolah_map()
     if smap:
-        chats = store.chat_status_all()
+        kontak = tahap.kontak_minggu()
         manual = store.tahap_all()
         blok = tahap.blok_hari_ini()
-        minggu = send_queue.senin(now.date())
-        terkirim = {x["nomor"] for x in store.sends_real() if x["status"] == "terkirim"
-                    and send_queue.senin(datetime.fromisoformat(x["waktu"]).date()) == minggu}
-        daftar: list[dict[str, Any]] = []
-        for it in items:
-            n = it.nomor
-            man = manual.get(n, {})
-            if not n or not (n in terkirim or man.get("terkirim", {}).get("nilai")):
-                continue
-            perlu = [s for s in smap.get(nomor_key(n), []) if tahap.perlu_isian(s)]
+        di_bc = {nomor_key(i.nomor): i for i in items if i.nomor}
+        fasil: dict[str, dict[str, Any]] = {}
+        for key, sekolah in smap.items():
+            perlu = [s for s in sekolah if tahap.perlu_isian(s)]
             if not perlu or all(tahap.sekolah_lengkap(s, blok) for s in perlu):
                 continue
-            st = chats.get(n, {}).get("status", "")
-            dibalas = st == "dibalas" or man.get("dibalas", {}).get("nilai")
-            daftar.append({"nomor": n, "nama": it.nama_fasil, "dibalas": bool(dibalas),
-                           "alasan": "Sudah membalas, isian LK belum lengkap" if dibalas
-                           else ("Sudah dibaca, belum membalas" if st == "dibaca" else "Belum membalas")})
-        if daftar:
-            daftar.sort(key=lambda x: (not x["dibalas"], x["nama"].casefold()))
-            n_balas = sum(1 for x in daftar if x["dibalas"])
-            judul = (f"{n_balas} fasil sudah membalas, isian LK-nya belum lengkap" if n_balas
-                     else f"{len(daftar)} fasil belum membalas")
-            isi = "Chat dan isi LK bisa kapan saja, tidak terikat jam sesi. Klik nama fasil untuk melanjutkan."
-            if n_balas and len(daftar) > n_balas:
-                isi = f"{len(daftar) - n_balas} lainnya belum membalas. " + isi
-            out.append({"jenis": "tindak_lanjut", "judul": judul, "isi": isi, "total": len(daftar),
-                        "fasil": daftar[:MAKS_TINDAK_LANJUT]})
+            it = di_bc.get(key)
+            nomors = nomor_lk(sekolah[0])
+            nomor = it.nomor if it else next((n for n in nomors if nomor_key(n) == key), nomors[0] if nomors else "")
+            if not nomor or key in fasil:
+                continue
+            k = kontak.get(nomor, {})
+            man = tahap.manual_minggu(manual.get(nomor, {}))
+            nyala = lambda kode: man[kode]["nilai"] if kode in man else bool(k.get(kode))  # noqa: E731
+            if nyala("dibalas"):
+                kat, alasan = "membalas", "Sudah membalas, isian LK belum lengkap"
+            elif nyala("terkirim"):
+                kat, alasan = "menunggu", "Sudah dihubungi, belum membalas"
+            elif it is None:
+                kat, alasan = "manual", "Tidak masuk Broadcast, belum dihubungi minggu ini"
+            else:
+                continue  # masih di antrean Broadcast: akan dikirimi otomatis
+            prio = Counter((s.prioritas or "").strip().lower() for s in perlu)
+            fasil[key] = {
+                "nomor": nomor, "nama": it.nama_fasil if it else sekolah[0].fasil, "kategori": kat, "alasan": alasan,
+                "dibalas": kat == "membalas", "di_broadcast": it is not None,
+                "p1": prio["prioritas 1"], "p2": prio["prioritas 2"], "p3": prio["prioritas 3"],
+                "lengkap": sum(1 for s in perlu if tahap.sekolah_lengkap(s, blok)), "perlu": len(perlu),
+            }
+        urut = {"membalas": 0, "menunggu": 1, "manual": 2}
+        daftar = sorted(fasil.values(), key=lambda x: (urut[x["kategori"]], -x["p1"], x["nama"].casefold()))
+        n = Counter(x["kategori"] for x in daftar)
+        if n["membalas"] or n["menunggu"]:
+            bagian = []
+            if n["membalas"]:
+                bagian.append(f"{n['membalas']} sudah membalas tapi isian LK belum lengkap")
+            if n["menunggu"]:
+                bagian.append(f"{n['menunggu']} belum membalas")
+            out.append({"jenis": "tindak_lanjut", "judul": f"{n['membalas'] + n['menunggu']} fasil perlu dichat lagi",
+                        "isi": (lambda x: x[:1].upper() + x[1:])(", ".join(bagian)) + ".", "total": n["membalas"] + n["menunggu"],
+                        "fasil": [x for x in daftar if x["kategori"] != "manual"]})
+        if n["manual"]:
+            out.append({"jenis": "chat_manual", "judul": f"{n['manual']} fasil di luar Broadcast belum dihubungi",
+                        "isi": "Mereka tidak dikirimi Broadcast otomatis. Chat langsung dari panel fasil.",
+                        "total": n["manual"], "fasil": [x for x in daftar if x["kategori"] == "manual"]})
     return out
 
 
@@ -208,6 +226,8 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
     return {
         "tanggal": ctx["tanggal"],
         "tanggal_panjang": schedule.tanggal_panjang(now.date()),
+        "week": week_aktif(),
+        "blok_lk": tahap.BLOK_LABEL[tahap.blok_hari_ini()],
         "jam_sekarang": now.strftime("%H.%M"),
         "posisi_sekarang": max(0.0, min(100.0, round(pct, 2))),
         "kondisi": k.as_dict(),
@@ -323,7 +343,7 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
         "di_broadcast": row is not None,
         "kirim_ulang": {"bisa": bool(terkirim_minggu_ini) and row is not None, "diminta": ulang_aktif},
         "blok": {"no": blok, "label": tahap.BLOK_LABEL[blok], "kolom": tahap.BLOK_KOLOM_LABEL[blok]},
-        "tahap": tahap.hitung(nomor, sekolah, sends, chat, store.tahap_all().get(nomor, {}), blok),
+        "tahap": tahap.hitung(nomor, sekolah, tahap.kontak_minggu().get(nomor), store.tahap_all().get(nomor, {}), blok),
         "nomor_tersamar": mask(nomor),
         "status": status,
         "pesan": row.pesan if row else "",

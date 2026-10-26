@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
-import { FasilDrawer } from "@/components/today/FasilDrawer";
 import { LockIcon } from "./NoAccess";
-import { NotifList, useNotif } from "./Notif";
+import { DaftarFasil, NotifList, useNotif, type Notif } from "./Notif";
 import { IconCutoff, IconHariIni, IconLog, IconPanduan, IconRekap, IconTanya } from "./Icons";
 import s from "./app.module.css";
 
@@ -115,7 +114,8 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
   const tombol = useRef<HTMLButtonElement>(null);
   const timerDiam = useRef<number | undefined>(undefined);
   const nf = useNotif(adaBaru);
-  const [fasil, setFasil] = useState<string | null>(null);
+  const [daftar, setDaftar] = useState<Notif | null>(null);
+  const router = useRouter();
 
   const bangun = useCallback(() => {
     setDiam(false);
@@ -275,7 +275,7 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
               <div className={s.amNotif}>
                 <h3>Notifikasi{nf.items.length > 0 && <span>{nf.items.length}</span>}</h3>
                 <NotifList items={nf.items} onTutup={nf.sembunyikan} onLink={tutupMenu}
-                  onFasil={(n) => { setMenu(false); setFasil(n); }} />
+                  onDaftar={(x) => { setMenu(false); setDaftar(x); }} />
               </div>
               <div className={s.amGrid}>
                 <Tile href="/rekap/" label="Rekap" icon={<IconRekap />} current={kini("/rekap/")} onPick={tutupMenu}
@@ -297,7 +297,13 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
           </div>
         </div>
       )}
-      {fasil && <FasilDrawer nomor={fasil} versi={0} onClose={() => { setFasil(null); void nf.muat(); }} />}
+      {daftar && (
+        <DaftarFasil item={daftar} onClose={() => setDaftar(null)} onBuka={(n) => {
+          setDaftar(null);
+          if (path.startsWith("/today")) window.dispatchEvent(new CustomEvent("lkm-buka-fasil", { detail: n }));
+          else router.push(`/today/?fasil=${encodeURIComponent(n)}`);
+        }} />
+      )}
     </>
   );
 }

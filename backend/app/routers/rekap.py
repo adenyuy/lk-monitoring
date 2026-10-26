@@ -19,16 +19,29 @@ wa_blast = require_feature("wa_blast")
 PRIO = {"prioritas 1": "p1", "prioritas 2": "p2", "prioritas 3": "p3", "selesai": "selesai"}
 
 
-def _status_chat(sends: list[dict], chat: dict | None, manual_terkirim: bool) -> str:
-    """belum | gagal | terkirim | dibaca | dibalas"""
-    st = (chat or {}).get("status", "")
-    if st in ("dibaca", "dibalas"):
-        return st
-    if any(x["status"] == "terkirim" for x in sends) or manual_terkirim:
+def _status_chat(k: dict | None, manual: dict) -> str:
+    """Status kontak minggu ini: belum | gagal | terkirim | dibaca | dibalas"""
+    k = k or {}
+    nilai = lambda kode: manual.get(kode, {}).get("nilai")  # noqa: E731
+    if nilai("dibalas") or (k.get("dibalas") and nilai("dibalas") is None):
+        return "dibalas"
+    if nilai("dibaca") or (k.get("dibaca") and nilai("dibaca") is None):
+        return "dibaca"
+    if nilai("terkirim") or (k.get("terkirim") and nilai("terkirim") is None):
         return "terkirim"
-    if sends and sends[-1]["status"] == "gagal":
-        return "gagal"
-    return "belum"
+    return "gagal" if k.get("gagal") else "belum"
+
+
+def _alur(rows: list[dict[str, Any]], k: str) -> dict[str, int]:
+    """Fasil yang punya sekolah prioritas k (semua = punya sekolah yang belum selesai), dan kemajuannya minggu ini."""
+    f = [r for r in rows if (r["isian_perlu"] > 0 if k == "semua" else r[k] > 0)]
+    return {
+        "fasil": len(f),
+        "sekolah": sum(r["isian_perlu"] if k == "semua" else r[k] for r in f),
+        "dihubungi": sum(1 for r in f if r["chat"] in ("terkirim", "dibaca", "dibalas")),
+        "membalas": sum(1 for r in f if r["chat"] == "dibalas"),
+        "lk_lengkap": sum(1 for r in f if r["isian_perlu"] and r["isian_lengkap"] >= r["isian_perlu"]),
+    }
 
 
 @router.get("/rekap")
@@ -54,8 +67,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
     for key, r in bc_by_key.items():  # fasil Broadcast yang tidak ada di LK tetap tampil
         fasil.setdefault(key, {"nama": r.nama_fasil, "nomor": r.nomor, "sekolah": []})
 
-    sends_all = store.sends_real()
-    chats = store.chat_status_all()
+    kontak = tahap.kontak_minggu()
     manual = store.tahap_all()
 
     rows = []
@@ -65,9 +77,8 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
         sekolah = f["sekolah"]
         prio = Counter(PRIO.get(s.prioritas.strip().lower(), "lain") for s in sekolah)
         perlu = [s for s in sekolah if tahap.perlu_isian(s)]
-        sends = [x for x in sends_all if x["nomor"] == nomor]
-        man = manual.get(nomor, {})
-        t = tahap.hitung(nomor, sekolah, sends, chats.get(nomor), man, blok)
+        man = tahap.manual_minggu(manual.get(nomor, {}))
+        t = tahap.hitung(nomor, sekolah, kontak.get(nomor), man, blok)
         rows.append({
             "nama": bcr.nama_fasil if bcr else f["nama"],
             "nomor": nomor,
@@ -77,7 +88,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
             "p1": prio["p1"], "p2": prio["p2"], "p3": prio["p3"], "selesai": prio["selesai"],
             "p1_progres_50": sum(1 for s in sekolah if PRIO.get(s.prioritas.strip().lower()) == "p1"
                                  and s.progres is not None and s.progres >= 50),
-            "chat": _status_chat(sends, chats.get(nomor), bool(man.get("terkirim", {}).get("nilai"))),
+            "chat": _status_chat(kontak.get(nomor), man),
             "isian_lengkap": sum(1 for s in perlu if tahap.sekolah_lengkap(s, blok)),
             "isian_perlu": len(perlu),
             "tahap": [x["selesai"] for x in t],
@@ -115,9 +126,16 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
             ],
             "komunikasi": [{"label": k, "jumlah": v} for k, v in kom.most_common()],
         },
+        "alur": {
+            k: _alur(rows, k) for k in ("semua", "p1", "p2", "p3")
+        },
         "luar_broadcast": {
             "fasil": len(luar),
+            "sekolah": sum(r["sekolah"] for r in luar),
+            "perlu": sum(r["isian_perlu"] for r in luar),
             "p1_sekolah": sum(r["p1"] for r in luar),
+            "p1_progres_50": sum(r["p1_progres_50"] for r in luar),
+            "dihubungi": sum(1 for r in luar if r["chat"] in ("terkirim", "dibaca", "dibalas")),
         },
         "fasil": rows,
     }

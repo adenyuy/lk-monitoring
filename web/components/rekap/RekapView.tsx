@@ -27,7 +27,7 @@ const TAHAP = ["Broadcast terkirim", "Dibaca", "Fasil membalas", "Isian LK ditan
 type Filter = "semua" | "p1_belum" | "membalas" | "isian" | "luar";
 const FILTER: { k: Filter; label: string; cocok: (r: FasilRekap) => boolean }[] = [
   { k: "semua", label: "Semua", cocok: () => true },
-  { k: "p1_belum", label: "P1 belum dihubungi", cocok: (r) => r.p1 > 0 && (r.chat === "belum" || r.chat === "gagal") },
+  { k: "p1_belum", label: "Belum dihubungi", cocok: (r) => r.isian_perlu > 0 && (r.chat === "belum" || r.chat === "gagal") },
   { k: "membalas", label: "Sudah membalas", cocok: (r) => r.chat === "dibalas" },
   { k: "isian", label: "Isian LK belum lengkap", cocok: (r) => r.isian_lengkap < r.isian_perlu },
   { k: "luar", label: "Tidak masuk Broadcast", cocok: (r) => !r.di_broadcast },
@@ -36,6 +36,14 @@ const FILTER: { k: Filter; label: string; cocok: (r: FasilRekap) => boolean }[] 
 type Kolom = "nama" | "p1" | "p2" | "p3" | "selesai" | "chat" | "isian";
 
 const PER_HAL = 15;
+
+type AlurKey = "semua" | "p1" | "p2" | "p3";
+const ALUR_TAB: { k: AlurKey; label: string; ket: string }[] = [
+  { k: "semua", label: "Semua", ket: "Semua fasil yang masih punya sekolah belum selesai:" },
+  { k: "p1", label: "P1", ket: "Fasil dengan sekolah Prioritas 1 (belum submit laporan 50%):" },
+  { k: "p2", label: "P2", ket: "Fasil dengan sekolah Prioritas 2 (sudah submit, progres di bawah 50%):" },
+  { k: "p3", label: "P3", ket: "Fasil dengan sekolah Prioritas 3 (belum direviu):" },
+];
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 
 export function RekapView() {
@@ -46,6 +54,7 @@ export function RekapView() {
   const [urut, setUrut] = useState<{ k: Kolom; naik: boolean }>({ k: "p1", naik: false });
   const [buka, setBuka] = useState<string | null>(null);
   const [hal, setHal] = useState(0);
+  const [tabAlur, setTabAlur] = useState<AlurKey>("p1");
 
   const muat = useCallback(async () => {
     try {
@@ -86,7 +95,8 @@ export function RekapView() {
   }
 
   const sk = data.sekolah;
-  const p1 = data.p1;
+  const al = data.alur[tabAlur];
+  const lb = data.luar_broadcast;
 
   function th(k: Kolom, label: string, num = false) {
     const aktif = urut.k === k;
@@ -131,23 +141,33 @@ export function RekapView() {
         </dl>
       </section>
 
-      <section className={s.card} aria-labelledby="h-p1" data-tour="p1">
+      <section className={s.card} aria-labelledby="h-alur" data-tour="p1">
         <div className={s.cardHead}>
-          <h2 id="h-p1">Fasil Prioritas 1</h2>
-          <span>{p1.fasil} fasil dengan {p1.sekolah} sekolah P1</span>
+          <h2 id="h-alur">Kemajuan fasil minggu ini</h2>
+          <div className={s.tabs} role="tablist" aria-label="Prioritas">
+            {ALUR_TAB.map((x) => (
+              <button key={x.k} type="button" role="tab" aria-selected={tabAlur === x.k} onClick={() => setTabAlur(x.k)}>
+                {x.label} <span>{data.alur[x.k].fasil}</span>
+              </button>
+            ))}
+          </div>
         </div>
+        <p className={s.alurKet}>
+          {ALUR_TAB.find((x) => x.k === tabAlur)!.ket} {al.fasil} fasil, {al.sekolah} sekolah.
+          Dihitung ulang tiap Senin.
+        </p>
         <ol className={s.funnel}>
           {[
-            { label: "Fasil P1", n: p1.fasil, ket: "punya sekolah P1" },
-            { label: "Dihubungi", n: p1.fasil_dihubungi, ket: "Broadcast terkirim" },
-            { label: "Membalas", n: p1.fasil_membalas, ket: "fasil sudah membalas" },
-            { label: "LK lengkap", n: p1.fasil_lk_lengkap, ket: `isian sesi ${data.blok.label}` },
+            { label: "Fasil", n: al.fasil, ket: tabAlur === "semua" ? "punya sekolah belum selesai" : `punya sekolah ${tabAlur.toUpperCase()}` },
+            { label: "Dihubungi", n: al.dihubungi, ket: "Broadcast atau chat terkirim" },
+            { label: "Membalas", n: al.membalas, ket: "fasil sudah membalas" },
+            { label: "LK lengkap", n: al.lk_lengkap, ket: `isian sesi ${data.blok.label}` },
           ].map((x, i) => (
             <li key={x.label}>
               <span className={s.fLabel}>{x.label}</span>
-              <b className={s.fNum}>{x.n}{i > 0 && <small> {pct(x.n, p1.fasil)}%</small>}</b>
+              <b className={s.fNum}>{x.n}{i > 0 && <small> {pct(x.n, al.fasil)}%</small>}</b>
               <span className={s.fTrack} aria-hidden="true">
-                <span style={{ width: `${i === 0 ? 100 : pct(x.n, p1.fasil)}%` }} />
+                <span style={{ width: `${i === 0 ? 100 : pct(x.n, al.fasil)}%` }} />
               </span>
               <span className={s.fKet}>{x.ket}</span>
             </li>
@@ -155,13 +175,14 @@ export function RekapView() {
         </ol>
       </section>
 
-      {data.luar_broadcast.fasil > 0 && (
+      {lb.fasil > 0 && (
         <button type="button" className={s.luar} onClick={() => { setFilter("luar"); setHal(0); }}>
-          <b>{data.luar_broadcast.fasil} fasil tidak masuk Broadcast</b>
+          <b>{lb.fasil} fasil tidak masuk Broadcast</b>
           <span>
-            {data.luar_broadcast.p1_sekolah
-              ? `${data.luar_broadcast.p1_sekolah} sekolah P1 di antaranya belum submit, padahal progresnya sudah 50% atau lebih.`
-              : "Semua sekolahnya sudah selesai atau bukan P1."} Lihat daftarnya
+            Mereka membina {lb.sekolah} sekolah, {lb.perlu} di antaranya belum selesai
+            {lb.p1_sekolah ? ` (${lb.p1_sekolah} sekolah P1${lb.p1_progres_50 ? `, ${lb.p1_progres_50} di antaranya progresnya sudah 50% atau lebih tapi belum submit` : ""})` : ""}.
+            Mereka tidak dikirimi Broadcast otomatis, jadi perlu dichat manual. Minggu ini {lb.dihubungi} dari {lb.fasil} sudah
+            dihubungi. Lihat daftarnya
           </span>
         </button>
       )}

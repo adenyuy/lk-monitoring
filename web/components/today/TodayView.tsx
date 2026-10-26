@@ -63,6 +63,19 @@ export function TodayView() {
     })();
   }, [loadToday, loadDetail]);
 
+  // Buka panel fasil dari notifikasi: lewat ?fasil=nomor (dari halaman lain) atau event (di halaman ini)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("fasil");
+    if (q) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNomor(q);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    const buka = (e: Event) => setNomor((e as CustomEvent<string>).detail);
+    window.addEventListener("lkm-buka-fasil", buka);
+    return () => window.removeEventListener("lkm-buka-fasil", buka);
+  }, []);
+
   function pilihSesi(no: number) {
     if (no === sesiRef.current) return;
     sesiRef.current = no;
@@ -95,7 +108,13 @@ export function TodayView() {
 
   return (
     <div className={s.page}>
-      <div className={s.date}>{today.tanggal_panjang}</div>
+      <div className={s.dateRow}>
+        <span className={s.week} title={`Hari ini dan Rekap memakai tab WEEK ${today.week} di LK`}>
+          WEEK {today.week}
+        </span>
+        <span className={s.date}>{today.tanggal_panjang}</span>
+        <span className={s.blokLk}>Isi LK: sesi {today.blok_lk}</span>
+      </div>
       <NowCard today={today} onChanged={refresh} />
       <SessionTabs sesi={today.sesi} dipilih={sesi} onPilih={pilihSesi} />
       <FasilList detail={detail} loading={loadingDetail} selected={nomor} onPick={setNomor} />

@@ -228,10 +228,16 @@ const GRUP: { judul: string; isi: T[] }[] = [
       },
       {
         id: "tidak-di-broadcast",
-        q: "Ada fasil di LK yang tidak ada di Broadcast. Kenapa?",
+        q: "Ada fasil di LK yang tidak ada di Broadcast. Bagaimana menghubunginya?",
         a: (
-          <p>Broadcast hanya berisi fasil yang punya sekolah sasaran P1. Fasil lain tetap muncul di{" "}
-            <Link href="/rekap/">Rekap</Link> dan tetap bisa dichat dari panelnya.</p>
+          <>
+            <p>Broadcast hanya berisi fasil sasaran P1 dari sheet Broadcast. Fasil lain (misalnya yang sekolahnya P2, P3,
+              atau P1 dengan progres sudah 50% atau lebih) tidak dikirimi Broadcast otomatis, jadi dihubungi lewat chat
+              manual.</p>
+            <p>Mereka tetap terpantau: tombol bulat menampilkan notifikasi <b>fasil di luar Broadcast belum dihubungi</b>
+              beserta daftarnya. Begitu Anda mengirim chat dari panel fasil, fasil itu dihitung sudah dihubungi dan
+              balasannya ikut dicek otomatis, sama seperti fasil Broadcast.</p>
+          </>
         ),
       },
       {

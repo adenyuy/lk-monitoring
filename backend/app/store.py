@@ -40,12 +40,15 @@ def sends_on(tanggal: str) -> list[dict[str, Any]]:
 
 
 def to_refresh(since_tanggal: str) -> list[str]:
-    """Nomor yang terkirim sejak tanggal itu dan belum tercatat 'dibalas'."""
+    """Nomor yang perlu dicek chat-nya: ada pesan keluar (Broadcast atau chat dari aplikasi) sejak tanggal itu
+    dan belum ada balasan yang lebih baru dari pesan keluar terakhir."""
     rows = db.query(
-        "SELECT DISTINCT s.nomor FROM sends s LEFT JOIN chat_status c ON c.nomor = s.nomor "
-        "WHERE s.status = 'terkirim' AND s.coba = 0 AND s.tanggal >= ? "
-        "AND (c.status IS NULL OR c.status != 'dibalas')",
-        (since_tanggal,),
+        "SELECT k.nomor FROM (SELECT nomor, MAX(waktu) AS w FROM ("
+        "  SELECT nomor, waktu FROM sends WHERE status = 'terkirim' AND coba = 0 AND tanggal >= ? "
+        "  UNION ALL SELECT nomor, waktu FROM aktivitas WHERE jenis = 'balas' AND waktu >= ?"
+        ") GROUP BY nomor) k LEFT JOIN chat_status c ON c.nomor = k.nomor "
+        "WHERE c.status IS NULL OR c.status != 'dibalas' OR c.waktu_balasan < k.w",
+        (since_tanggal, since_tanggal),
     )
     return [r["nomor"] for r in rows]
 

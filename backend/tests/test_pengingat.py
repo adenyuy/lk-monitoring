@@ -53,22 +53,27 @@ def test_lanjutan_kemarin_dan_minggu_baru(monkeypatch):
     assert today._pengingat(_ctx("2026-10-31 11:00", items, {}, 0), libur=True) == []
 
 
-def test_tindak_lanjut_yang_membalas_didahulukan(monkeypatch):
+def test_tindak_lanjut_mingguan_dan_fasil_di_luar_broadcast(monkeypatch):
     _bersih(monkeypatch)
-    a, b = "6281200000001", "6281200000002"
-    items = [_item(a, "Fasil A"), _item(b, "Fasil B")]
-    sek = Sekolah(baris=3, petugas="Petugas Uji", npsn="1", nama="SD SATU", kab_kota="Kab", fasil="x",
-                  nomor_fasil="", prioritas="Prioritas 1", progres=40, submit="Tidak", reviu="Tidak")
-    monkeypatch.setattr(today, "_sekolah_map", lambda: {a[-9:]: [sek], b[-9:]: [sek]})
-    monkeypatch.setattr(today.store, "sends_real", lambda: [
-        {"nomor": n, "status": "terkirim", "waktu": "2026-10-26T10:05:00"} for n in (a, b)])
-    monkeypatch.setattr(today.store, "chat_status_all", lambda: {b: {"status": "dibalas"}})
+    a, b, c, d = "6281200000001", "6281200000002", "6281200000003", "6281200000004"
+    items = [_item(a, "Fasil A"), _item(b, "Fasil B"), _item(d, "Fasil D")]
+
+    def sek(n, nama, prio="Prioritas 1"):
+        return Sekolah(baris=3, petugas="Petugas Uji", npsn=n[-3:], nama="SD SATU", kab_kota="Kab", fasil=nama,
+                       nomor_fasil=n, prioritas=prio, progres=40, submit="Tidak", reviu="Tidak")
+
+    monkeypatch.setattr(today, "_sekolah_map", lambda: {
+        a[-9:]: [sek(a, "Fasil A")], b[-9:]: [sek(b, "Fasil B")], c[-9:]: [sek(c, "Fasil C", "Prioritas 2")],
+        d[-9:]: [sek(d, "Fasil D")]})
+    monkeypatch.setattr(today.tahap, "kontak_minggu", lambda: {
+        a: {"terkirim": True}, b: {"terkirim": True, "dibaca": True, "dibalas": True}})
     monkeypatch.setattr(today.store, "tahap_all", lambda: {})
-    p = [x for x in today._pengingat(_ctx("2026-10-27 15:00", items, {1: 10}, 10), libur=False)
-         if x["jenis"] == "tindak_lanjut"][0]
-    assert [f["nama"] for f in p["fasil"]] == ["Fasil B", "Fasil A"]
-    assert p["judul"] == "1 fasil sudah membalas, isian LK-nya belum lengkap"
-    assert config.SESI[0].kuota == 10
+    p = {x["jenis"]: x for x in today._pengingat(_ctx("2026-10-27 15:00", items, {1: 10}, 10), libur=False)}
+    tl = p["tindak_lanjut"]
+    assert [f["nama"] for f in tl["fasil"]] == ["Fasil B", "Fasil A"]  # D masih di antrean Broadcast
+    assert tl["judul"] == "2 fasil perlu dichat lagi"
+    man = p["chat_manual"]
+    assert [f["nama"] for f in man["fasil"]] == ["Fasil C"] and man["fasil"][0]["p2"] == 1
 
 
 def test_broadcast_selesai_arahkan_ke_tindak_lanjut(monkeypatch):

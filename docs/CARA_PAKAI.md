@@ -39,10 +39,13 @@ Aplikasi memandu 4 langkah:
 - Angka merah di tombol bulat = **notifikasi** baru. Ketuk untuk melihatnya dan pindah halaman:
   - **Sesi n terlewat**: fasil yang belum dikirimi tetap di antrean dan ikut di sesi berikutnya. Kuota sesi tidak menumpuk, tapi batas harian 40 biasanya masih bisa dikejar.
   - **Lanjutan dari kemarin**, **Minggu baru dimulai**, **Broadcast minggu ini sudah terkirim**.
-  - **Fasil yang perlu dichat lagi**: sudah dikirimi minggu ini tapi isian LK-nya belum lengkap. Klik namanya untuk membuka chat dan LK.
+  - **Fasil perlu dichat lagi**: sudah dihubungi minggu ini tapi isian LK-nya belum lengkap. Tekan **Lihat daftar**, lalu klik fasil untuk membuka LK dan chat-nya di Hari ini.
+  - **Fasil di luar Broadcast belum dihubungi**: fasil P1/P2/P3 yang tidak dikirimi Broadcast otomatis. Chat langsung dari panelnya; setelah itu balasannya ikut dicek otomatis.
   - **Ada perubahan data baru** di Broadcast atau LK.
 
 ### Alur satu minggu
+
+Halaman Hari ini menampilkan **WEEK** yang sedang dipakai dan sesi isian LK hari itu.
 
 - **Senin–Selasa**: Broadcast ke semua fasil di sheet Broadcast (40 per hari), isi LK sesi Senin–Rabu.
 - **Rabu–Jumat**: tindak lanjut lewat chat (template Tanya belum submit / progres / reviu), isi LK sesi Rabu–Jumat.
@@ -60,7 +63,7 @@ Aplikasi memandu 4 langkah:
 
 ### Rekap
 
-Jumlah sekolah P1/P2/P3/Selesai, alur fasil P1 (dihubungi → membalas → LK lengkap), fasil yang tidak masuk Broadcast, dan tabel per fasil (15 per halaman) yang bisa diurutkan dan disaring.
+Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P3 (dihubungi → membalas → LK lengkap, mulai dari nol tiap Senin), fasil yang tidak masuk Broadcast, dan tabel per fasil (15 per halaman) yang bisa diurutkan dan disaring.
 
 ### Log
 
