@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useMe, usePolling } from "@/lib/hooks";
 import type { WaStatus } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
+import { WaBanner } from "./WaBanner";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -97,6 +98,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      <WaBanner wa={wa} onChange={setWa} />
       <main className={s.main}>{children}</main>
       <footer className={s.footer}>
         <span>Tim Monitoring Revitalisasi SD 2026</span>
