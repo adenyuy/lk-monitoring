@@ -257,6 +257,10 @@ class _Cache:
         with self._lock:
             self._data.clear()
 
+    def drop(self, key: str) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
 
 cache = _Cache()
 

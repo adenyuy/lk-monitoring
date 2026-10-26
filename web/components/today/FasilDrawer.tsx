@@ -80,7 +80,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
             </svg>
           </button>
         </header>
-        {data && <TahapBar nomor={nomor} tahap={data.tahap} diBroadcast={data.di_broadcast} onChange={setData} />}
+        {data && <TahapBar nomor={nomor} data={data} onChange={setData} />}
         {openError && <div className={s.drawerNote}><Notice tone="warn" title="Chat belum terbuka">{openError}</Notice></div>}
         {error && <div className={s.drawerNote}><Notice tone="bad" title="Data fasil tidak terbaca">{error}</Notice></div>}
         {!data && !error && <div className={s.empty}><Spinner label="Memuat" /></div>}
@@ -102,13 +102,22 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
 }
 
 /** Urutan komunikasi dengan fasil. Klik tahap untuk mencentang manual (mis. bila chat lewat HP). */
-function TahapBar({ nomor, tahap, diBroadcast, onChange }: {
+function TahapBar({ nomor, data, onChange }: {
   nomor: string;
-  tahap: Tahap[];
-  diBroadcast: boolean;
+  data: Fasil;
   onChange: (f: Fasil) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const { tahap, di_broadcast: diBroadcast, kirim_ulang: ulang } = data;
+
+  async function kirimUlang(aktif: boolean) {
+    setBusy("ulang");
+    try {
+      onChange(await post<Fasil>(`/api/fasil/${nomor}/kirim-ulang`, { aktif }));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function ubah(t: Tahap) {
     if (t.kode === "lk_lengkap") return;
@@ -138,6 +147,17 @@ function TahapBar({ nomor, tahap, diBroadcast, onChange }: {
         ))}
       </ol>
       {!diBroadcast && <span className={s.luarBc}>Tidak masuk Broadcast</span>}
+      {ulang.diminta ? (
+        <span className={s.ulang}>
+          Dikirim ulang di sesi berikutnya
+          <button type="button" className={s.linkBtn} disabled={busy !== null} onClick={() => void kirimUlang(false)}>Batalkan</button>
+        </span>
+      ) : ulang.bisa ? (
+        <button type="button" className={s.ulangBtn} disabled={busy !== null} onClick={() => void kirimUlang(true)}
+          title="Pesan Broadcast sudah terkirim minggu ini. Tekan untuk mengirim sekali lagi di sesi berikutnya.">
+          Kirim ulang broadcast
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -112,6 +112,7 @@ export type Tahap = { kode: string; label: string; selesai: boolean; sumber: "ot
 export type Fasil = {
   nama_fasil: string;
   di_broadcast: boolean;
+  kirim_ulang: { bisa: boolean; diminta: boolean };
   blok: { no: number; label: string; kolom: string };
   tahap: Tahap[];
   nomor_tersamar: string;
@@ -146,7 +147,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 6;
+export const API_REV = 7;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;

@@ -179,7 +179,7 @@ def session_detail(no: int, _=Depends(wa_blast)) -> dict[str, Any]:
         {
             "jam": "", "nama_fasil": it.nama_fasil, "nomor": it.nomor, "lk": lk(it.nomor),
             "status": "Berikutnya" if (j == 0 and no == aktif_no) else "Menunggu",
-            "keterangan": "Akan dicoba ulang" if it.status == "gagal" else "",
+            "keterangan": "Kirim ulang diminta" if it.diulang else ("Akan dicoba ulang" if it.status == "gagal" else ""),
         }
         for j, it in enumerate(_rencana(ctx, no))
     ]
@@ -218,9 +218,15 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
 
     blok = tahap.blok_hari_ini()
     nama_lk = sekolah[0].fasil if sekolah else ""
+    minggu = send_queue.senin(schedule.now().date())
+    terkirim_minggu_ini = [x for x in sends if x["status"] == "terkirim"
+                           and send_queue.senin(datetime.fromisoformat(x["waktu"]).date()) == minggu]
+    diminta = store.ulang_all().get(nomor, "")
+    ulang_aktif = bool(diminta and terkirim_minggu_ini and diminta > terkirim_minggu_ini[-1]["waktu"])
     return {
         "nama_fasil": row.nama_fasil if row else (last["nama_fasil"] if last else (nama_lk or "Fasilitator")),
         "di_broadcast": row is not None,
+        "kirim_ulang": {"bisa": bool(terkirim_minggu_ini) and row is not None, "diminta": ulang_aktif},
         "blok": {"no": blok, "label": tahap.BLOK_LABEL[blok], "kolom": tahap.BLOK_KOLOM_LABEL[blok]},
         "tahap": tahap.hitung(nomor, sekolah, sends, chat, store.tahap_all().get(nomor, {}), blok),
         "nomor_tersamar": mask(nomor),
@@ -252,4 +258,15 @@ def fasil_tahap(nomor: str, req: TahapReq, _=Depends(wa_blast)) -> dict[str, Any
         store.delete_tahap(nomor, req.kode)
     else:
         store.set_tahap(nomor, req.kode, req.selesai, "manual", schedule.now().isoformat(timespec="seconds"))
+    return fasil_detail(nomor)
+
+
+class UlangReq(BaseModel):
+    aktif: bool
+
+
+@router.post("/fasil/{nomor}/kirim-ulang")
+def fasil_kirim_ulang(nomor: str, req: UlangReq, _=Depends(wa_blast)) -> dict[str, Any]:
+    """Minta pesan Broadcast dikirim ulang ke fasil ini di sesi berikutnya (sekali)."""
+    store.set_ulang(nomor, schedule.now().isoformat(timespec="seconds") if req.aktif else None)
     return fasil_detail(nomor)

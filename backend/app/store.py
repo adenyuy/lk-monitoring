@@ -104,3 +104,18 @@ def set_tag(nomor: str, warna: str, waktu: str) -> None:
             "ON CONFLICT(nomor) DO UPDATE SET warna=excluded.warna, waktu=excluded.waktu",
             (nomor, warna, waktu),
         )
+
+
+# ---------- kirim ulang ----------
+
+def ulang_all() -> dict[str, str]:
+    return {r["nomor"]: r["waktu"] for r in db.query("SELECT nomor, waktu FROM kirim_ulang")}
+
+
+def set_ulang(nomor: str, waktu: str | None) -> None:
+    with db.tx() as c:
+        if waktu is None:
+            c.execute("DELETE FROM kirim_ulang WHERE nomor = ?", (nomor,))
+        else:
+            c.execute("INSERT INTO kirim_ulang(nomor, waktu) VALUES(?, ?) "
+                      "ON CONFLICT(nomor) DO UPDATE SET waktu = excluded.waktu", (nomor, waktu))

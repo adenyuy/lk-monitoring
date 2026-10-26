@@ -110,7 +110,7 @@ class Sender:
     def antrean(self) -> list[send_queue.Item]:
         petugas, _, _ = self._settings()
         rows = filter_petugas(self.load_rows(), petugas)
-        return send_queue.build(rows, store.sends_real())
+        return send_queue.build(rows, store.sends_real(), self.clock().date(), store.ulang_all())
 
     def kondisi(self, items: list[send_queue.Item] | None = None) -> schedule.Kondisi:
         _, batas, akhir_pekan = self._settings()

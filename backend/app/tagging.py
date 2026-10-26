@@ -14,7 +14,7 @@ import queue
 import threading
 
 from . import config, db, schedule, store
-from .sheets import cache, filter_petugas, gspread_client, parse_broadcast
+from .sheets import cache, filter_petugas, gspread_client, normalize_nomor, parse_broadcast
 
 log = logging.getLogger(__name__)
 
@@ -86,13 +86,27 @@ def _baris_milik() -> tuple[int, dict[str, list[int]]]:
     return cache.get("tag_baris", 600, load)
 
 
+def _cocok(ss, baris: list[int], nomor: str) -> bool:
+    """Pastikan sel C di baris-baris itu masih berisi nomor ini (sheet bisa saja sudah diurutkan ulang)."""
+    got = ss.values_batch_get([f"'{TAB}'!C{b}" for b in baris]).get("valueRanges", [])
+    return len(got) == len(baris) and all(
+        normalize_nomor(str((g.get("values") or [[""]])[0][0])) == nomor for g in got)
+
+
 def tulis(nomor: str, warna: str) -> bool:
+    ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
     sheet_id, peta = _baris_milik()
     baris = peta.get(nomor, [])
+    if baris and not _cocok(ss, baris, nomor):
+        cache.drop("tag_baris")  # posisi baris berubah: baca ulang
+        sheet_id, peta = _baris_milik()
+        baris = peta.get(nomor, [])
+        if baris and not _cocok(ss, baris, nomor):
+            log.warning("Baris nomor %s di %s tidak cocok, lewati penandaan", nomor[-4:], TAB)
+            return False
     if not baris:
         log.info("Nomor %s tidak ada di %s, lewati penandaan", nomor[-4:], TAB)
         return False
-    ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
     ss.batch_update({"requests": [
         {"repeatCell": {
             "range": {"sheetId": sheet_id, "startRowIndex": b - 1, "endRowIndex": b,

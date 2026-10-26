@@ -27,6 +27,9 @@ def test_tulis_ke_baris_fasil(monkeypatch):
         def batch_update(self, body):
             dikirim.update(body)
 
+        def values_batch_get(self, ranges):
+            return {"valueRanges": [{"values": [["https://wa.me/6281200000001"]]} for _ in ranges]}
+
     class GC:
         def open_by_key(self, _):
             return SS()
@@ -37,3 +40,20 @@ def test_tulis_ke_baris_fasil(monkeypatch):
     rng = dikirim["requests"][0]["repeatCell"]["range"]
     assert rng == {"sheetId": 77, "startRowIndex": 4, "endRowIndex": 5, "startColumnIndex": 1, "endColumnIndex": 3}
     assert not tagging.tulis("6289999999999", "hijau")  # bukan fasil petugas ini
+
+
+def test_lewati_bila_baris_bergeser(monkeypatch):
+    class SS:
+        def batch_update(self, body):
+            raise AssertionError("tidak boleh menulis")
+
+        def values_batch_get(self, ranges):
+            return {"valueRanges": [{"values": [["6289999999999"]]} for _ in ranges]}
+
+    class GC:
+        def open_by_key(self, _):
+            return SS()
+
+    monkeypatch.setattr(tagging, "_baris_milik", lambda: (77, {"6281200000001": [5]}))
+    monkeypatch.setattr(tagging, "gspread_client", lambda: GC())
+    assert not tagging.tulis("6281200000001", "hijau")

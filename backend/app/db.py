@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS chat_tahap (
     PRIMARY KEY (nomor, tahap)
 );
 
+CREATE TABLE IF NOT EXISTS kirim_ulang (
+    nomor  TEXT PRIMARY KEY,
+    waktu  TEXT NOT NULL                -- saat diminta; berlaku sampai ada kiriman terkirim sesudahnya
+);
+
 CREATE TABLE IF NOT EXISTS tag_warna (
     nomor  TEXT PRIMARY KEY,
     warna  TEXT NOT NULL,               -- hijau | kuning | merah (yang sudah tertulis di Broadcast P1)
