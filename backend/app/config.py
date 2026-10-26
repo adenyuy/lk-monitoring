@@ -19,7 +19,7 @@ def _read_version() -> str:
 
 VERSION = _read_version()
 # Naikkan tiap ada endpoint baru; tampilan membandingkannya untuk mendeteksi server yang belum di-restart.
-API_REV = 9
+API_REV = 10
 
 # --- Server ---
 HOST = "127.0.0.1"  # hanya bisa diakses dari laptop ini

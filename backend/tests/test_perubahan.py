@@ -36,3 +36,23 @@ def test_lk_perubahan_prioritas_dan_progres():
     assert e["judul"] == "LK WEEK 9"
     assert e["ringkasan"].startswith("1 sekolah P1 → P3")
     assert "SD SATU: progres 40,0% → 55,0%" in e["rincian"]
+
+
+def test_kalender_dan_log_per_hari_dengan_sesi(monkeypatch):
+    from datetime import date
+
+    with db.tx() as c:
+        c.execute("DELETE FROM perubahan")
+        for w in ("2026-10-23T10:15:00", "2026-10-23T14:30:00", "2026-10-26T09:00:00"):
+            c.execute("INSERT INTO perubahan(waktu, sumber, judul, ringkasan, rincian) VALUES(?,?,?,?,?)",
+                      (w, "lk", "LK WEEK 1", "x", "[]"))
+    k = perubahan.kalender(date(2026, 10, 1))
+    assert k["bulan"] == "2026-10"
+    assert k["hari"] == [{"tanggal": "2026-10-23", "broadcast": 0, "lk": 2},
+                         {"tanggal": "2026-10-26", "broadcast": 0, "lk": 1}]
+    assert k["paling_awal"] == "2026-10-23"
+    assert perubahan.kalender(date(2026, 11, 1))["hari"] == []
+    hari = perubahan.daftar(tanggal="2026-10-23")
+    assert [x["sesi"] for x in hari] == [2, 1]
+    assert hari[0]["sesi_label"] == "Sesi 2, 14.00–15.59"
+    assert perubahan.daftar(tanggal="2026-10-26")[0]["sesi_label"] == "Sebelum sesi 1 (sebelum 10.00)"

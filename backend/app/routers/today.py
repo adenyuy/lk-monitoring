@@ -97,6 +97,85 @@ def _rencana(ctx: dict[str, Any], no: int) -> list[send_queue.Item]:
     return eligible[offset: offset + kapasitas]
 
 
+MAKS_TINDAK_LANJUT = 8
+
+
+def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
+    """Pengingat di Hari ini: sesi terlewat, lanjutan dari hari sebelumnya, chat yang perlu ditindaklanjuti."""
+    now, k, items = ctx["now"], ctx["kondisi"], ctx["items"]
+    out: list[dict[str, Any]] = []
+    t = now.hour * 60 + now.minute
+    belum = len(send_queue.eligible(items))
+    batas = int(db.get_setting("batas_harian", config.BATAS_HARIAN_DEFAULT))
+    sisa_harian = max(0, batas - ctx["total"])
+    hari = schedule.HARI
+
+    if not libur and belum and sisa_harian:
+        lewat = [s for s in config.SESI if t > _menit(s.sampai) and ctx["per"].get(s.no, 0) < s.kuota]
+        kapasitas = sum(max(0, s.kuota - ctx["per"].get(s.no, 0)) for s in config.SESI if t <= _menit(s.sampai))
+        bisa = min(sisa_harian, kapasitas, belum)
+        if lewat:
+            kosong = sum(s.kuota - ctx["per"].get(s.no, 0) for s in lewat)
+            nama = ", ".join(str(s.no) for s in lewat)
+            if bisa:
+                isi = (f"{kosong} slot pesan di sesi itu tidak terpakai. Fasil yang belum dikirimi tidak hilang: "
+                       f"mereka tetap di antrean dan ikut di sesi berikutnya. Hari ini masih bisa {bisa} pesan lagi.")
+            else:
+                besok = hari[k.mulai_berikutnya.weekday()] if k.mulai_berikutnya else "hari kerja berikutnya"
+                isi = (f"Hari ini sudah tidak ada sesi lagi. {belum} fasil yang belum dikirimi lanjut {besok} "
+                       f"mulai sesi 1.")
+            out.append({"jenis": "terlewat", "judul": f"Sesi {nama} terlewat", "isi": isi})
+        elif ctx["total"] == 0 and t <= _menit(config.SESI[-1].sampai):
+            minggu = send_queue.senin(now.date())
+            sudah_minggu_ini = any(
+                x["status"] == "terkirim" and send_queue.senin(datetime.fromisoformat(x["waktu"]).date()) == minggu
+                for x in store.sends_real()
+            )
+            if sudah_minggu_ini:
+                out.append({"jenis": "lanjut", "judul": f"Lanjutan dari kemarin: {belum} fasil belum dikirimi",
+                            "isi": "Mereka ikut di sesi hari ini. Fasil yang sudah dikirimi minggu ini tidak dikirimi "
+                                   "lagi sampai Senin, kecuali Anda menekan Kirim ulang."})
+            elif now.weekday() == 0:
+                out.append({"jenis": "minggu_baru", "judul": "Minggu baru dimulai",
+                            "isi": f"Semua {belum} fasil di Broadcast masuk antrean lagi. Isian LK minggu ini "
+                                   f"mulai di sesi Senin–Rabu (kolom P–U)."})
+
+    # Chat yang perlu ditindaklanjuti: sudah dikirimi minggu ini, isian LK belum lengkap
+    smap = _sekolah_map()
+    if smap:
+        chats = store.chat_status_all()
+        manual = store.tahap_all()
+        blok = tahap.blok_hari_ini()
+        minggu = send_queue.senin(now.date())
+        terkirim = {x["nomor"] for x in store.sends_real() if x["status"] == "terkirim"
+                    and send_queue.senin(datetime.fromisoformat(x["waktu"]).date()) == minggu}
+        daftar: list[dict[str, Any]] = []
+        for it in items:
+            n = it.nomor
+            man = manual.get(n, {})
+            if not n or not (n in terkirim or man.get("terkirim", {}).get("nilai")):
+                continue
+            perlu = [s for s in smap.get(nomor_key(n), []) if tahap.perlu_isian(s)]
+            if not perlu or all(tahap.sekolah_lengkap(s, blok) for s in perlu):
+                continue
+            st = chats.get(n, {}).get("status", "")
+            dibalas = st == "dibalas" or man.get("dibalas", {}).get("nilai")
+            daftar.append({"nomor": n, "nama": it.nama_fasil, "dibalas": bool(dibalas),
+                           "alasan": "Sudah membalas, isian LK belum lengkap" if dibalas
+                           else ("Sudah dibaca, belum membalas" if st == "dibaca" else "Belum membalas")})
+        if daftar:
+            daftar.sort(key=lambda x: (not x["dibalas"], x["nama"].casefold()))
+            n_balas = sum(1 for x in daftar if x["dibalas"])
+            judul = (f"{n_balas} fasil sudah membalas, isian LK-nya belum lengkap" if n_balas
+                     else f"{len(daftar)} fasil belum membalas")
+            isi = "Chat dan isi LK bisa kapan saja, tidak terikat jam sesi. Klik nama fasil untuk melanjutkan."
+            if n_balas and len(daftar) > n_balas:
+                isi = f"{len(daftar) - n_balas} lainnya belum membalas. " + isi
+            out.append({"jenis": "tindak_lanjut", "judul": judul, "isi": isi, "total": len(daftar),
+                        "fasil": daftar[:MAKS_TINDAK_LANJUT]})
+    return out
+
+
 @router.get("/today")
 def today(_=Depends(wa_blast)) -> dict[str, Any]:
     ctx = _context()
@@ -145,6 +224,7 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
             for s in config.SESI
         ],
         "pengiriman": sender.snapshot(),
+        "pengingat": _pengingat(ctx, libur),
     }
 
 

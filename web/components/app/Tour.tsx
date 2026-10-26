@@ -7,13 +7,14 @@ export type Langkah = { target: string; judul: string; isi: string };
 
 const UMUM: Langkah[] = [
   { target: "nav", judul: "Menu", isi: "Pindah halaman di sini: Rekap, Hari ini, dan Tarik Cutoff. Di laptop, arahkan kursor ke menu untuk melihat namanya." },
+  { target: "dock", judul: "Tombol bulat", isi: "Lingkarannya hitung mundur sesi; arahkan kursor untuk melihat menit dan detiknya. Ketuk untuk pindah halaman, membuka log perubahan, panduan, atau tanya jawab. Seret untuk memindahkannya ke mana saja." },
 ];
 
 /** Langkah panduan per halaman. `target` = nilai atribut data-tour di elemen. */
 export const PANDUAN: Record<string, Langkah[]> = {
   "/today/": [
     ...UMUM,
-    { target: "countdown", judul: "Hitung mundur sesi", isi: "Sisa waktu sesi yang berjalan, atau berapa lama lagi sesi berikutnya dimulai. Pesan hanya dikirim di dalam jam sesi." },
+    { target: "pengingat", judul: "Pengingat", isi: "Muncul bila ada sesi yang terlewat, antrean lanjutan dari kemarin, atau fasil yang perlu dichat lagi. Klik nama fasil untuk langsung membuka chat dan LK-nya." },
     { target: "now", judul: "Mulai kirim di sini", isi: "Tekan Kirim untuk mengirim pesan Broadcast sesi ini satu per satu. Nyalakan Mode coba bila ingin melihat prosesnya tanpa benar-benar mengirim." },
     { target: "sesi", judul: "Lima sesi hari ini", isi: "Pilih sesi untuk melihat fasil yang sudah dan akan dikirimi di sesi itu." },
     { target: "fasil", judul: "Daftar fasil", isi: "Batang warna menunjukkan prioritas sekolah binaannya. Klik satu fasil untuk membuka LK dan chat WhatsApp-nya berdampingan." },
@@ -26,6 +27,7 @@ export const PANDUAN: Record<string, Langkah[]> = {
     { target: "isian", judul: "Isian LK", isi: "Berapa sekolah yang status komunikasi dan alasannya sudah lengkap, per sesi LK." },
     { target: "tabel", judul: "Per fasil", isi: "Urutkan dengan klik judul kolom, saring dengan tombol di atas tabel, lalu klik fasil untuk membuka LK dan chat-nya." },
   ],
+  "/faq/": [...UMUM],
   "/cutoff/": [
     ...UMUM,
     { target: "kalender", judul: "Riwayat tarik", isi: "Kotak besar = tarik mingguan per WEEK, kotak kecil = tarik harian per hari. Hijau berarti sudah ditarik." },

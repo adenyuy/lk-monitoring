@@ -82,6 +82,15 @@ export type Today = {
   total_fasil: number;
   sesi: SesiRingkas[];
   pengiriman: Pengiriman;
+  pengingat: Pengingat[];
+};
+
+export type Pengingat = {
+  jenis: "terlewat" | "lanjut" | "minggu_baru" | "tindak_lanjut";
+  judul: string;
+  isi: string;
+  total?: number;
+  fasil?: { nomor: string; nama: string; dibalas: boolean; alasan: string }[];
 };
 
 export type LkRingkas = { jumlah: number; p1: number; p2: number; p3: number; selesai: number };
@@ -147,7 +156,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 9;
+export const API_REV = 10;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -220,4 +229,14 @@ export type CutoffCek = {
   peringatan: string;
 };
 
-export type Perubahan = { id: number; waktu: string; sumber: "broadcast" | "lk"; judul: string; ringkasan: string; rincian: string[] };
+export type Perubahan = {
+  id: number; waktu: string; sumber: "broadcast" | "lk"; judul: string; ringkasan: string; rincian: string[];
+  sesi: number; sesi_label: string;
+};
+
+export type KalenderLog = {
+  bulan: string; // YYYY-MM
+  hari: { tanggal: string; broadcast: number; lk: number }[];
+  paling_awal: string;
+  hari_ini: string;
+};

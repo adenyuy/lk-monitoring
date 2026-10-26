@@ -9,7 +9,7 @@ import { API_REV, type WaStatus } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
 import { WaBanner } from "./WaBanner";
 import { LockIcon, NoAccess } from "./NoAccess";
-import { FloatDock } from "./Countdown";
+import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
 import { IconCutoff, IconHariIni, IconLogo, IconRekap } from "./Icons";
@@ -119,7 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={s.shell}>
       {/* Laptop: menu samping, hanya ikon; melebar saat kursor diarahkan */}
-      <aside className={s.side} aria-label="Menu">
+      <aside className={s.side} aria-label="Menu" data-dock-hindari="kiri">
         <Link href="/today/" className={s.brand}>
           <span className={s.logo}><IconLogo /></span>
           <span className={s.lbl}>LK Monitoring</span>
@@ -134,12 +134,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* HP: bar atas ringkas + menu bawah */}
-      <header className={s.mTop}>
+      <header className={s.mTop} data-dock-hindari="atas">
         <Link href="/today/" className={s.brand}><span className={s.logo}><IconLogo /></span>LK Monitoring</Link>
         <UserMenu nama={me.settings.nama_petugas ?? ""} email={me.email ?? ""} waLabel={waLabel} waDot={waDot}
           batas={me.settings.batas_harian} ringkas />
       </header>
-      <nav className={s.mTab} aria-label="Menu utama" data-tour="nav">{menu}</nav>
+      <nav className={s.mTab} aria-label="Menu utama" data-tour="nav" data-dock-hindari="bawah">{menu}</nav>
 
       <div className={s.content}>
         {me.api_rev !== API_REV && (
@@ -161,7 +161,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </footer>
       </div>
 
-      <FloatDock onPanduan={() => setPanduan(true)} />
+      <AssistDock onPanduan={() => setPanduan(true)} onTerkunci={() => setTerkunci(true)} bolehCutoff={bolehCutoff}
+        adaBaru={adaBaru} />
       {terkunci && <NoAccess onClose={() => setTerkunci(false)} />}
       {panduan && <Tour key={path} langkah={langkah} onClose={() => setPanduan(false)} />}
     </div>

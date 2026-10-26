@@ -166,49 +166,69 @@
   margin: 6px 4px;
 }
 
-/* ---------- melayang kanan bawah: hitung mundur + panduan ---------- */
-.dock {
+/* ---------- tombol bulat melayang (bisa digeser) + menu cepat ---------- */
+.assist {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
   z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  box-shadow: 0 8px 24px rgba(23, 32, 51, 0.14);
+  width: 56px;
+  height: 56px;
+  transition: left 0.22s cubic-bezier(0.2, 0.8, 0.3, 1.1), top 0.22s ease, opacity 0.3s ease;
 }
 
-.cd {
-  position: relative;
+.assistGeser {
+  transition: none;
 }
 
-.cdRing {
+.assistDiam {
+  opacity: 0.55;
+}
+
+.assistBtn {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   display: grid;
   place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: none;
   padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px rgba(23, 32, 51, 0.18), 0 1px 2px rgba(23, 32, 51, 0.08);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.cdRing svg {
+.assistGeser .assistBtn {
+  cursor: grabbing;
+  transform: scale(1.06);
+  box-shadow: 0 16px 34px rgba(23, 32, 51, 0.24);
+}
+
+.assistBtn svg {
   position: absolute;
-  inset: 0;
+  inset: -1px;
   transform: rotate(-90deg);
 }
 
-.cdRing > span {
-  font-size: 11px;
+.assistBtn > span {
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+}
+
+.assistDot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d92d20;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .cdTrack {
@@ -229,16 +249,16 @@
   stroke: #12a150;
 }
 
-.cdLive .cdRing > span {
+.cdLive .assistBtn > span {
   color: #0e7a3d;
 }
 
-/* Detail menit-detik hanya saat diarahkan / diketuk */
-.cdPop {
+/* Detail menit-detik saat diarahkan; muncul ke arah tengah layar */
+.assistPop {
   position: absolute;
-  right: -6px;
-  bottom: calc(100% + 14px);
-  min-width: 210px;
+  top: 50%;
+  right: calc(100% + 12px);
+  min-width: 214px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -249,25 +269,40 @@
   box-shadow: 0 12px 28px rgba(23, 32, 51, 0.16);
   white-space: nowrap;
   opacity: 0;
-  transform: translateY(4px);
+  transform: translate(4px, -50%);
   pointer-events: none;
   transition: opacity 0.14s ease, transform 0.14s ease;
 }
 
-.cd:hover .cdPop,
-.cd:focus-within .cdPop,
-.cdOpen .cdPop {
-  opacity: 1;
-  transform: none;
+.assistKiri .assistPop {
+  right: auto;
+  left: calc(100% + 12px);
+  transform: translate(-4px, -50%);
 }
 
-.cdPop b {
+@media (hover: hover) {
+  .assist:hover .assistPop {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
+.assistPop b {
   font-size: 13.5px;
   color: var(--ink);
 }
 
-.cdPop small {
+.assistPop small {
   font-size: 12px;
+  color: var(--muted);
+}
+
+.assistPop em {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  font-style: normal;
+  font-size: 11.5px;
   color: var(--muted);
 }
 
@@ -284,22 +319,139 @@
   color: #0e7a3d;
 }
 
-.dockHelp {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 16px 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 13.5px;
-  font-weight: 500;
+.amWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
 }
 
-.dockHelp:hover {
-  background: var(--primary-hover);
+.amBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.28);
+  animation: amFade 0.18s ease both;
+}
+
+.amStage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  animation: amPop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.05) both;
+}
+
+.amPanel {
+  width: min(328px, 100%);
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.28);
+}
+
+.amHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px 14px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.amHead > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.amHead b {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.amHead small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.amHead .cdTime {
+  margin: 0;
+  font-size: 22px;
+}
+
+.amGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.amTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 4px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+}
+
+.amTile:hover,
+.amTile:focus-visible {
+  background: var(--primary-soft);
+  color: var(--ink);
+}
+
+.amIco {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  color: var(--primary);
+}
+
+.amTile[aria-current="page"] .amIco {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.amTile[aria-current="page"] {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.amLocked .amIco {
+  color: var(--muted);
+}
+
+.amIco .newDot {
+  top: 2px;
+  right: 2px;
+}
+
+@keyframes amFade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes amPop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
 }
 
 /* ---------- pengguna ---------- */
@@ -509,21 +661,6 @@
     width: 30px;
     height: 30px;
     border-radius: 8px;
-  }
-
-  .dock {
-    right: 12px;
-    bottom: calc(76px + env(safe-area-inset-bottom));
-  }
-
-  .dockHelp span {
-    display: none;
-  }
-
-  .dockHelp {
-    width: 44px;
-    padding: 0;
-    justify-content: center;
   }
 
   .mTab {
@@ -800,13 +937,16 @@
 
 @media (prefers-reduced-motion: reduce) {
   .banner,
-  .modalScrim {
+  .modalScrim,
+  .amBackdrop,
+  .amStage {
     animation: none;
   }
 
   .side,
   .lbl,
-  .cdPop,
+  .assist,
+  .assistPop,
   .tourSpot,
   .tourPop,
   .cdBar {

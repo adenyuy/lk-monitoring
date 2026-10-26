@@ -8,13 +8,15 @@ import json
 import logging
 import re
 from collections import Counter
+from datetime import date, datetime, timedelta
 from typing import Any, Iterable
 
 from . import db, schedule
 
 log = logging.getLogger(__name__)
 MAKS_RINCIAN = 200
-MAKS_BARIS_LOG = 300
+MAKS_BARIS_LOG = 3000
+SIMPAN_HARI = 90  # log lebih lama dari ini dihapus
 
 
 def _petugas() -> str:
@@ -32,6 +34,8 @@ def _simpan_log(sumber: str, judul: str, ringkasan: str, rincian: list[str]) -> 
         )
         c.execute("DELETE FROM perubahan WHERE id NOT IN (SELECT id FROM perubahan ORDER BY id DESC LIMIT ?)",
                   (MAKS_BARIS_LOG,))
+        batas = (schedule.now().date() - timedelta(days=SIMPAN_HARI)).isoformat()
+        c.execute("DELETE FROM perubahan WHERE waktu < ?", (batas,))
 
 
 def _ganti_potret(kunci: str, data: dict) -> dict | None:
@@ -147,7 +151,53 @@ def catat_lk(tab: str, sekolah: Iterable[Any]) -> None:
         log.exception("Gagal mencatat perubahan LK")
 
 
-def daftar(batas: int = 50) -> list[dict[str, Any]]:
-    rows = db.query("SELECT id, waktu, sumber, judul, ringkasan, rincian FROM perubahan ORDER BY id DESC LIMIT ?",
-                    (batas,))
-    return [{**dict(r), "rincian": json.loads(r["rincian"])} for r in rows]
+def _sesi(waktu: str) -> tuple[int, str]:
+    """(urutan, label) dari waktu log: 0 = sebelum sesi 1, 1..5 = sesi, 9 = setelah sesi terakhir."""
+    from . import config
+
+    t = datetime.fromisoformat(waktu)
+    s = schedule.sesi_at(t)
+    if s is not None:
+        return s.no, f"Sesi {s.no}, {schedule.jam(s.mulai)}–{schedule.jam(s.sampai)}"
+    pertama, akhir = config.SESI[0], config.SESI[-1]
+    if t.strftime("%H:%M") < pertama.mulai:
+        return 0, f"Sebelum sesi 1 (sebelum {schedule.jam(pertama.mulai)})"
+    return 9, f"Setelah sesi {akhir.no} (setelah {schedule.jam(akhir.sampai)})"
+
+
+def _baris(r: Any) -> dict[str, Any]:
+    no, label = _sesi(r["waktu"])
+    return {**dict(r), "rincian": json.loads(r["rincian"]), "sesi": no, "sesi_label": label}
+
+
+def daftar(batas: int = 50, tanggal: str | None = None) -> list[dict[str, Any]]:
+    """Log terbaru di atas. Dengan `tanggal` (YYYY-MM-DD): semua log hari itu."""
+    if tanggal:
+        rows = db.query("SELECT id, waktu, sumber, judul, ringkasan, rincian FROM perubahan "
+                        "WHERE substr(waktu, 1, 10) = ? ORDER BY id DESC", (tanggal,))
+    else:
+        rows = db.query("SELECT id, waktu, sumber, judul, ringkasan, rincian FROM perubahan ORDER BY id DESC LIMIT ?",
+                        (batas,))
+    return [_baris(r) for r in rows]
+
+
+def kalender(bulan: date) -> dict[str, Any]:
+    """Jumlah log per hari dalam satu bulan (`bulan` = tanggal 1 bulan itu)."""
+    akhir = (bulan.replace(day=28) + timedelta(days=4)).replace(day=1)
+    rows = db.query(
+        "SELECT substr(waktu, 1, 10) AS tgl, sumber, COUNT(*) AS n FROM perubahan "
+        "WHERE waktu >= ? AND waktu < ? GROUP BY tgl, sumber",
+        (bulan.isoformat(), akhir.isoformat()),
+    )
+    hari: dict[str, dict[str, int]] = {}
+    for r in rows:
+        h = hari.setdefault(r["tgl"], {"broadcast": 0, "lk": 0})
+        h[r["sumber"]] = h.get(r["sumber"], 0) + r["n"]
+    pertama = db.query("SELECT MIN(waktu) AS w FROM perubahan")
+    paling_awal = (pertama[0]["w"] or "")[:10] if pertama else ""
+    return {
+        "bulan": bulan.strftime("%Y-%m"),
+        "hari": [{"tanggal": k, **v} for k, v in sorted(hari.items())],
+        "paling_awal": paling_awal,
+        "hari_ini": schedule.now().date().isoformat(),
+    }

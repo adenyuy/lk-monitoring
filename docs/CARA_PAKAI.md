@@ -35,7 +35,11 @@ Aplikasi memandu 4 langkah:
 - **Kartu Sekarang**: sesi yang berjalan dan tombol **Kirim N pesan**. Pesan dikirim satu per satu dengan jeda acak 45–120 detik, lalu berhenti sendiri saat kuota sesi habis.
 - Nyalakan **Mode coba** bila ingin melihat prosesnya tanpa benar-benar mengirim.
 - Jadwal sesi: 10.00–13.59 (10), 14.00–15.59 (10), 16.00–18.59 (15), 19.00–20.59 (15), 21.00–22.00 (10).
-- Lingkaran di kanan bawah = hitung mundur sesi. Arahkan kursor untuk melihat menit dan detiknya.
+- **Tombol bulat** melayang = hitung mundur sesi. Arahkan kursor untuk melihat menit dan detiknya. Ketuk untuk menu cepat (Rekap, Hari ini, Tarik Cutoff, Log perubahan, Panduan, Tanya jawab). Seret untuk memindahkannya; posisinya diingat.
+- **Pengingat** di bawah kartu Sekarang:
+  - **Sesi n terlewat**: fasil yang belum dikirimi tetap di antrean dan ikut di sesi berikutnya. Kuota sesi tidak menumpuk, tapi batas harian 40 biasanya masih bisa dikejar.
+  - **Lanjutan dari kemarin** / **Minggu baru dimulai**: berapa fasil yang masih menunggu.
+  - **Fasil yang perlu dichat lagi**: sudah dikirimi minggu ini tapi isian LK-nya belum lengkap. Klik namanya untuk membuka chat dan LK.
 
 ### Panel fasil (klik nama fasil)
 
@@ -49,7 +53,9 @@ Aplikasi memandu 4 langkah:
 
 ### Rekap
 
-Jumlah sekolah P1/P2/P3/Selesai, fasil P1 yang sudah dihubungi, isian LK, status komunikasi, fasil yang tidak masuk Broadcast, **Perubahan data** (apa yang berubah di Broadcast dan LK), dan tabel per fasil yang bisa diurutkan, disaring, dan **diunduh CSV**.
+Jumlah sekolah P1/P2/P3/Selesai, fasil P1 yang sudah dihubungi, isian LK, status komunikasi, fasil yang tidak masuk Broadcast, dan tabel per fasil yang bisa diurutkan, disaring, dan **diunduh CSV**.
+
+**Perubahan data** berbentuk kalender: makin gelap kotaknya, makin banyak perubahan Broadcast/LK di hari itu. Klik tanggal untuk melihat isinya, dikelompokkan per sesi. Log disimpan 90 hari.
 
 ### Tarik Cutoff (khusus admin cutoff)
 
@@ -57,7 +63,7 @@ Pilih jenis tarikan (Harian / Mingguan), WEEK, dan file cutoff → **Cek file** 
 
 ### Bingung?
 
-Tekan **Panduan** di kanan bawah. Aplikasi menunjuk bagian layar satu per satu.
+Ketuk tombol bulat → **Panduan** (aplikasi menunjuk bagian layar satu per satu) atau **Tanya jawab** (sesi terlewat, besok harinya, chat di luar sesi, dan lainnya).
 
 ## 4. Tips supaya nomor tidak diblokir
 

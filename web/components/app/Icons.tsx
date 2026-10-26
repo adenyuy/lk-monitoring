@@ -24,3 +24,9 @@ export const IconPanduan = () => (
 export const IconLogo = () => (
   <Svg size={16}><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.5 8.5 0 1 1 21 11.5z" /></Svg>
 );
+export const IconTanya = () => (
+  <Svg><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" /><path d="M10 8.6a2 2 0 0 1 3.9.6c0 1.3-1.9 1.7-1.9 2.9" /><path d="M12 14.5h.01" /></Svg>
+);
+export const IconLog = () => (
+  <Svg><rect x="3.5" y="4.5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17" /><path d="M8 2.5v4" /><path d="M16 2.5v4" /><path d="M8 14h3" /><path d="M8 17h6" /></Svg>
+);
