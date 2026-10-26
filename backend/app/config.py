@@ -23,7 +23,7 @@ API_REV = 9
 
 # --- Server ---
 HOST = "127.0.0.1"  # hanya bisa diakses dari laptop ini
-PORT = 8787
+PORT = int(os.environ.get("LKM_PORT", "8787"))  # LKM_PORT hanya untuk uji
 TIMEZONE = "Asia/Jakarta"
 DEV_WEB_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 

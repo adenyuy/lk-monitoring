@@ -78,7 +78,7 @@ lk-monitoring/
   Selesai jika: `/api/me` mengembalikan email setelah login.
 - [x] **1.5 Unggah credentials**: endpoint `POST /api/setup/credentials` (file) → salin ke folder data; `/api/me` mengembalikan `needsCredentials: true` bila belum ada.
 - [x] **1.6 `sheets.py` – Broadcast**: baca `Broadcast!A:E`, normalisasi nama petugas (buang `*`, trim, casefold), ambil nomor dari `wa.me/…`, kembalikan list `{nama_fasil, nomor, pesan, hash}`.
-  Selesai jika: untuk "Sari Petugas" terbaca 49 baris, "Budi Petugas" tidak ikut.
+  Selesai jika: untuk "Sari Petugas" terbaca 49 baris, petugas lain yang namanya mengandung "Sari Petugas" tidak ikut.
 - [x] **1.7 `sheets.py` – LK**: baca `WEEK n!B3:O` (hanya kolom perlu), kelompokkan sekolah per nomor fasil (9 digit terakhir) + petugas. Cache 10 menit.
 - [x] **1.8 `sheets.py` + `access.py` – Akses**: baca sheet Akses → `{email: {nama_petugas, fitur[]}}`. Email tidak terdaftar → 403 dengan pesan jelas.
 - [x] **1.9 Router `me`, `settings`, `petugas`.**
@@ -129,26 +129,26 @@ lk-monitoring/
 - [x] **6.4 Panel chat**: `/api/fasil/{nomor}` → status, tabel sekolah binaan (NPSN, progres, chip prioritas), gelembung pesan, tombol "Buka di WhatsApp Web" (fokuskan chat di jendela Chrome app).
 - [x] **6.5 Keadaan kosong & error**: Broadcast kosong untuk petugas, WA logout (banner + tombol scan ulang), sheet tidak bisa dibaca.
 
-## Fase 7 – Riwayat (± 4 jam)
+## Fase 7 – Riwayat (± 4 jam) — diganti halaman Rekap atas permintaan pengguna
 
-- [ ] **7.1 `/api/history`** (daftar hari) dan `/api/history/{tanggal}` (ringkasan sesi + baris).
-- [ ] **7.2 Layar Riwayat**: daftar hari kiri, ringkasan 5 sesi, tabel + saring status.
-- [ ] **7.3 CSV rekap**: satu baris per sekolah (gabung `sends` × sekolah binaan LK), UTF-8 dengan BOM agar rapi di Excel.
+- [-] (tidak dibuat) **7.1 `/api/history`** (daftar hari) dan `/api/history/{tanggal}` (ringkasan sesi + baris).
+- [-] (tidak dibuat) **7.2 Layar Riwayat**: daftar hari kiri, ringkasan 5 sesi, tabel + saring status.
+- [x] **7.3 CSV rekap** (tombol Unduh CSV di Rekap): satu baris per sekolah (gabung `sends` × sekolah binaan LK), UTF-8 dengan BOM agar rapi di Excel.
 
 ## Fase 8 – Tarik Cutoff (± 5 jam)
 
-- [ ] **8.1 `cutoff.py`**: pindahkan fungsi dari `tarik.py` (`baca_cutoff`, `olah`, `ke_capaian`, `prioritas`, penulisan batch + format persen + note). Pertahankan test dari data contoh (kasus 13.12, koma desimal, Laporan 50% kosong).
-- [ ] **8.2 `POST /api/cutoff/preview`** (multipart file + mode + week) → ringkasan & contoh, file disimpan sementara.
-- [ ] **8.3 `POST /api/cutoff/write`** → tulis ke `WEEK n`, simpan `cutoff_runs`. Cek akses `cutoff` di kedua endpoint.
-- [ ] **8.4 Layar Tarik Cutoff**: pilih file, mode, week → pratinjau (jumlah per prioritas, contoh) → "Tulis ke WEEK n" → hasil + riwayat.
+- [x] **8.1 `cutoff.py`**: pindahkan fungsi dari `tarik.py` (`baca_cutoff`, `olah`, `ke_capaian`, `prioritas`, penulisan batch + format persen + note). Pertahankan test dari data contoh (kasus 13.12, koma desimal, Laporan 50% kosong).
+- [x] **8.2 `POST /api/cutoff/preview`** (multipart file + mode + week) → ringkasan & contoh, file disimpan sementara.
+- [x] **8.3 `POST /api/cutoff/write`** → tulis ke `WEEK n`, simpan `cutoff_runs`. Cek akses `cutoff` di kedua endpoint.
+- [x] **8.4 Layar Tarik Cutoff**: pilih file, mode, week → pratinjau (jumlah per prioritas, contoh) → "Tulis ke WEEK n" → hasil + riwayat.
   Selesai jika: file cutoff penuh tertulis ke file copy LK < 30 detik dan hasilnya sama dengan `tarik.py`.
 
 ## Fase 9 – Distribusi (± 5 jam)
 
-- [ ] **9.1 `.github/workflows/release.yml`**: on push `stable` → setup Node → `npm ci && npm run build` di `web/` → salin `backend/`, `web/out/`, `scripts/`, `docs/CARA_PAKAI.md` → force-push ke branch `release` + tag versi (`vYYYY.MM.DD-N`).
-- [ ] **9.2 `install.bat`**: cek/instal Git & Python 3.12 (winget, `--scope user`), `git clone -b release`, `python -m venv`, `pip install -r`, `python -m playwright install-deps` tidak perlu (pakai Chrome), buat shortcut Desktop ke `start.bat`.
-- [ ] **9.3 `start.bat`**: `git fetch` + `git reset --hard origin/release` (lewati bila offline), `pip install -r` bila hash `requirements.txt` berubah, jalankan uvicorn tanpa jendela console tambahan, buka `http://localhost:8787`, cegah dua instance (cek port).
-- [ ] **9.4 `CARA_PAKAI.md`** untuk tim (install, setup, kirim per sesi, riwayat, tips anti-ban, kontak admin).
+- [x] **9.1 `.github/workflows/release.yml`**: on push `stable` → setup Node → `npm ci && npm run build` di `web/` → salin `backend/`, `web/out/`, `scripts/`, `docs/CARA_PAKAI.md` → force-push ke branch `release` + tag versi (`vYYYY.MM.DD-N`).
+- [x] **9.2 `install.bat`**: cek/instal Git & Python 3.12 (winget, `--scope user`), `git clone -b release`, `python -m venv`, `pip install -r`, `python -m playwright install-deps` tidak perlu (pakai Chrome), buat shortcut Desktop ke `start.bat`.
+- [x] **9.3 `start.bat`**: `git fetch` + `git reset --hard origin/release` (lewati bila offline), `pip install -r` bila hash `requirements.txt` berubah, jalankan uvicorn tanpa jendela console tambahan, buka `http://localhost:8787`, cegah dua instance (cek port).
+- [x] **9.4 `CARA_PAKAI.md`** untuk tim (install, setup, kirim per sesi, riwayat, tips anti-ban, kontak admin).
 - [ ] **9.5 Sheet Akses** dibuat + isi email tim; email tim didaftarkan di Google Cloud → Audience → Test users.
 
 ## Fase 10 – Uji & rilis (± 4 jam + pilot)

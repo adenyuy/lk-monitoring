@@ -1,0 +1,66 @@
+# Setiap push ke branch `stable`: build tampilan, lalu susun branch `release`
+# (yang diunduh install.bat / start.bat di laptop tim). Tes backend harus lulus dulu.
+name: Rilis
+
+on:
+  push:
+    branches: [stable]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rilis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tes backend
+        working-directory: backend
+        run: |
+          pip install -q -r requirements.txt
+          python -m pytest -q -p no:warnings
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build tampilan
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Susun isi branch release
+        run: |
+          VERSI="v$(date -u +%Y.%m.%d)-${GITHUB_RUN_NUMBER}"
+          echo "VERSI=$VERSI" >> "$GITHUB_ENV"
+          R=/tmp/rilis
+          mkdir -p "$R/web"
+          cp -r backend "$R/backend"
+          rm -rf "$R/backend/tests" "$R/backend/.venv" "$R/backend/.pytest_cache"
+          find "$R/backend" -name __pycache__ -type d -prune -exec rm -rf {} +
+          cp -r web/out "$R/web/out"
+          cp scripts/install.bat scripts/start.bat scripts/stop.bat "$R/"
+          cp docs/CARA_PAKAI.md "$R/"
+          echo "$VERSI" > "$R/backend/app/_version.txt"
+          printf '.venv/\n__pycache__/\n' > "$R/.gitignore"
+          printf '*.bat text eol=crlf\n' > "$R/.gitattributes"
+
+      - name: Dorong ke branch release + tag
+        run: |
+          cd /tmp/rilis
+          git init -q -b release
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Rilis $VERSI"
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push -q -f "$URL" release
+          git tag "$VERSI"
+          git push -q "$URL" "$VERSI"

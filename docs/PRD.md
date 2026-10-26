@@ -87,7 +87,7 @@ Setiap petugas menjalankan aplikasi di laptopnya sendiri lewat satu shortcut. Ap
 | `Nama Fasil` | Nama fasil di antrean |
 | `Nomor HP` | Link `https://wa.me/62…` → diambil angkanya |
 | `Pesan` | Isi pesan yang dikirim apa adanya |
-| `Nama Petugas` | Filter. Buang `*` dan spasi, cocokkan **persis** (tanpa beda huruf besar/kecil). "Budi Petugas" ≠ "Sari Petugas". |
+| `Nama Petugas` | Filter. Buang `*` dan spasi, cocokkan **persis** (tanpa beda huruf besar/kecil). "Dimas Sari Petugas" ≠ "Sari Petugas". |
 
 Kolom `TEMPLATE PESAN 1/2/3` tidak dipakai.
 
