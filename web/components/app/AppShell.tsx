@@ -8,6 +8,7 @@ import { useMe, usePolling } from "@/lib/hooks";
 import { API_REV, type WaStatus } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
 import { WaBanner } from "./WaBanner";
+import { LockIcon, NoAccess } from "./NoAccess";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -17,6 +18,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const { me, error } = useMe();
   const [wa, setWa] = useState<WaStatus | null>(null);
+  const [terkunci, setTerkunci] = useState(false);
 
   const siap = !!me && me.logged_in && !!me.access && me.settings.setup_selesai;
 
@@ -57,10 +59,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
+  const bolehCutoff = !!me.access?.fitur.includes("cutoff");
   const nav = [
     { href: "/today/", label: "Hari ini" },
-    { href: "/history/", label: "Riwayat" },
-    ...(me.access?.fitur.includes("cutoff") ? [{ href: "/cutoff/", label: "Tarik Cutoff" }] : []),
+    { href: "/rekap/", label: "Rekap" },
   ];
   const waLabel = wa?.state === "logged_in" ? wa.nomor_tersamar || "WhatsApp terhubung"
     : wa?.state === "closed" ? "WhatsApp belum dibuka" : wa ? "WhatsApp menunggu" : "Memeriksa WhatsApp";
@@ -86,6 +88,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {n.label}
                 </Link>
               ))}
+              {bolehCutoff ? (
+                <Link href="/cutoff/" className={s.navLink} aria-current={path?.startsWith("/cutoff") ? "page" : undefined}>
+                  Tarik Cutoff
+                </Link>
+              ) : (
+                <button type="button" className={`${s.navLink} ${s.navLocked}`} onClick={() => setTerkunci(true)}>
+                  <LockIcon /> Tarik Cutoff
+                </button>
+              )}
             </nav>
           </div>
           <div className={s.right}>
@@ -111,6 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
       <WaBanner wa={wa} onChange={setWa} />
       <main className={s.main}>{children}</main>
+      {terkunci && <NoAccess onClose={() => setTerkunci(false)} />}
       <footer className={s.footer}>
         <span>Tim Monitoring Revitalisasi SD 2026</span>
         <span>Versi {me.version}</span>

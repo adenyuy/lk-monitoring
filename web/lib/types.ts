@@ -146,7 +146,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 4;
+export const API_REV = 5;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -155,4 +155,39 @@ export type Percakapan = {
   status: "belum_ada" | "terkirim" | "dibaca" | "dibalas";
   dibaca_pada: string;
   pesan: { keluar: boolean; teks: string; waktu: string; status: string }[];
+};
+
+export type ChatRekap = "belum" | "gagal" | "terkirim" | "dibaca" | "dibalas";
+
+export type FasilRekap = {
+  nama: string;
+  nomor: string;
+  nomor_tersamar: string;
+  di_broadcast: boolean;
+  sekolah: number;
+  p1: number;
+  p2: number;
+  p3: number;
+  selesai: number;
+  p1_progres_50: number;
+  chat: ChatRekap;
+  isian_lengkap: number;
+  isian_perlu: number;
+  tahap: boolean[];
+};
+
+export type Rekap = {
+  tanggal_panjang: string;
+  week: string;
+  blok: { no: number; label: string; kolom: string };
+  sekolah: { total: number; p1: number; p2: number; p3: number; selesai: number };
+  fasil_total: number;
+  p1: { sekolah: number; fasil: number; fasil_dihubungi: number; fasil_membalas: number; sekolah_dihubungi: number };
+  isian: {
+    perlu: number;
+    blok: { no: number; label: string; kolom: string; lengkap: number }[];
+    komunikasi: { label: string; jumlah: number }[];
+  };
+  luar_broadcast: { fasil: number; p1_sekolah: number };
+  fasil: FasilRekap[];
 };

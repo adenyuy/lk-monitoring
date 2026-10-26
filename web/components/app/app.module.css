@@ -143,6 +143,68 @@
   from { opacity: 0; transform: translateY(-6px); }
 }
 
+button.navLink {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.navLocked {
+  gap: 6px;
+  color: #98a2b3;
+}
+
+.navLocked:hover {
+  color: var(--muted);
+}
+
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(23, 32, 51, 0.36);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  animation: bannerIn 0.18s ease;
+}
+
+.modal {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 28px 24px 22px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 20px 48px rgba(23, 32, 51, 0.2);
+}
+
+.modalIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+
+.modal h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal p {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
 .bannerWarn {
   background: var(--warn-bg);
   border-color: #f0d9a8;
@@ -204,6 +266,35 @@
   .banner > button:not(.bannerClose) {
     order: 3;
     width: 100%;
+  }
+
+  /* Navbar: logo di atas, menu bergeser horizontal bila tidak muat */
+  .headerIn {
+    padding: 0 16px;
+  }
+
+  .left {
+    flex-wrap: wrap;
+    gap: 0;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .nav {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -12px;
+  }
+
+  .navLink {
+    min-height: 44px;
+  }
+
+  .bannerWrap,
+  .main {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
 
