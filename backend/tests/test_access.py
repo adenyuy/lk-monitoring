@@ -6,7 +6,7 @@ from app import access
 def test_parse_akses():
     values = [
         ["Email", "Nama_Petugas", "Fitur"],
-        ["admin.contoh@contoh.id", "*Sari Petugas*", "wa_blast, cutoff"],
+        ["Admin.Contoh@Contoh.id", "*Sari Petugas*", "wa_blast, cutoff"],
         ["tim@contoh.id", "Petugas Contoh", "wa_blast, fitur_ngawur"],
         ["", "Tanpa Email", "wa_blast"],
     ]

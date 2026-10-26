@@ -50,7 +50,7 @@ Setiap petugas menjalankan aplikasi di laptopnya sendiri lewat satu shortcut. Ap
 
 | email | nama_petugas | fitur |
 |---|---|---|
-| admin.contoh@contoh.id | Sari Petugas | wa_blast, cutoff |
+| admin@contoh.id | Nama Petugas | wa_blast, cutoff |
 | … | … | wa_blast |
 
 - Email yang tidak ada di sheet Akses → tampil pesan "Akunmu belum terdaftar. Hubungi admin." dan aplikasi berhenti.
