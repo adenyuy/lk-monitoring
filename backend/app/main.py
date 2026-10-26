@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
 from . import chat_refresh, config, db, paths
-from .routers import chat, core, lk, rekap, send, today, wa
+from .routers import chat, core, cutoff, lk, rekap, send, today, wa
 from .wa.browser import worker
 
 
@@ -56,6 +56,7 @@ app.include_router(today.router)
 app.include_router(lk.router)
 app.include_router(chat.router)
 app.include_router(rekap.router)
+app.include_router(cutoff.router)
 
 
 @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)

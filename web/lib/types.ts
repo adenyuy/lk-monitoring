@@ -146,7 +146,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 5;
+export const API_REV = 6;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -190,4 +190,31 @@ export type Rekap = {
   };
   luar_broadcast: { fasil: number; p1_sekolah: number };
   fasil: FasilRekap[];
+};
+
+export type CutoffRun = { waktu: string; file: string; mode: "harian" | "mingguan"; week: string; sekolah: number };
+
+export type CutoffInfo = {
+  weeks: string[];
+  week_aktif: string;
+  week1_senin: string;
+  hari_ini: string;
+  riwayat: CutoffRun[];
+};
+
+export type CutoffCek = {
+  token: string;
+  tab: string;
+  mode: "harian" | "mingguan";
+  file: string;
+  baris_file: number;
+  sekolah_mingguan: number;
+  sekolah_lap50: number;
+  sekolah_sheet: number;
+  tanpa_mingguan: number;
+  berubah: number;
+  prioritas_berubah: number;
+  prioritas: { label: string; sebelum: number; sesudah: number }[];
+  kolom: string;
+  peringatan: string;
 };
