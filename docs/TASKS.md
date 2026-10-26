@@ -133,7 +133,7 @@ lk-monitoring/
 
 - [-] (tidak dibuat) **7.1 `/api/history`** (daftar hari) dan `/api/history/{tanggal}` (ringkasan sesi + baris).
 - [-] (tidak dibuat) **7.2 Layar Riwayat**: daftar hari kiri, ringkasan 5 sesi, tabel + saring status.
-- [x] **7.3 CSV rekap** (tombol Unduh CSV di Rekap): satu baris per sekolah (gabung `sends` × sekolah binaan LK), UTF-8 dengan BOM agar rapi di Excel.
+- [-] (dihapus atas permintaan) **7.3 CSV rekap** (tombol Unduh CSV di Rekap): satu baris per sekolah (gabung `sends` × sekolah binaan LK), UTF-8 dengan BOM agar rapi di Excel.
 
 ## Fase 8 – Tarik Cutoff (± 5 jam)
 
@@ -152,6 +152,15 @@ lk-monitoring/
 - [ ] **9.5 Sheet Akses** dibuat + isi email tim; email tim didaftarkan di Google Cloud → Audience → Test users.
 
 ## Fase 10 – Uji & rilis (± 4 jam + pilot)
+
+Sebelum distribusi (hasil tinjauan 2026-10-27):
+
+- [x] **10.0a Tolak permintaan dari situs lain** (cek Host + Origin di server lokal).
+- [ ] **10.0b Bersihkan riwayat git** dari nama/nomor/email asli (repo publik), atau jadikan repo privat.
+- [ ] **10.0c Pastikan sheet Broadcast & LK tidak "siapa saja yang punya link"** (ID sheet ada di repo publik).
+- [ ] **10.0d Status OAuth**: mode Testing = login ulang tiap 7 hari dan maks 100 pengguna; putuskan tetap Testing atau publish.
+- [ ] **10.0e Pembaruan saat server masih jalan**: tim bisa tertinggal versi berhari-hari bila laptop tidak dimatikan.
+- [ ] **10.0f Ringkasan tim untuk admin** (opsional): tiap aplikasi menulis status ke tab bersama.
 
 - [ ] **10.1 Uji lokal penuh** di laptop Marvin: setup dari nol, mode coba 5 fasil, kirim nyata 3 fasil, Riwayat & CSV, Tarik Cutoff ke file copy.
 - [ ] **10.2 Uji laptop bersih** (tanpa Python/Git): `install.bat` → app jalan < 15 menit.

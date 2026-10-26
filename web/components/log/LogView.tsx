@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import type { Aktivitas, FasilTercatat, KalenderLog, LogHari, Perubahan } from "@/lib/types";
 import { Notice } from "@/components/ui";
@@ -92,6 +92,7 @@ function PerHari({ onFasil }: { onFasil: (nomor: string) => void }) {
   const [pilih, setPilih] = useState<string | null>(null);
   const [hari, setHari] = useState<LogHari | null>(null);
   const [saring, setSaring] = useState<Saring>("semua");
+  const [tutup, setTutup] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   const muatBulan = useCallback(async (b?: string) => {
@@ -117,6 +118,7 @@ function PerHari({ onFasil }: { onFasil: (nomor: string) => void }) {
     let batal = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHari(null);
+    setTutup(new Set());
     api<LogHari>(`/api/log/hari?tanggal=${pilih}`)
       .then((r) => { if (!batal) setHari(r); })
       .catch((e) => { if (!batal) setError(e.message); });
@@ -216,19 +218,47 @@ function PerHari({ onFasil }: { onFasil: (nomor: string) => void }) {
                 : "Belum ada catatan di hari ini."}
             </p>
           )}
-          {grup.map((g) => (
-            <div key={g.no} className={s.sesiGrup}>
-              <h3>{g.label}<span>{g.items.length}</span></h3>
-              <ul className={s.rows}>
-                {g.items.map((b) => b.tipe === "data"
-                  ? <BarisData key={`d${b.x.id}`} x={b.x} />
-                  : <BarisFasil key={b.x.id} x={b.x} onFasil={onFasil} />)}
-              </ul>
+          {grup.length > 1 && (
+            <div className={s.grupAksi}>
+              <button type="button" onClick={() => setTutup(new Set())}>Buka semua</button>
+              <button type="button" onClick={() => setTutup(new Set(grup.map((g) => String(g.no))))}>Tutup semua</button>
             </div>
+          )}
+          {grup.map((g) => (
+            <Grup key={g.no} label={g.label} jumlah={g.items.length} buka={!tutup.has(String(g.no))}
+              onToggle={() => setTutup(ganti(tutup, String(g.no)))}>
+              {g.items.map((b) => b.tipe === "data"
+                ? <BarisData key={`d${b.x.id}`} x={b.x} />
+                : <BarisFasil key={b.x.id} x={b.x} onFasil={onFasil} />)}
+            </Grup>
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function ganti(s: Set<string>, k: string) {
+  const baru = new Set(s);
+  if (baru.has(k)) baru.delete(k);
+  else baru.add(k);
+  return baru;
+}
+
+/** Kelompok log (per sesi atau per tanggal) yang bisa dibuka-tutup. */
+function Grup({ label, jumlah, buka, onToggle, children }: {
+  label: string; jumlah: number; buka: boolean; onToggle: () => void; children: ReactNode;
+}) {
+  return (
+    <div className={s.sesiGrup}>
+      <h3>
+        <button type="button" className={s.grupBtn} aria-expanded={buka} onClick={onToggle}>
+          <i className={buka ? s.chevOpen : undefined} aria-hidden="true" />
+          {label}<span>{jumlah}</span>
+        </button>
+      </h3>
+      {buka && <ul className={s.rows}>{children}</ul>}
+    </div>
   );
 }
 
@@ -272,6 +302,7 @@ function PerFasil({ nomor, onPilih, onBuka }: {
   const [daftar, setDaftar] = useState<FasilTercatat[] | null>(null);
   const [cari, setCari] = useState("");
   const [riwayat, setRiwayat] = useState<Aktivitas[] | null>(null);
+  const [tutup, setTutup] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -353,12 +384,10 @@ function PerFasil({ nomor, onPilih, onBuka }: {
           )}
           {!riwayat && <p className={s.note}>Memuat…</p>}
           {perTanggal.map(([t, items]) => (
-            <div key={t} className={s.sesiGrup}>
-              <h3>{tglPanjang(t)}<span>{items.length}</span></h3>
-              <ul className={s.rows}>
-                {items.map((x) => <BarisFasil key={x.id} x={x} />)}
-              </ul>
-            </div>
+            <Grup key={t} label={tglPanjang(t)} jumlah={items.length} buka={!tutup.has(t)}
+              onToggle={() => setTutup(ganti(tutup, t))}>
+              {items.map((x) => <BarisFasil key={x.id} x={x} />)}
+            </Grup>
           ))}
         </div>
       </div>

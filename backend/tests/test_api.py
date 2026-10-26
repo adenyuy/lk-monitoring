@@ -65,3 +65,15 @@ def test_keluar_mengulang_persiapan(monkeypatch):
     monkeypatch.setattr(sender.state, "running", False)
     assert core.logout() == {"ok": True}
     assert db.get_setting("setup_selesai") is False
+
+
+def test_tolak_permintaan_dari_situs_lain():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    c = TestClient(app)
+    assert c.post("/api/auth/logout", headers={"Origin": "https://situs-jahat.example"}).status_code == 403
+    assert c.get("/api/health", headers={"Host": "jahat.example:8787"}).status_code == 403
+    assert c.get("/api/health", headers={"Host": "127.0.0.1:8787"}).status_code == 200
+    r = c.post("/api/settings", json={}, headers={"Origin": "http://127.0.0.1:8787"})
+    assert r.status_code != 403

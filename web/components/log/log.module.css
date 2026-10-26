@@ -229,16 +229,63 @@
 }
 
 .sesiGrup h3 {
+  margin-bottom: 6px;
+}
+
+.grupBtn {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  padding: 4px 6px 4px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-2);
 }
 
-.sesiGrup h3 span {
+.grupBtn:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.grupBtn i {
+  width: 7px;
+  height: 7px;
+  margin: 0 4px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.grupBtn i.chevOpen {
+  transform: rotate(45deg) translate(-2px, -1px);
+}
+
+.grupAksi {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  margin: -6px 0 -6px;
+}
+
+.grupAksi button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--primary);
+}
+
+.grupAksi button:hover {
+  text-decoration: underline;
+}
+
+.grupBtn span {
   min-width: 20px;
   padding: 0 6px;
   border-radius: 999px;

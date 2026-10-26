@@ -5,6 +5,7 @@ isian LK disimpan, centang tahap manual, permintaan kirim ulang.
 """
 
 import logging
+import re
 from datetime import date, timedelta
 from typing import Any
 
@@ -77,7 +78,8 @@ def daftar(tanggal: str | None = None, nomor: str | None = None) -> list[dict[st
         jenis = "kirim" if r["status"] == "terkirim" else "gagal"
         out.append({"id": f"s{r['id']}", "waktu": r["waktu"], "nomor": r["nomor"], "nama": r["nama_fasil"],
                     "jenis": jenis, "label": LABEL[jenis],
-                    "ringkasan": "Pesan Broadcast terkirim" if jenis == "kirim" else (r["keterangan"] or "Gagal")})
+                    "ringkasan": "Pesan Broadcast terkirim" if jenis == "kirim"
+                    else re.sub(r"\s*\([a-z_]+\)\s*$", "", r["keterangan"] or "") or "Gagal terkirim"})
     for r in lain:
         out.append({"id": f"a{r['id']}", "waktu": r["waktu"], "nomor": r["nomor"],
                     "nama": r["nama"] or nama.get(r["nomor"], r["nomor"]),

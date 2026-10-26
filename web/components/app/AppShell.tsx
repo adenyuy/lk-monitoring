@@ -152,7 +152,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className={s.bannerText}>
                 <b>Server aplikasi perlu dijalankan ulang</b>
                 <span>Tampilan sudah versi baru, tapi server masih versi lama, jadi sebagian fitur belum jalan.
-                  Tutup jendela server (Ctrl+C), lalu jalankan lagi.</span>
+                  Klik dua kali stop.bat di folder aplikasi, lalu buka lagi LK Monitoring dari Desktop.</span>
               </div>
             </div>
           </div>

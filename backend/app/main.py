@@ -5,9 +5,9 @@ from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from . import chat_refresh, config, db, paths
 from .routers import chat, core, cutoff, lk, log, rekap, send, today, wa
@@ -48,6 +48,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+HOST_BOLEH = {"127.0.0.1", "localhost", "testserver"}
+ORIGIN_BOLEH = {f"http://127.0.0.1:{config.PORT}", f"http://localhost:{config.PORT}", *config.DEV_WEB_ORIGINS}
+
+
+@app.middleware("http")
+async def jaga_asal(request: Request, call_next):
+    """Tolak permintaan dari website lain yang dibuka di browser yang sama.
+
+    - Host harus 127.0.0.1/localhost (mencegah DNS rebinding).
+    - Permintaan yang mengubah data harus berasal dari tampilan aplikasi ini (Origin sama) atau tanpa Origin
+      (alat lokal / tes). Form atau fetch dari situs lain selalu membawa Origin situs itu, jadi ditolak.
+    """
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]")
+    if host not in HOST_BOLEH:
+        return JSONResponse({"detail": "Host tidak diizinkan."}, status_code=403)
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        origin = request.headers.get("origin")
+        if origin is not None and origin not in ORIGIN_BOLEH:
+            return JSONResponse({"detail": "Permintaan dari luar aplikasi ditolak."}, status_code=403)
+    return await call_next(request)
+
 
 app.include_router(core.router)
 app.include_router(wa.router)
