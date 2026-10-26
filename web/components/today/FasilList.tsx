@@ -70,7 +70,7 @@ export function FasilList({ detail, loading, selected, onPick }: {
   }
   const kosong = detail.sudah.length === 0 && detail.akan.length === 0;
   return (
-    <section className={s.card} aria-label={`Fasil sesi ${detail.no}`}>
+    <section className={s.card} aria-label={`Fasil sesi ${detail.no}`} data-tour="fasil">
       <header className={s.cardHead}>
         <h2>Sesi {detail.no}, {detail.mulai}–{detail.sampai}</h2>
         <span>Pilih fasil untuk membandingkan LK dengan chat-nya</span>

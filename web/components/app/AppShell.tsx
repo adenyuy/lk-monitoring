@@ -9,16 +9,25 @@ import { API_REV, type WaStatus } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
 import { WaBanner } from "./WaBanner";
 import { LockIcon, NoAccess } from "./NoAccess";
+import { Countdown } from "./Countdown";
+import { PANDUAN, Tour } from "./Tour";
+import { IconCutoff, IconHariIni, IconLogo, IconPanduan, IconRekap } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
 
+function inisial(nama: string) {
+  const k = nama.trim().split(/\s+/);
+  return ((k[0]?.[0] ?? "") + (k[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const path = usePathname();
+  const path = usePathname() ?? "";
   const { me, error } = useMe();
   const [wa, setWa] = useState<WaStatus | null>(null);
   const [terkunci, setTerkunci] = useState(false);
+  const [panduan, setPanduan] = useState(false);
 
   const siap = !!me && me.logged_in && !!me.access && me.settings.setup_selesai;
 
@@ -31,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     try {
       setWa(await api<WaStatus>("/api/wa/status"));
     } catch {
-      /* status WA hanya informasi di header */
+      /* status WA hanya informasi */
     }
   };
   useEffect(() => {
@@ -60,73 +69,97 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const bolehCutoff = !!me.access?.fitur.includes("cutoff");
-  const nav = [
-    { href: "/today/", label: "Hari ini" },
-    { href: "/rekap/", label: "Rekap" },
-  ];
-  const waLabel = wa?.state === "logged_in" ? wa.nomor_tersamar || "WhatsApp terhubung"
+  const aktif = (href: string) => (path.startsWith(href.slice(0, -1)) ? "page" : undefined);
+  const waLabel = wa?.state === "logged_in" ? `WhatsApp ${wa.nomor_tersamar || "terhubung"}`
     : wa?.state === "closed" ? "WhatsApp belum dibuka" : wa ? "WhatsApp menunggu" : "Memeriksa WhatsApp";
+  const waDot = WA_WARNA[wa?.state ?? ""] ?? "#98a2b3";
+  const langkah = PANDUAN[path] ?? PANDUAN["/today/"];
+
+  const menu = (
+    <>
+      <Link href="/rekap/" className={s.item} aria-current={aktif("/rekap/")}>
+        <span className={s.ico}><IconRekap /></span><span className={s.lbl}>Rekap</span>
+      </Link>
+      <Link href="/today/" className={s.item} aria-current={aktif("/today/")}>
+        <span className={s.ico}><IconHariIni /></span><span className={s.lbl}>Hari ini</span>
+      </Link>
+      {bolehCutoff ? (
+        <Link href="/cutoff/" className={s.item} aria-current={aktif("/cutoff/")}>
+          <span className={s.ico}><IconCutoff /></span><span className={s.lbl}>Tarik Cutoff</span>
+        </Link>
+      ) : (
+        <button type="button" className={`${s.item} ${s.itemLocked}`} onClick={() => setTerkunci(true)}
+          aria-label="Tarik Cutoff, terkunci">
+          <span className={s.ico}><IconCutoff /><span className={s.lockBadge}><LockIcon size={10} /></span></span>
+          <span className={s.lbl}>Tarik Cutoff</span>
+        </button>
+      )}
+    </>
+  );
 
   return (
-    <>
-      <header className={s.header}>
-        <div className={s.headerIn}>
-          <div className={s.left}>
-            <Link href="/today/" className={s.brand}>
-              <span className={s.logo}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"
-                  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.5 8.5 0 1 1 21 11.5z" />
-                </svg>
-              </span>
-              LK Monitoring
-            </Link>
-            <nav className={s.nav} aria-label="Menu utama">
-              {nav.map((n) => (
-                <Link key={n.href} href={n.href} className={s.navLink}
-                  aria-current={path?.startsWith(n.href.slice(0, -1)) ? "page" : undefined}>
-                  {n.label}
-                </Link>
-              ))}
-              {bolehCutoff ? (
-                <Link href="/cutoff/" className={s.navLink} aria-current={path?.startsWith("/cutoff") ? "page" : undefined}>
-                  Tarik Cutoff
-                </Link>
-              ) : (
-                <button type="button" className={`${s.navLink} ${s.navLocked}`} onClick={() => setTerkunci(true)}>
-                  <LockIcon /> Tarik Cutoff
-                </button>
-              )}
-            </nav>
-          </div>
-          <div className={s.right}>
-            <span className={s.wa} title="Status WhatsApp">
-              <span className={s.waDot} style={{ background: WA_WARNA[wa?.state ?? ""] ?? "#98a2b3" }} />
-              {waLabel}
+    <div className={s.shell}>
+      {/* Laptop: menu samping, hanya ikon; melebar saat kursor diarahkan */}
+      <aside className={s.side} aria-label="Menu">
+        <Link href="/today/" className={s.brand}>
+          <span className={s.logo}><IconLogo /></span>
+          <span className={s.lbl}>LK Monitoring</span>
+        </Link>
+        <nav className={s.menu} aria-label="Menu utama" data-tour="nav">{menu}</nav>
+
+        <div className={s.sideBottom}>
+          <Countdown />
+          <hr className={s.rule} />
+          <button type="button" className={s.item} onClick={() => setPanduan(true)}>
+            <span className={s.ico}><IconPanduan /></span><span className={s.lbl}>Panduan</span>
+          </button>
+          <div className={s.user} data-tour="wa">
+            <span className={s.avatar} aria-hidden="true">
+              {inisial(me.settings.nama_petugas ?? "")}
+              <i style={{ background: waDot }} />
             </span>
-            <span className={s.who}>{me.settings.nama_petugas}</span>
-            <Link href="/setup/" className={s.batas}>Batas harian {me.settings.batas_harian}</Link>
+            <span className={s.lbl}>
+              <b>{me.settings.nama_petugas}</b>
+              <small>{waLabel}</small>
+              <Link href="/setup/" className={s.batas}>Batas harian {me.settings.batas_harian}</Link>
+            </span>
           </div>
         </div>
+      </aside>
+
+      {/* HP: bar atas ringkas + menu bawah */}
+      <header className={s.mTop}>
+        <Link href="/today/" className={s.brand}><span className={s.logo}><IconLogo /></span>LK Monitoring</Link>
+        <span className={s.mTopRight}>
+          <Countdown compact />
+          <span className={s.mWa} data-tour="wa" title={waLabel}><i style={{ background: waDot }} /></span>
+          <button type="button" className={s.mHelp} onClick={() => setPanduan(true)} aria-label="Panduan"><IconPanduan /></button>
+        </span>
       </header>
-      {me.api_rev !== API_REV && (
-        <div className={s.bannerWrap}>
-          <div className={`${s.banner} ${s.bannerWarn}`} role="alert">
-            <div className={s.bannerText}>
-              <b>Server aplikasi perlu dijalankan ulang</b>
-              <span>Tampilan sudah versi baru, tapi server masih versi lama, jadi sebagian fitur belum jalan.
-                Tutup jendela server (Ctrl+C), lalu jalankan lagi.</span>
+      <nav className={s.mTab} aria-label="Menu utama" data-tour="nav">{menu}</nav>
+
+      <div className={s.content}>
+        {me.api_rev !== API_REV && (
+          <div className={s.bannerWrap}>
+            <div className={`${s.banner} ${s.bannerWarn}`} role="alert">
+              <div className={s.bannerText}>
+                <b>Server aplikasi perlu dijalankan ulang</b>
+                <span>Tampilan sudah versi baru, tapi server masih versi lama, jadi sebagian fitur belum jalan.
+                  Tutup jendela server (Ctrl+C), lalu jalankan lagi.</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      <WaBanner wa={wa} onChange={setWa} />
-      <main className={s.main}>{children}</main>
+        )}
+        <WaBanner wa={wa} onChange={setWa} />
+        <main className={s.main}>{children}</main>
+        <footer className={s.footer}>
+          <span>Tim Monitoring Revitalisasi SD 2026</span>
+          <span>Versi {me.version}</span>
+        </footer>
+      </div>
+
       {terkunci && <NoAccess onClose={() => setTerkunci(false)} />}
-      <footer className={s.footer}>
-        <span>Tim Monitoring Revitalisasi SD 2026</span>
-        <span>Versi {me.version}</span>
-      </footer>
-    </>
+      {panduan && <Tour key={path} langkah={langkah} onClose={() => setPanduan(false)} />}
+    </div>
   );
 }

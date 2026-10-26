@@ -11,7 +11,7 @@ from ..schedule import jam
 from ..sender import NotAllowed, sender
 from ..sheets import filter_petugas, nomor_key, read_broadcast, read_lk, sekolah_per_fasil
 from ..wa.status import mask
-from .deps import require_feature
+from .deps import require_feature, require_login
 
 router = APIRouter(prefix="/api")
 wa_blast = require_feature("wa_blast")
@@ -270,3 +270,21 @@ def fasil_kirim_ulang(nomor: str, req: UlangReq, _=Depends(wa_blast)) -> dict[st
     """Minta pesan Broadcast dikirim ulang ke fasil ini di sesi berikutnya (sekali)."""
     store.set_ulang(nomor, schedule.now().isoformat(timespec="seconds") if req.aktif else None)
     return fasil_detail(nomor)
+
+
+@router.get("/jadwal")
+def jadwal(_=Depends(require_login)) -> dict[str, Any]:
+    """Ringan (tanpa baca sheet): untuk hitung mundur sesi di menu samping."""
+    now = schedule.now()
+    akhir_pekan_ok = bool(db.get_setting("kirim_akhir_pekan", False))
+    aktif = None if (schedule.is_weekend(now.date()) and not akhir_pekan_ok) else schedule.sesi_at(now)
+    out: dict[str, Any] = {"aktif": None, "berikutnya": None}
+    if aktif:
+        h, m = map(int, aktif.sampai.split(":"))
+        selesai = now.replace(hour=h, minute=m, second=59, microsecond=0)
+        out["aktif"] = {"no": aktif.no, "sampai": jam(aktif.sampai),
+                        "sisa_detik": max(0, int((selesai - now).total_seconds()))}
+    sesi, mulai = schedule.next_sesi(now, akhir_pekan_ok)
+    out["berikutnya"] = {"no": sesi.no, "mulai": jam(sesi.mulai), "hari_ini": mulai.date() == now.date(),
+                         "dalam_detik": max(0, int((mulai - now).total_seconds()))}
+    return out

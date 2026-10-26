@@ -25,7 +25,7 @@ export function SessionTabs({ sesi, dipilih, onPilih }: {
   onPilih: (no: number) => void;
 }) {
   return (
-    <div className={s.tabs} role="tablist" aria-label="Sesi hari ini">
+    <div className={s.tabs} role="tablist" aria-label="Sesi hari ini" data-tour="sesi">
       {sesi.map((x) => {
         const lewat = x.status === "Selesai" || x.status === "Kuota habis";
         return (

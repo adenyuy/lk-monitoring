@@ -71,7 +71,7 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
   const hariPersen = Math.min(100, (today.terkirim_hari_ini / Math.max(1, today.batas_harian)) * 100);
 
   return (
-    <section className={`${s.now} ${kirim.running ? s.nowLive : ""}`} aria-label="Sekarang">
+    <section className={`${s.now} ${kirim.running ? s.nowLive : ""}`} aria-label="Sekarang" data-tour="now">
       <div className={s.nowMain}>
         <div className={s.nowLabel}>
           {kirim.running && <span className={s.liveDot} aria-hidden="true" />}

@@ -106,7 +106,7 @@ export function RekapView() {
         </div>
       </header>
 
-      <section className={s.card} aria-labelledby="h-prio">
+      <section className={s.card} aria-labelledby="h-prio" data-tour="prio">
         <div className={s.cardHead}>
           <h2 id="h-prio">Sekolah binaan per prioritas</h2>
           <span>{sk.total} sekolah</span>
@@ -130,14 +130,14 @@ export function RekapView() {
       </section>
 
       <div className={s.grid3}>
-        <section className={s.card} aria-labelledby="h-p1">
+        <section className={s.card} aria-labelledby="h-p1" data-tour="p1">
           <div className={s.cardHead}><h2 id="h-p1">Prioritas 1</h2><span>{p1.sekolah} sekolah, {p1.fasil} fasil</span></div>
           <Meter label="Fasil P1 sudah dihubungi" a={p1.fasil_dihubungi} b={p1.fasil} />
           <Meter label="Fasil P1 sudah membalas" a={p1.fasil_membalas} b={p1.fasil} />
           <Meter label="Sekolah P1 yang fasilnya sudah dihubungi" a={p1.sekolah_dihubungi} b={p1.sekolah} />
         </section>
 
-        <section className={s.card} aria-labelledby="h-isian">
+        <section className={s.card} aria-labelledby="h-isian" data-tour="isian">
           <div className={s.cardHead}><h2 id="h-isian">Isian LK</h2><span>{data.isian.perlu} sekolah perlu diisi</span></div>
           {data.isian.blok.map((b) => (
             <Meter key={b.no} label={`Sesi ${b.label} (${b.kolom})`} a={b.lengkap} b={data.isian.perlu}
@@ -172,7 +172,7 @@ export function RekapView() {
         </button>
       )}
 
-      <section className={s.card} aria-labelledby="h-tabel">
+      <section className={s.card} aria-labelledby="h-tabel" data-tour="tabel">
         <div className={s.cardHead}>
           <h2 id="h-tabel">Per fasil</h2>
           <input className={s.search} type="search" placeholder="Cari nama fasil" value={cari}

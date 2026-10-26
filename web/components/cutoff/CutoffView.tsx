@@ -78,7 +78,7 @@ function Kalender({ info, onUbah }: { info: CutoffInfo; onUbah: (i: CutoffInfo) 
 
   const total = info.riwayat.length;
   return (
-    <section className={s.card} aria-labelledby="h-kal">
+    <section className={s.card} aria-labelledby="h-kal" data-tour="kalender">
       <div className={s.cardHead}>
         <h2 id="h-kal">Riwayat tarik</h2>
         <span>{total ? `${total} kali ditarik` : "Belum pernah"}</span>
@@ -216,7 +216,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
     <section className={s.card} aria-labelledby="h-form">
       <div className={s.cardHead}><h2 id="h-form">Tarik data</h2></div>
 
-      <fieldset className={s.field}>
+      <fieldset className={s.field} data-tour="mode">
         <legend>Jenis tarikan</legend>
         <div className={s.modes}>
           {([
@@ -239,7 +239,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
         </select>
       </label>
 
-      <div className={s.field}>
+      <div className={s.field} data-tour="file">
         <span className={s.legend}>File cutoff</span>
         <label className={`${s.drop} ${seret ? s.dropOn : ""} ${file ? s.dropFile : ""}`}
           onDragOver={(e) => { e.preventDefault(); setSeret(true); }}
