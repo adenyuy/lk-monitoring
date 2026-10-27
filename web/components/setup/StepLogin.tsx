@@ -60,18 +60,18 @@ export function StepLogin({ me, reload, onNext }: { me: Me; reload: () => Promis
     }
   }
 
-  // 0. credentials.json belum ada
+  // 0. file paket (credentials + alamat sheet) belum dipasang
   if (me.needs_credentials) {
     return (
       <>
         <h1 className={s.title}>Pasang file akses aplikasi</h1>
         <p className={s.desc}>
-          Sebelum masuk, aplikasi perlu file <b>credentials.json</b> dari admin. File ini cukup dipasang sekali di
-          laptop ini.
+          Sebelum masuk, aplikasi perlu file <b>lk-monitoring.json</b> dari admin. File ini berisi izin aplikasi dan
+          alamat sheet tim, cukup dipasang sekali di laptop ini.
         </p>
         <ul className={s.points}>
           {[
-            "Minta file credentials.json ke admin tim monitoring.",
+            "Minta file lk-monitoring.json ke admin tim monitoring. Jangan dibagikan ke orang lain.",
             "Simpan di laptop ini, misalnya di folder Downloads.",
             "Tekan tombol di bawah lalu pilih file tersebut.",
           ].map((t) => (
@@ -86,7 +86,7 @@ export function StepLogin({ me, reload, onNext }: { me: Me; reload: () => Promis
         <div className={s.actions}>
           <input ref={fileRef} id="cred" type="file" accept=".json,application/json" className={s.srOnly}
             onChange={(e) => pickCredentials(e.target.files?.[0])} />
-          <Button loading={busy} onClick={() => fileRef.current?.click()}>Pilih credentials.json</Button>
+          <Button loading={busy} onClick={() => fileRef.current?.click()}>Pilih lk-monitoring.json</Button>
         </div>
       </>
     );

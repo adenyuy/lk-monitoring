@@ -76,8 +76,8 @@ Setiap petugas menjalankan aplikasi di laptopnya sendiri lewat satu shortcut. Ap
 
 | Data | Lokasi | Akses aplikasi |
 |---|---|---|
-| Broadcast | Spreadsheet "Tempalete kirim pesan Dashboard Tim 1", ID `ID_SHEET_BROADCAST`, tab `Broadcast` | Baca |
-| LK Monitoring | Spreadsheet "Master LK Komunikasi Para Petugas - Revit SD 2026", ID `ID_SHEET_LK`, tab `WEEK n` | Baca (WA Blast), baca + tulis (Cutoff) |
+| Broadcast | Spreadsheet "Tempalete kirim pesan Dashboard Tim 1", ID di file paket `lk-monitoring.json` (tidak ditulis di repo), tab `Broadcast` | Baca |
+| LK Monitoring | Spreadsheet "Master LK Komunikasi Para Petugas - Revit SD 2026", ID di file paket `lk-monitoring.json` (tidak ditulis di repo), tab `WEEK n` | Baca (WA Blast), baca + tulis (Cutoff) |
 | Akses | Spreadsheet milik admin (ID diisi di konfigurasi) | Baca |
 | Cutoff | File CSV/Excel dari aplikasi pelaporan, dipilih pengguna | Baca lokal |
 
@@ -286,7 +286,7 @@ cutoff_runs(id INTEGER PK, waktu TEXT, file TEXT, mode TEXT, week TEXT, sekolah 
 ## 10. Kebutuhan Non-Fungsional
 - Windows 10/11, Google Chrome terpasang.
 - Server hanya mendengar di `127.0.0.1` (tidak bisa diakses dari jaringan).
-- Tidak ada rahasia di repo publik: `credentials.json`, token, ID sheet Akses disimpan lokal/konfigurasi pengguna. ID sheet Broadcast & LK boleh di repo (akses tetap dibatasi Google).
+- Tidak ada rahasia di repo publik: `credentials.json`, token, dan ID ketiga sheet (Broadcast, LK, Akses) dikirim admin dalam paket `lk-monitoring.json` dan disimpan lokal (`sheets.json`).
 - Bahasa antarmuka Indonesia; copy mengikuti mockup.
 - Responsif sampai lebar 1024 px (laptop); tidak ditargetkan untuk HP.
 - Aplikasi tetap bisa dibuka offline untuk melihat Riwayat.

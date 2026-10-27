@@ -24,6 +24,6 @@ def test_kolom_akses_wajib():
 
 
 def test_sheet_akses_belum_diatur(monkeypatch):
-    monkeypatch.setattr(access.config, "ACCESS_SHEET_ID", "")
-    with pytest.raises(access.AccessError, match="belum diatur"):
+    monkeypatch.setenv("LKM_ACCESS_SHEET_ID", "")
+    with pytest.raises(access.AccessError, match="belum dipasang"):
         access.read_access()

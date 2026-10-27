@@ -87,3 +87,30 @@ def test_pembaruan_tidak_aktif_di_folder_develop():
     r = c.get("/api/pembaruan").json()
     assert r["aktif"] is False and r["ada_baru"] is False
     assert c.post("/api/pembaruan/pasang").status_code == 400
+
+
+def test_paket_lk_monitoring_memasang_alamat_sheet(monkeypatch):
+    import json
+
+    from app import config, google_auth, paths
+
+    for k in ("BROADCAST", "LK", "ACCESS"):
+        monkeypatch.delenv(f"LKM_{k}_SHEET_ID", raising=False)
+    f = paths.DATA_DIR / "sheets.json"
+    f.unlink(missing_ok=True)
+    cred = {"installed": {"client_id": "x", "client_secret": "y"}}
+    try:
+        google_auth.save_credentials(json.dumps(cred).encode())
+        assert False, "credentials.json tanpa alamat sheet harus ditolak"
+    except ValueError as e:
+        assert "lk-monitoring.json" in str(e)
+    paket = dict(cred, lkm_sheets={
+        "broadcast": "https://docs.google.com/spreadsheets/d/AAAAAAAAAAAAAAAAAAAAAAAAAAAA/edit#gid=0",
+        "lk": "BBBBBBBBBBBBBBBBBBBBBBBBBBBB", "akses": "CCCCCCCCCCCCCCCCCCCCCCCCCCCC"})
+    google_auth.save_credentials(json.dumps(paket).encode())
+    assert config.BROADCAST_SHEET_ID == "AAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    assert config.sheet_ids()["akses"] == "CCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+    assert "lkm_sheets" not in json.loads(paths.CREDENTIALS_FILE.read_text())
+    assert google_auth.has_credentials()
+    f.unlink()
+    paths.CREDENTIALS_FILE.unlink()

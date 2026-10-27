@@ -5,6 +5,7 @@ token disimpan di folder data. UI memantau status lewat /api/me.
 """
 
 import json
+import re
 import os
 import threading
 from dataclasses import dataclass
@@ -31,21 +32,40 @@ class NotLoggedIn(Exception):
 # ---------- credentials.json (OAuth client dari admin) ----------
 
 def has_credentials() -> bool:
-    return paths.CREDENTIALS_FILE.exists()
+    """credentials.json terpasang DAN alamat ketiga sheet tim sudah diketahui."""
+    return paths.CREDENTIALS_FILE.exists() and all(config.sheet_ids().values())
+
+
+def id_sheet(nilai: str) -> str:
+    """Terima ID atau link Google Sheets, kembalikan ID-nya ('' bila tidak valid)."""
+    m = re.search(r"/spreadsheets/d/([A-Za-z0-9_-]{20,})", nilai or "")
+    x = m.group(1) if m else (nilai or "").strip()
+    return x if re.fullmatch(r"[A-Za-z0-9_-]{20,}", x) else ""
 
 
 def save_credentials(raw: bytes) -> None:
+    """Pasang file paket lk-monitoring.json (credentials + alamat sheet) atau credentials.json biasa."""
     try:
         data = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         raise ValueError("File bukan JSON yang valid.") from e
     if "installed" not in data:
         raise ValueError(
-            'File ini bukan credentials.json untuk aplikasi desktop (tidak ada bagian "installed"). '
-            "Minta file yang benar ke admin."
+            'File ini bukan file aplikasi dari admin (tidak ada bagian "installed"). '
+            "Minta file lk-monitoring.json ke admin."
+        )
+    sheets = data.pop("lkm_sheets", None)
+    ids = {k: id_sheet(str((sheets or {}).get(k, ""))) for k in config.SHEET_KEYS} if sheets else None
+    if ids is not None and not all(ids.values()):
+        raise ValueError("Alamat sheet di file ini tidak lengkap. Minta file lk-monitoring.json yang baru ke admin.")
+    if ids is None and not all(config.sheet_ids().values()):
+        raise ValueError(
+            "File ini belum berisi alamat sheet tim. Pakai file lk-monitoring.json dari admin, bukan credentials.json."
         )
     paths.ensure_dirs()
-    paths.CREDENTIALS_FILE.write_bytes(raw)
+    paths.CREDENTIALS_FILE.write_text(json.dumps(data), encoding="utf-8")
+    if ids is not None:
+        (paths.DATA_DIR / "sheets.json").write_text(json.dumps(ids), encoding="utf-8")
 
 
 # ---------- token ----------

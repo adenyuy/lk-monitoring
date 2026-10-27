@@ -13,7 +13,7 @@ Centang satu per satu. Uji yang mengirim pesan **hanya ke nomormu sendiri** atau
 - [ ] Salin `install.bat` ke laptop itu, klik dua kali. Catat lamanya: target kurang dari 15 menit.
 - [ ] Git, Python 3.12, dan Chrome terpasang otomatis bila belum ada.
 - [ ] Shortcut **LK Monitoring** muncul di Desktop, dan browser terbuka ke aplikasi.
-- [ ] Persiapan 4 langkah berhasil: unggah `credentials.json`, login Google, pilih nama, scan QR, batas harian.
+- [ ] Persiapan 4 langkah berhasil: unggah `lk-monitoring.json`, login Google, pilih nama, scan QR, batas harian.
 - [ ] Coba batas 55: tombol simpan baru aktif setelah mengetik "risiko ditanggung sendiri". Kembalikan ke 40.
 - [ ] Tutup browser lalu klik shortcut lagi: aplikasi langsung terbuka tanpa jendela hitam.
 - [ ] `stop.bat` mematikan aplikasi, dan shortcut menyalakannya lagi.
@@ -37,7 +37,7 @@ Centang satu per satu. Uji yang mengirim pesan **hanya ke nomormu sendiri** atau
 
 ## E. Tim
 
-- [ ] Email tiap petugas ada di **sheet Akses** dan di Google Cloud → **Audience → Test users**.
-- [ ] Sheet Broadcast dan LK: akses umum **Dibatasi**, dibagikan ke email tim sebagai Editor.
-- [ ] Kirim ke tiap petugas lewat jalur pribadi: `install.bat`, `credentials.json`, dan `CARA_PAKAI.md`.
+- [ ] Email tiap petugas ada di **sheet Akses** (kolom email, nama petugas, fitur).
+- [ ] Sheet Akses dibagikan (minimal Viewer) ke email tim atau lewat link. Sheet Broadcast dan LK boleh tetap lewat link: ID-nya tidak ada di repo.
+- [ ] Kirim ke tiap petugas lewat jalur pribadi: `install.bat`, `lk-monitoring.json`, dan `CARA_PAKAI.md`.
 - [ ] Pilot 1–2 petugas selama 2 hari sebelum seluruh tim.

@@ -1,6 +1,8 @@
 """Konfigurasi aplikasi. Semua nilai di sini boleh publik (repo publik).
 
-ID spreadsheet bukan rahasia: akses tetap dibatasi oleh izin Google masing-masing akun.
+ID spreadsheet TIDAK ditulis di sini: sheet tim dibagikan lewat link, jadi ID-nya dirahasiakan.
+ID dibaca dari `sheets.json` di folder data (dipasang dari file paket lk-monitoring.json kiriman admin),
+atau dari variabel lingkungan LKM_BROADCAST_SHEET_ID / LKM_LK_SHEET_ID / LKM_ACCESS_SHEET_ID (develop & tes).
 """
 
 import os
@@ -34,18 +36,15 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
 ]
 
-# Sheet Broadcast (tim)
-BROADCAST_SHEET_ID = "ID_SHEET_BROADCAST"
+# Sheet Broadcast (tim). ID: lihat sheet_ids().
 BROADCAST_TAB = "Broadcast"
 
 # LK Monitoring
-LK_SHEET_ID = "ID_SHEET_LK"
 LK_WEEK_PREFIX = "WEEK "
 LK_FIRST_ROW = 3
 
 # Sheet Akses (milik admin, "LK Monitoring - Akses"). Kolom: email | nama_petugas | fitur
 # Hanya akun yang diberi akses baca oleh admin yang bisa membukanya.
-ACCESS_SHEET_ID = os.environ.get("LKM_ACCESS_SHEET_ID", "ID_SHEET_AKSES")
 ACCESS_TAB = "Akses"
 FEATURES = ("wa_blast", "cutoff")
 
@@ -82,3 +81,34 @@ BATAS_HARIAN_AMAN = 50  # di atas ini wajib mengetik KALIMAT_RISIKO
 KALIMAT_RISIKO = "risiko ditanggung sendiri"
 BATAS_KUNING = 40  # > nilai ini: peringatan kuning
 BATAS_MERAH = 50  # > nilai ini: peringatan merah (nomor pernah diblokir di pesan ke-51)
+
+
+# --- ID sheet (rahasia, di luar repo) ---
+SHEET_KEYS = {"broadcast": "BROADCAST_SHEET_ID", "lk": "LK_SHEET_ID", "akses": "ACCESS_SHEET_ID"}
+
+
+def sheet_ids() -> dict[str, str]:
+    """{"broadcast": id, "lk": id, "akses": id}; nilai kosong bila belum dipasang."""
+    import json
+
+    from . import paths
+
+    out = {k: "" for k in SHEET_KEYS}
+    f = paths.DATA_DIR / "sheets.json"
+    if f.exists():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            out.update({k: str(data.get(k) or "") for k in SHEET_KEYS})
+        except (ValueError, OSError):
+            pass
+    for k, nama in SHEET_KEYS.items():
+        out[k] = os.environ.get(f"LKM_{nama}", out[k])
+    return out
+
+
+def __getattr__(nama: str) -> str:
+    """config.BROADCAST_SHEET_ID dkk. tetap bisa dipakai seperti konstanta."""
+    for k, v in SHEET_KEYS.items():
+        if nama == v:
+            return sheet_ids()[k]
+    raise AttributeError(nama)

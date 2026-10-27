@@ -16,6 +16,7 @@ Cara pakai:
 """
 
 import argparse
+import os
 import re
 import sys
 import time
@@ -30,7 +31,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 # ---------- Pengaturan ----------
 BASE = Path(__file__).resolve().parent
-SPREADSHEET_ID = "ID_SHEET_LK"
+SPREADSHEET_ID = os.environ.get("LKM_LK_SHEET_ID", "")  # ID LK tidak ditulis di repo publik
 CREDENTIALS_FILE = BASE / "credentials.json"
 TOKEN_FILE = BASE / "token.json"
 DATA_DIR = BASE / "data"
@@ -327,7 +328,7 @@ def main():
     ap.add_argument("--file", help="path file CSV/Excel cutoff (default: terbaru di folder data/)")
     ap.add_argument("--dry-run", action="store_true", help="hitung saja, tidak menulis ke sheet")
     ap.add_argument("--cek-koneksi", action="store_true", help="cek login & akses sheet saja")
-    ap.add_argument("--spreadsheet", default=SPREADSHEET_ID, help="ID spreadsheet tujuan (default: LK utama)")
+    ap.add_argument("--spreadsheet", default=SPREADSHEET_ID, help="ID spreadsheet tujuan (default: env LKM_LK_SHEET_ID)")
     args = ap.parse_args()
 
     if args.cek_koneksi:

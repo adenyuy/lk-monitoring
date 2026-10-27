@@ -52,7 +52,7 @@ def parse_access(values: list[list[Any]]) -> dict[str, Access]:
 def read_access(refresh: bool = False) -> dict[str, Access]:
     if not config.ACCESS_SHEET_ID:
         raise AccessError(
-            "Sheet Akses belum diatur. Admin perlu mengisi ACCESS_SHEET_ID di backend/app/config.py."
+            "Alamat sheet Akses belum dipasang. Unggah file lk-monitoring.json dari admin di langkah Masuk Google."
         )
 
     def load() -> dict[str, Access]:

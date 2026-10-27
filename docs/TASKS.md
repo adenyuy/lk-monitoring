@@ -157,7 +157,7 @@ Sebelum distribusi (hasil tinjauan 2026-10-27):
 
 - [x] **10.0a Tolak permintaan dari situs lain** (cek Host + Origin di server lokal).
 - [ ] **10.0b Bersihkan riwayat git** (paket siap di `../bersihkan-riwayat/`, jalankan sesuai LANGKAH.md) dari nama/nomor/email asli (repo publik), atau jadikan repo privat.
-- [ ] **10.0c Pastikan sheet Broadcast & LK tidak "siapa saja yang punya link"** (ID sheet ada di repo publik).
+- [x] **10.0c ID sheet dikeluarkan dari repo** (sheet tetap dibagikan lewat link): dipasang dari paket `lk-monitoring.json` (`scripts/buat_paket.py`).
 - [x] **10.0d Status OAuth** (tetap Testing): mode Testing = login ulang tiap 7 hari dan maks 100 pengguna; putuskan tetap Testing atau publish.
 - [x] **10.0e Pembaruan saat server masih jalan**: banner Versi baru tersedia + tombol Perbarui sekarang (dicek tiap 30 menit).
 - [-] (tidak dibuat) **10.0f Ringkasan tim untuk admin**.
@@ -166,7 +166,7 @@ Sebelum distribusi (hasil tinjauan 2026-10-27):
 - [ ] **10.1 Uji lokal penuh** di laptop Marvin: setup dari nol, mode coba 5 fasil, kirim nyata 3 fasil, Riwayat & CSV, Tarik Cutoff ke file copy.
 - [ ] **10.2 Uji laptop bersih** (tanpa Python/Git): `install.bat` → app jalan < 15 menit.
 - [ ] **10.3 Pilot** 1–2 petugas selama 2 hari; catat masalah di GitHub Issues.
-- [ ] **10.4 Rilis tim**: merge ke `stable`, kirim `install.bat` + `credentials.json` + CARA_PAKAI.
+- [ ] **10.4 Rilis tim**: merge ke `stable`, kirim `install.bat` + `lk-monitoring.json` + CARA_PAKAI.
 
 ---
 
