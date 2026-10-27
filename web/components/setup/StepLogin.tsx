@@ -175,7 +175,7 @@ export function StepLogin({ me, reload, onNext }: { me: Me; reload: () => Promis
         </div>
       )}
       <p className={s.fine}>
-        Muncul tulisan &ldquo;Google hasn&rsquo;t verified this app&rdquo;? Pilih <b>Continue</b>. Ini aplikasi internal tim.
+        Muncul tulisan &ldquo;Google hasn&rsquo;t verified this app&rdquo;? Pilih <b>Continue</b>, atau <b>Advanced</b> lalu <b>Go to LK Monitoring (unsafe)</b>. Ini aplikasi internal tim.
       </p>
     </>
   );

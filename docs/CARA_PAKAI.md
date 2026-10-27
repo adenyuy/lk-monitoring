@@ -23,7 +23,7 @@ Selanjutnya cukup klik dua kali **LK Monitoring** di Desktop. Aplikasi memperbar
 
 Aplikasi memandu 4 langkah:
 
-1. **Masuk Google.** Unggah `lk-monitoring.json`, lalu pilih akun Google kamu di jendela yang muncul.
+1. **Masuk Google.** Unggah `lk-monitoring.json`, lalu pilih akun Google kamu di jendela yang muncul. Bila muncul "Google hasn't verified this app", pilih **Advanced → Go to LK Monitoring (unsafe)**, lalu izinkan. Ini aplikasi internal tim.
 2. **Pilih nama petugas.** Nama kamu biasanya sudah terpilih dari daftar akses.
 3. **Hubungkan WhatsApp.** Jendela Chrome khusus terbuka. Scan QR pakai HP: WhatsApp → Perangkat tertaut → Tautkan perangkat. Jendela ini **jangan ditutup** selama mengirim.
 4. **Batas harian.** Disarankan 40 pesan per hari. Di atas 50 wajib mengetik **risiko ditanggung sendiri**, karena risiko blokir naik.

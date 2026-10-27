@@ -158,7 +158,7 @@ Sebelum distribusi (hasil tinjauan 2026-10-27):
 - [x] **10.0a Tolak permintaan dari situs lain** (cek Host + Origin di server lokal).
 - [ ] **10.0b Bersihkan riwayat git** (paket siap di `../bersihkan-riwayat/`, jalankan sesuai LANGKAH.md) dari nama/nomor/email asli (repo publik), atau jadikan repo privat.
 - [x] **10.0c ID sheet dikeluarkan dari repo** (sheet tetap dibagikan lewat link): dipasang dari paket `lk-monitoring.json` (`scripts/buat_paket.py`).
-- [x] **10.0d Status OAuth** (tetap Testing): mode Testing = login ulang tiap 7 hari dan maks 100 pengguna; putuskan tetap Testing atau publish.
+- [ ] **10.0d Publish app OAuth** (Audience → Publish app): tanpa daftar Test users, tanpa login ulang tiap 7 hari. Tetap muncul layar "belum diverifikasi", batas 100 pengguna.
 - [x] **10.0e Pembaruan saat server masih jalan**: banner Versi baru tersedia + tombol Perbarui sekarang (dicek tiap 30 menit).
 - [-] (tidak dibuat) **10.0f Ringkasan tim untuk admin**.
 - [ ] **10.0g Uji rilis**: ikuti `docs/UJI_RILIS.md`.
