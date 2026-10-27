@@ -66,6 +66,8 @@ Halaman Hari ini menampilkan **WEEK** yang sedang dipakai dan sesi isian LK hari
 
 Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P3 (dihubungi → membalas → LK lengkap, mulai dari nol tiap Senin), fasil yang tidak masuk Broadcast, dan tabel per fasil (15 per halaman) yang bisa diurutkan dan disaring.
 
+**Tahap chat minggu ini**: papan berisi kolom Belum dihubungi → Sudah dihubungi → Dibaca → Membalas → Isian ditanyakan → LK lengkap. Tiap fasil ada di tahap terjauhnya minggu ini, lengkap dengan kontak terakhir. Klik fasil untuk lanjut chat dan isi LK. Bisa disaring P1/P2/P3 atau Di luar Broadcast.
+
 ### Log
 
 - **Per hari**: pilih tanggal di kalender untuk melihat perubahan data Broadcast/LK dan aktivitas fasil hari itu, dikelompokkan per sesi.

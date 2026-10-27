@@ -163,7 +163,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 14;
+export const API_REV = 15;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -192,7 +192,12 @@ export type FasilRekap = {
   isian_lengkap: number;
   isian_perlu: number;
   tahap: boolean[];
+  tahap_kini: TahapKini;
+  terakhir: string;
+  terakhir_label: string;
 };
+
+export type TahapKini = "belum" | "gagal" | "terkirim" | "dibaca" | "dibalas" | "ditanya" | "lk_lengkap" | "selesai";
 
 export type Alur = { fasil: number; sekolah: number; dihubungi: number; membalas: number; lk_lengkap: number };
 

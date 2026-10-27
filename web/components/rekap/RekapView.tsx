@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { ChatRekap, FasilRekap, Rekap } from "@/lib/types";
 import { Chip, Notice, Spinner } from "@/components/ui";
 import { FasilDrawer } from "@/components/today/FasilDrawer";
+import { TahapBoard } from "./TahapBoard";
 import s from "./rekap.module.css";
 
 const PRIO = [
@@ -22,6 +23,10 @@ const CHAT: Record<ChatRekap, { label: string; tone: "muted" | "bad" | "info" | 
   dibalas: { label: "Membalas", tone: "ok" },
 };
 const CHAT_URUT: Record<ChatRekap, number> = { belum: 0, gagal: 1, terkirim: 2, dibaca: 3, dibalas: 4 };
+const TAHAP_LABEL: Record<FasilRekap["tahap_kini"], string> = {
+  belum: "Belum dihubungi", gagal: "Gagal kirim", terkirim: "Dihubungi", dibaca: "Dibaca", dibalas: "Membalas",
+  ditanya: "Isian ditanyakan", lk_lengkap: "LK lengkap", selesai: "Selesai",
+};
 const TAHAP = ["Broadcast terkirim", "Dibaca", "Fasil membalas", "Isian LK ditanyakan", "Isian LK lengkap"];
 
 type Filter = "semua" | "p1_belum" | "membalas" | "isian" | "luar";
@@ -175,6 +180,8 @@ export function RekapView() {
         </ol>
       </section>
 
+      <TahapBoard fasil={data.fasil} onBuka={setBuka} />
+
       {lb.fasil > 0 && (
         <button type="button" className={s.luar} onClick={() => { setFilter("luar"); setHal(0); }}>
           <b>{lb.fasil} fasil tidak masuk Broadcast</b>
@@ -240,6 +247,7 @@ export function RekapView() {
                     ) : <span className={s.zero}>Tidak perlu</span>}
                   </td>
                   <td>
+                    <span className={s.tahapLbl}>{TAHAP_LABEL[r.tahap_kini]}</span>
                     <span className={s.dots} role="img"
                       aria-label={TAHAP.map((t, i) => `${t}: ${r.tahap[i] ? "ya" : "belum"}`).join(", ")}
                       title={TAHAP.map((t, i) => `${r.tahap[i] ? "✓" : "·"} ${t}`).join("\n")}>

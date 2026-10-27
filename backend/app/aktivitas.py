@@ -115,3 +115,19 @@ def fasil_tercatat() -> list[dict[str, str]]:
     nama = _nama_map()
     out = [{"nomor": r["nomor"], "nama": nama.get(r["nomor"], r["nomor"]), "terakhir": r["w"]} for r in rows]
     return sorted(out, key=lambda x: x["nama"].casefold())
+
+
+def terakhir_sejak(awal_iso: str) -> dict[str, dict[str, str]]:
+    """{nomor: {"waktu", "label"}} kejadian terakhir per fasil sejak waktu itu (Broadcast, chat, LK, dst.)."""
+    out: dict[str, dict[str, str]] = {}
+
+    def simpan(nomor: str, waktu: str, label: str) -> None:
+        if waktu > out.get(nomor, {}).get("waktu", ""):
+            out[nomor] = {"waktu": waktu, "label": label}
+
+    for r in db.query("SELECT nomor, waktu, status FROM sends WHERE coba = 0 AND status IN ('terkirim', 'gagal') "
+                      "AND waktu >= ?", (awal_iso,)):
+        simpan(r["nomor"], r["waktu"], LABEL["kirim" if r["status"] == "terkirim" else "gagal"])
+    for r in db.query("SELECT nomor, waktu, jenis FROM aktivitas WHERE waktu >= ?", (awal_iso,)):
+        simpan(r["nomor"], r["waktu"], LABEL.get(r["jenis"], r["jenis"]))
+    return out

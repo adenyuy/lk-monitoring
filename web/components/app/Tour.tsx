@@ -23,6 +23,7 @@ export const PANDUAN: Record<string, Langkah[]> = {
     ...UMUM,
     { target: "prio", judul: "Sekolah per prioritas", isi: "P1 belum submit laporan 50%, P2 sudah submit tapi progres di bawah 50%, P3 belum direviu." },
     { target: "p1", judul: "Kemajuan fasil minggu ini", isi: "Pilih tab Semua, P1, P2, atau P3: berapa fasil yang sudah dihubungi (Broadcast atau chat), membalas, dan isian LK-nya lengkap. Mulai dari nol lagi tiap Senin." },
+    { target: "tahap", judul: "Tahap chat", isi: "Tiap fasil ada di kolom tahap terjauh minggu ini: belum dihubungi, dihubungi, dibaca, membalas, isian ditanyakan, sampai LK lengkap. Klik fasil untuk melanjutkan chat dan isi LK." },
     { target: "tabel", judul: "Per fasil", isi: "Urutkan dengan klik judul kolom, saring dengan tombol di atas tabel, lalu klik fasil untuk membuka LK dan chat-nya." },
   ],
   "/faq/": [...UMUM],

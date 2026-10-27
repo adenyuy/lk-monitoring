@@ -32,6 +32,17 @@ def _status_chat(k: dict | None, manual: dict) -> str:
     return "gagal" if k.get("gagal") else "belum"
 
 
+def _tahap_kini(t: list[dict[str, Any]], perlu: int, k: dict | None) -> str:
+    """Posisi fasil di papan tahap minggu ini: tahap terjauh yang sudah tercapai."""
+    if not perlu:
+        return "selesai"
+    capai = [x["kode"] for x in t if x["selesai"]]
+    if not capai:
+        return "gagal" if (k or {}).get("gagal") else "belum"
+    urut = [x["kode"] for x in t]
+    return max(capai, key=urut.index)
+
+
 def _alur(rows: list[dict[str, Any]], k: str) -> dict[str, int]:
     """Fasil yang punya sekolah prioritas k (semua = punya sekolah yang belum selesai), dan kemajuannya minggu ini."""
     f = [r for r in rows if (r["isian_perlu"] > 0 if k == "semua" else r[k] > 0)]
@@ -69,6 +80,8 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
 
     kontak = tahap.kontak_minggu()
     manual = store.tahap_all()
+    from .. import aktivitas
+    terakhir = aktivitas.terakhir_sejak(tahap.senin_iso())
 
     rows = []
     for key, f in fasil.items():
@@ -92,6 +105,9 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
             "isian_lengkap": sum(1 for s in perlu if tahap.sekolah_lengkap(s, blok)),
             "isian_perlu": len(perlu),
             "tahap": [x["selesai"] for x in t],
+            "tahap_kini": _tahap_kini(t, len(perlu), kontak.get(nomor)),
+            "terakhir": terakhir.get(nomor, {}).get("waktu", ""),
+            "terakhir_label": terakhir.get(nomor, {}).get("label", ""),
         })
     rows.sort(key=lambda r: (-r["p1"], r["nama"].casefold()))
 

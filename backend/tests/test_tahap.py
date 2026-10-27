@@ -58,3 +58,17 @@ def test_kontak_minggu_mulai_dari_nol_tiap_senin(monkeypatch):
     with db.tx() as c:
         for tbl in ("sends", "aktivitas", "chat_status"):
             c.execute(f"DELETE FROM {tbl}")
+
+
+def test_tahap_kini_ambil_tahap_terjauh():
+    from app.routers.rekap import _tahap_kini
+
+    def t(*kode):
+        return [{"kode": k, "selesai": k in kode} for k in ("terkirim", "dibaca", "dibalas", "ditanya", "lk_lengkap")]
+
+    assert _tahap_kini(t(), 3, None) == "belum"
+    assert _tahap_kini(t(), 3, {"gagal": True}) == "gagal"
+    assert _tahap_kini(t("terkirim", "dibaca"), 3, None) == "dibaca"
+    assert _tahap_kini(t("terkirim", "ditanya"), 3, None) == "ditanya"  # balasan lewat HP belum terdeteksi
+    assert _tahap_kini(t("lk_lengkap"), 3, None) == "lk_lengkap"
+    assert _tahap_kini(t(), 0, None) == "selesai"
