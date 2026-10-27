@@ -129,9 +129,12 @@ _ROWS_JS = """
     for (const s of textSels) {
       const semua = [...r.querySelectorAll(s)];
       if (!semua.length) continue;
-      const luar = semua.filter(el => !el.closest(quoteSel));
-      const dalam = semua.filter(el => el.closest(quoteSel));
-      text = teks(luar.length ? luar[luar.length - 1] : semua[semua.length - 1]);
+      // Teks berformat (tebal, daftar) berisi potongan bertumpuk dengan selektor yang sama: pakai wadah terluar saja
+      const atas = semua.filter(el => !semua.some(o => o !== el && o.contains(el)));
+      const luar = atas.filter(el => !el.closest(quoteSel));
+      const dalam = atas.filter(el => el.closest(quoteSel));
+      text = teks(luar.length ? luar[luar.length - 1] : atas[0]);
+      if (!text.trim()) text = teks(atas[0]);
       if (dalam.length) kutipan = dalam[0].innerText;
       break;
     }
