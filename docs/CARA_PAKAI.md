@@ -33,6 +33,7 @@ Aplikasi memandu 4 langkah:
 ### Hari ini
 
 - **Kartu Sekarang**: sesi yang berjalan dan tombol **Kirim N pesan**. Pesan dikirim satu per satu dengan jeda acak 45–120 detik, lalu berhenti sendiri saat kuota sesi habis.
+- **Bypass sesi** (hanya bila mendesak): link merah di kartu Sekarang saat di luar sesi atau kuota sesi habis. Wajib mengetik "risiko ditanggung sendiri". Jam dan kuota sesi diabaikan, tapi batas harian, jeda, dan jam 07.00–22.00 tetap berlaku. Hanya untuk hari itu.
 - Nyalakan **Mode coba** bila ingin melihat prosesnya tanpa benar-benar mengirim.
 - Jadwal sesi: 10.00–13.59 (10), 14.00–15.59 (10), 16.00–18.59 (15), 19.00–20.59 (15), 21.00–22.00 (10).
 - **Tombol bulat** melayang = hitung mundur sesi. Arahkan kursor untuk melihat menit dan detiknya. Seret untuk memindahkannya; posisinya diingat.

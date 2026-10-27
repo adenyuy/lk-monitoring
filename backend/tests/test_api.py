@@ -114,3 +114,22 @@ def test_paket_lk_monitoring_memasang_alamat_sheet(monkeypatch):
     assert google_auth.has_credentials()
     f.unlink()
     paths.CREDENTIALS_FILE.unlink()
+
+
+def test_bypass_wajib_kalimat_risiko(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import db
+    from app.main import app
+    from app.routers import send
+
+    app.dependency_overrides[send.wa_blast] = lambda: None
+    monkeypatch.setattr(send, "_kondisi", lambda: {})
+    try:
+        c = TestClient(app)
+        assert c.post("/api/send/bypass", json={"aktif": True}).status_code == 400
+        r = c.post("/api/send/bypass", json={"aktif": True, "konfirmasi": " Risiko ditanggung sendiri "})
+        assert r.status_code == 200 and db.get_setting("bypass_sesi")
+        assert c.post("/api/send/bypass", json={"aktif": False}).status_code == 200
+        assert db.get_setting("bypass_sesi") is None
+    finally:
+        app.dependency_overrides.clear()

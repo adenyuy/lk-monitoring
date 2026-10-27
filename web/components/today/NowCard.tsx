@@ -5,6 +5,7 @@ import { post } from "@/lib/api";
 import { useCountdown } from "@/lib/hooks";
 import type { Today } from "@/lib/types";
 import { Button, Notice } from "@/components/ui";
+import { BypassModal } from "./Bypass";
 import s from "./today.module.css";
 
 function mmss(detik: number) {
@@ -23,6 +24,7 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
   const [coba, setCoba] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bpBuka, setBpBuka] = useState(false);
   const kirim = today.pengiriman;
   const k = today.kondisi;
   const sisaDetik = useCountdown(kirim.running ? kirim.berikutnya_pada : null);
@@ -42,6 +44,19 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
       setBusy(false);
     }
   }
+
+  async function matikanBypass() {
+    try {
+      await post("/api/send/bypass", { aktif: false });
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // Bypass ditawarkan saat tidak bisa kirim hanya karena jadwal sesi (bukan batas harian / akhir pekan / antrean habis)
+  const bisaBypass = !today.bypass && !kirim.running && !k.bisa_kirim && today.belum_dikirim > 0
+    && ["sebelum_sesi", "selesai_hari", "kuota_sesi_habis"].includes(k.kode);
 
   async function stop() {
     try {
@@ -84,7 +99,7 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
         </h1>
         {sub && <p className={s.nowSub}>{sub}</p>}
 
-        {fokus && (
+        {fokus && !today.bypass && (
           <div className={s.dotsWrap}>
             <div className={s.dots} role="img"
               aria-label={`Sesi ${fokus.no}: ${fokus.terkirim} dari ${fokus.kuota} terkirim`}>
@@ -126,6 +141,22 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
         </div>
         {!kirim.running && k.bisa_kirim && (
           <p className={s.hint}>Dikirim satu per satu dengan jeda acak 45–120 detik, lalu berhenti sendiri.</p>
+        )}
+        {today.bypass && (
+          <div className={s.bpAktif} role="status">
+            <span><b>Bypass sesi aktif hari ini.</b> Jam dan kuota sesi diabaikan; batas harian tetap berlaku.
+              Risiko ditanggung sendiri.</span>
+            <button type="button" onClick={() => void matikanBypass()}>Matikan</button>
+          </div>
+        )}
+        {bisaBypass && (
+          <button type="button" className={s.bpLink} onClick={() => setBpBuka(true)}>
+            Perlu kirim sekarang? Bypass sesi (risiko ditanggung sendiri)
+          </button>
+        )}
+        {bpBuka && (
+          <BypassModal batas={today.batas_harian} onClose={() => setBpBuka(false)}
+            onDone={() => { setBpBuka(false); onChanged(); }} />
         )}
         {error && <Notice tone="bad" title="Belum bisa mulai">{error}</Notice>}
         {!kirim.running && kirim.selesai && kirim.berhenti_karena && (

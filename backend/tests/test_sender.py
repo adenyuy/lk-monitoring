@@ -169,3 +169,27 @@ def test_sesi_berakhir_di_tengah_jalan():
 
 def test_tanggal_dari_jam_wib():
     assert schedule.tanggal_str(datetime(2026, 10, 26, 23, 59, tzinfo=TZ).date()) == "2026-10-26"
+
+
+def test_bypass_kirim_di_luar_sesi_dan_hanya_hari_itu():
+    wa = FakeWA()
+    s, clock = make(wa, start="2026-10-26 08:00", n=12)
+    db.set_setting("bypass_sesi", {"tanggal": "2026-10-25", "waktu": "2026-10-25T09:00:00"})  # kemarin
+    with pytest.raises(NotAllowed):
+        s.start()
+    db.set_setting("bypass_sesi", {"tanggal": "2026-10-26", "waktu": "2026-10-26T08:00:00"})
+    st = run(s)
+    assert st.bypass and st.terkirim == 12  # tidak dibatasi kuota sesi (10)
+    sesi = {r["sesi"] for r in store.sends_on("2026-10-26")}
+    assert 0 in sesi  # terkirim sebelum 10.00 tercatat di luar sesi
+    db.delete_setting("bypass_sesi")
+
+
+def test_bypass_tetap_berhenti_di_batas_harian():
+    wa = FakeWA()
+    db.set_setting("batas_harian", 15)
+    s, clock = make(wa, start="2026-10-26 08:00", n=30)
+    db.set_setting("bypass_sesi", {"tanggal": "2026-10-26", "waktu": "2026-10-26T08:00:00"})
+    st = run(s)
+    assert st.terkirim == 15
+    db.delete_setting("bypass_sesi")

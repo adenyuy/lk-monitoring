@@ -42,6 +42,30 @@ def send_start(body: StartIn, _=Depends(wa_blast)) -> dict[str, Any]:
         raise HTTPException(409, str(e)) from e
 
 
+class BypassIn(BaseModel):
+    aktif: bool
+    konfirmasi: str = ""
+
+
+@router.post("/send/bypass")
+def send_bypass(body: BypassIn, _=Depends(wa_blast)) -> dict[str, Any]:
+    """Nyalakan/matikan bypass sesi untuk hari ini. Menyalakan wajib mengetik kalimat risiko."""
+    from .. import config, db, schedule
+
+    if body.aktif:
+        if " ".join(body.konfirmasi.lower().split()) != config.KALIMAT_RISIKO:
+            raise HTTPException(400, f"Ketik “{config.KALIMAT_RISIKO}” untuk menyalakan bypass sesi.")
+        now = schedule.now()
+        db.set_setting("bypass_sesi", {"tanggal": schedule.tanggal_str(now.date()),
+                                       "waktu": now.isoformat(timespec="seconds")})
+    else:
+        if sender.state.running and sender.state.bypass:
+            sender.stop()
+        db.delete_setting("bypass_sesi")
+    events.publish("bypass_berubah", aktif=sender.bypass_aktif())
+    return {"bypass": sender.bypass_aktif(), "kondisi": _kondisi()}
+
+
 @router.post("/send/stop")
 def send_stop(_=Depends(wa_blast)) -> dict[str, Any]:
     return sender.stop()

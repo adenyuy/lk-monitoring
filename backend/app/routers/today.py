@@ -251,6 +251,7 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
             for s in config.SESI
         ],
         "pengiriman": sender.snapshot(),
+        "bypass": sender.bypass_aktif(),
     }
 
 

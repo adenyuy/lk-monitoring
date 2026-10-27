@@ -89,7 +89,8 @@ export function TodayView() {
   useEvents((type) => {
     if (type === "kirim_hasil" || type === "kirim_selesai" || type === "kirim_mulai" || type === "chat_diperbarui") {
       void refresh();
-    } else if (type === "kirim_jeda" || type === "kirim_proses" || type === "kirim_stop_diminta") {
+    } else if (type === "kirim_jeda" || type === "kirim_proses" || type === "kirim_stop_diminta"
+      || type === "bypass_berubah") {
       void loadToday();
     }
   });

@@ -171,6 +171,19 @@ const GRUP: { judul: string; isi: T[] }[] = [
         ),
       },
       {
+        id: "bypass",
+        q: "Bisakah mengirim di luar jam sesi kalau mendesak?",
+        a: (
+          <>
+            <p>Bisa, lewat <b>Bypass sesi</b> di kartu Sekarang (muncul saat sesi belum mulai, kuota sesi habis, atau
+              sesi hari ini sudah lewat). Anda harus mengetik <b>risiko ditanggung sendiri</b>, karena pesan jadi lebih
+              rapat dari jadwal tim dan risiko nomor diblokir naik.</p>
+            <p>Yang tetap berlaku: batas harian, jeda acak 45–120 detik, tidak kirim dobel dalam seminggu, hanya pukul
+              07.00–22.00 di hari kerja. Bypass berlaku hari itu saja dan bisa dimatikan kapan saja.</p>
+          </>
+        ),
+      },
+      {
         id: "mati",
         q: "Laptop mati atau aplikasi tertutup di tengah sesi. Bagaimana?",
         a: (

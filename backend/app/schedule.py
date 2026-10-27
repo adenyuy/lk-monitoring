@@ -75,13 +75,18 @@ def next_sesi(t: datetime, kirim_akhir_pekan: bool) -> tuple[Sesi, datetime]:
     return s, datetime.combine(d + timedelta(days=1), _hm(s.mulai), tzinfo=TZ)
 
 
+BYPASS_MULAI = time(7, 0)
+BYPASS_SAMPAI = time(22, 0)
+KALIMAT_RISIKO = config.KALIMAT_RISIKO
+
+
 def kuota_efektif(sesi: Sesi, terkirim_sesi: int, batas_harian: int, terkirim_hari: int, sisa_antrean: int) -> int:
     return max(0, min(sesi.kuota - terkirim_sesi, batas_harian - terkirim_hari, sisa_antrean))
 
 
 @dataclass
 class Kondisi:
-    kode: str  # berjalan | kuota_sesi_habis | batas_harian | sebelum_sesi | selesai_hari | akhir_pekan | antrean_habis
+    kode: str  # berjalan | bypass | bypass_jam | kuota_sesi_habis | batas_harian | sebelum_sesi | selesai_hari | akhir_pekan | antrean_habis
     judul: str
     bisa_kirim: bool
     sesi: Sesi | None  # sesi aktif (bila ada)
@@ -108,6 +113,7 @@ def kondisi(
     terkirim_hari: int,
     terkirim_per_sesi: dict[int, int],
     sisa_antrean: int,
+    bypass: bool = False,
 ) -> Kondisi:
     nxt, nxt_at = next_sesi(t, kirim_akhir_pekan)
     besok = nxt_at.date() != t.date()
@@ -122,6 +128,16 @@ def kondisi(
         return k("batas_harian", f"Batas harian {batas_harian} pesan tercapai. {lanjut}")
 
     s = sesi_at(t)
+    if bypass:
+        # Bypass sesi: abaikan jam & kuota per sesi; batas harian, akhir pekan, dan jam wajar tetap berlaku
+        if not (BYPASS_MULAI <= t.time() <= BYPASS_SAMPAI):
+            return k("bypass_jam", f"Bypass sesi aktif, tapi pesan hanya dikirim pukul {BYPASS_MULAI:%H.%M}–"
+                                   f"{BYPASS_SAMPAI:%H.%M}. {lanjut}")
+        if sisa_antrean <= 0:
+            return k("antrean_habis", "Semua fasilitator sudah dikirimi pesan", sesi=s)
+        kuota = max(0, min(batas_harian - terkirim_hari, sisa_antrean))
+        return k("bypass", f"Bypass sesi: sisa {kuota} pesan hari ini", sesi=s, kuota=kuota)
+
     if s is None:
         if t.time() < _hm(config.SESI[0].mulai):
             return k("sebelum_sesi", lanjut)

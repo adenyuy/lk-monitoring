@@ -70,6 +70,7 @@ class State:
     mulai: float | None = None
     selesai: float | None = None
     hasil: list[dict] = field(default_factory=list)
+    bypass: bool = False  # dikirim lewat bypass sesi (tanpa jam & kuota sesi)
 
 
 class Sender:
@@ -117,7 +118,13 @@ class Sender:
         items = items if items is not None else self.antrean()
         t = self.clock()
         total, per = store.counts(schedule.tanggal_str(t.date()))
-        return schedule.kondisi(t, batas, akhir_pekan, total, per, len(send_queue.eligible(items)))
+        return schedule.kondisi(t, batas, akhir_pekan, total, per, len(send_queue.eligible(items)),
+                                bypass=self.bypass_aktif())
+
+    def bypass_aktif(self) -> bool:
+        """Bypass sesi hanya berlaku di hari dinyalakan."""
+        b = db.get_setting("bypass_sesi") or {}
+        return b.get("tanggal") == schedule.tanggal_str(self.clock().date())
 
     # ---------- kontrol ----------
 
@@ -130,7 +137,9 @@ class Sender:
             if not k.bisa_kirim:
                 raise NotAllowed(k.judul)
             todo = send_queue.eligible(items)
-            self.state = State(running=True, coba=coba, sesi=k.sesi.no, target=k.kuota, mulai=time.time())
+            bypass = k.kode == "bypass"
+            self.state = State(running=True, coba=coba, sesi=0 if bypass else k.sesi.no, target=k.kuota,
+                               mulai=time.time(), bypass=bypass)
             self._thread = threading.Thread(target=self._run, args=(todo, k.sesi), name="sender", daemon=True)
             self._thread.start()
         events.publish("kirim_mulai", **self.snapshot())
@@ -152,7 +161,7 @@ class Sender:
         self.state.berhenti_karena = alasan
         log.warning("Pengiriman berhenti: %s", alasan)
 
-    def _run(self, todo: list[send_queue.Item], sesi: config.Sesi) -> None:
+    def _run(self, todo: list[send_queue.Item], sesi: config.Sesi | None) -> None:
         st = self.state
         gagal_beruntun = 0
         max_percobaan = st.target * 2  # gagal tidak mengurangi kuota; cegah loop panjang
@@ -165,7 +174,7 @@ class Sender:
                     break
                 sisa = self._sisa_kuota(sesi)
                 if sisa is None:
-                    self._halt(f"Sesi {sesi.no} sudah berakhir.")
+                    self._halt("Bypass sesi sudah tidak berlaku." if st.bypass else f"Sesi {sesi.no} sudah berakhir.")
                     break
                 if sisa <= 0:
                     break
@@ -178,7 +187,7 @@ class Sender:
                 t = self.clock()
                 store.record_send(
                     tanggal=schedule.tanggal_str(t.date()), waktu=t.isoformat(timespec="seconds"),
-                    sesi=sesi.no, nama_fasil=item.nama_fasil, nomor=item.nomor, hash_pesan=item.hash_pesan,
+                    sesi=self._no_sesi(t, sesi), nama_fasil=item.nama_fasil, nomor=item.nomor, hash_pesan=item.hash_pesan,
                     status=status, keterangan=ket, coba=st.coba,
                 )
                 st.hasil.append({"nama": item.nama_fasil, "status": status, "keterangan": ket,
@@ -212,9 +221,24 @@ class Sender:
             st.selesai = time.time()
             events.publish("kirim_selesai", **self.snapshot())
 
-    def _sisa_kuota(self, sesi: config.Sesi) -> int | None:
-        """Sisa kuota untuk sesi ini sekarang; None bila sesi sudah berakhir."""
+    def _no_sesi(self, t, sesi: config.Sesi | None) -> int:
+        """Nomor sesi untuk catatan kirim; lewat bypass di luar jam sesi = 0."""
+        if not self.state.bypass:
+            return sesi.no
+        aktif = schedule.sesi_at(t)
+        return aktif.no if aktif else 0
+
+    def _sisa_kuota(self, sesi: config.Sesi | None) -> int | None:
+        """Sisa kuota sekarang; None bila sesi (atau bypass) sudah berakhir."""
         t = self.clock()
+        if self.state.bypass:
+            if not self.bypass_aktif() or not (schedule.BYPASS_MULAI <= t.time() <= schedule.BYPASS_SAMPAI):
+                return None
+            if self.state.coba:
+                return self.state.target - self.state.dicoba
+            _, batas, _ = self._settings()
+            total, _ = store.counts(schedule.tanggal_str(t.date()))
+            return max(0, batas - total)
         aktif = schedule.sesi_at(t)
         if aktif is None or aktif.no != sesi.no:
             return None
