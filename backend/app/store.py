@@ -47,13 +47,21 @@ def to_refresh(since_tanggal: str) -> list[str]:
         "  SELECT nomor, waktu FROM sends WHERE status = 'terkirim' AND coba = 0 AND tanggal >= ? "
         "  UNION ALL SELECT nomor, waktu FROM aktivitas WHERE jenis = 'balas' AND waktu >= ?"
         ") GROUP BY nomor) k LEFT JOIN chat_status c ON c.nomor = k.nomor "
-        "WHERE c.status IS NULL OR c.status != 'dibalas' OR c.waktu_balasan < k.w",
+        "WHERE c.status IS NULL OR c.status != 'dibalas' OR c.waktu_balasan < k.w "
+        "OR c.perlu_balas = 1",  # cek lagi: mungkin sudah dibalas lewat HP
         (since_tanggal, since_tanggal),
     )
     return [r["nomor"] for r in rows]
 
 
-def save_chat_status(nomor: str, status: str, balasan: str, dicek: str) -> None:
+def perlu_dibalas(sejak_iso: str) -> list[dict[str, Any]]:
+    """Fasil yang membalas (sejak waktu itu) dan pesan terakhirnya belum kita balas."""
+    rows = db.query("SELECT nomor, balasan_terakhir, waktu_balasan FROM chat_status "
+                    "WHERE perlu_balas = 1 AND waktu_balasan >= ? ORDER BY waktu_balasan", (sejak_iso,))
+    return [dict(r) for r in rows]
+
+
+def save_chat_status(nomor: str, status: str, balasan: str, dicek: str, perlu_balas: bool | None = None) -> None:
     lama = db.query("SELECT status, balasan_terakhir FROM chat_status WHERE nomor = ?", (nomor,))
     lama_st = lama[0]["status"] if lama else ""
     lama_bls = lama[0]["balasan_terakhir"] if lama else ""
@@ -66,6 +74,8 @@ def save_chat_status(nomor: str, status: str, balasan: str, dicek: str) -> None:
             "THEN excluded.dicek ELSE chat_status.waktu_balasan END, dicek=excluded.dicek",
             (nomor, status, balasan, dicek if balasan else "", dicek),
         )
+        if perlu_balas is not None:
+            c.execute("UPDATE chat_status SET perlu_balas = ? WHERE nomor = ?", (int(perlu_balas), nomor))
     # Riwayat per fasil: catat saat pesan baru terbaca / ada balasan baru
     from . import aktivitas
 

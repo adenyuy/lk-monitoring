@@ -45,12 +45,15 @@ def _hasil(nomor: str, info: actions.ChatInfo, rows: list[actions.Row]) -> dict[
             tagging.tandai(nomor, "hijau")
     if info.status != "belum_ada":
         balasan = info.balasan[-1] if info.balasan else ""
-        store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"))
+        store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"),
+                               info.terakhir_masuk)
         events.publish("chat_diperbarui", jumlah=1)
     return {
         "status": info.status,
         "dibaca_pada": schedule.now().strftime("%H.%M"),
-        "pesan": [{"keluar": r.out, "teks": r.text, "waktu": r.waktu, "status": r.status} for r in rows if r.text][-40:],
+        "perlu_balas": info.terakhir_masuk,
+        "pesan": [{"keluar": r.out, "teks": r.text, "waktu": r.waktu, "status": r.status, "kutipan": r.kutipan}
+                  for r in rows if r.text][-40:],
     }
 
 

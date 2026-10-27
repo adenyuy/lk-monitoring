@@ -128,7 +128,10 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
         {pesan.length > 0 ? (
           pesan.map((m, i) => (
             <div key={i} className={`${s.msg} ${m.keluar ? s.msgOut : ""}`}>
-              <div className={s.bubble}>{formatWa(m.teks)}</div>
+              <div className={s.bubble}>
+                {m.kutipan && <div className={s.kutipan}>{m.kutipan}</div>}
+                {formatWa(m.teks)}
+              </div>
               <div className={s.msgMeta}>
                 {m.waktu || (m.keluar ? "Kamu" : "Fasil")}
                 {m.keluar && m.status ? `, ${CENTANG[m.status] ?? m.status}` : ""}

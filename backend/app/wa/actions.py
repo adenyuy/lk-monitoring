@@ -38,6 +38,7 @@ class ChatInfo:
     pesan_keluar_terakhir: str = ""
     balasan: list[str] = field(default_factory=list)
     centang: str = ""  # ikon pesan keluar PERTAMA (broadcast): sent | delivered | read
+    terakhir_masuk: bool = False  # pesan terakhir di chat berasal dari fasil (belum kita balas)
 
 
 def _norm(s: str) -> str:
@@ -100,7 +101,7 @@ def clear_draft(b: Browser) -> None:
 
 
 _ROWS_JS = """
-([rowSels, textSels, tailOut, tailIn]) => {
+([rowSels, textSels, tailOut, tailIn, quoteSel]) => {
   // WhatsApp menampilkan baris "1. ..." sebagai daftar bernomor (<ol>); nomornya dari CSS sehingga
   // hilang di innerText. Salin elemen ke luar layar, tulis nomornya sebagai teks, lalu baca.
   const teks = (el) => {
@@ -122,8 +123,19 @@ _ROWS_JS = """
   let rows = [];
   for (const s of rowSels) { rows = [...document.querySelectorAll(s)]; if (rows.length) break; }
   return rows.map(r => {
-    let text = '';
-    for (const s of textSels) { const el = r.querySelector(s); if (el) { text = teks(el); break; } }
+    // Balasan yang mengutip pesan lain berisi dua teks: kutipan (di atas) lalu isi balasan.
+    // Ambil isi balasan = teks terakhir yang tidak berada di dalam kotak kutipan.
+    let text = '', kutipan = '';
+    for (const s of textSels) {
+      const semua = [...r.querySelectorAll(s)];
+      if (!semua.length) continue;
+      const luar = semua.filter(el => !el.closest(quoteSel));
+      const dalam = semua.filter(el => el.closest(quoteSel));
+      text = teks(luar.length ? luar[luar.length - 1] : semua[semua.length - 1]);
+      if (dalam.length) kutipan = dalam[0].innerText;
+      break;
+    }
+    if (!kutipan) { const q = r.querySelector(quoteSel); if (q) kutipan = q.innerText; }
     const labels = [...r.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label') || '');
     const titles = [...r.querySelectorAll('svg title')].map(t => t.textContent || '');
     const icons = [...r.querySelectorAll('[data-icon]')].map(e => e.getAttribute('data-icon') || '');
@@ -132,6 +144,7 @@ _ROWS_JS = """
       id: r.getAttribute('data-id') || '',
       pre: pre ? pre.getAttribute('data-pre-plain-text') || '' : '',
       text: text || '',
+      kutipan: kutipan || '',
       labels, titles, icons,
       tailOut: !!r.querySelector(tailOut),
       tailIn: !!r.querySelector(tailIn),
@@ -148,6 +161,7 @@ class Row:
     status: str  # pending | sent | delivered | read | '' (pesan masuk)
     text: str
     waktu: str = ""  # "10.37, 26/10/2026" dari atribut data-pre-plain-text, bila ada
+    kutipan: str = ""  # teks pesan yang dikutip (bila pesan ini membalas pesan lain)
 
 
 def rapikan(teks: str) -> str:
@@ -184,12 +198,13 @@ def _is_out(raw: dict, status: str) -> bool:
 
 
 def rows(page: Page) -> list[Row]:
-    raw = page.evaluate(_ROWS_JS, [list(S.MESSAGE_ROW), list(S.MESSAGE_TEXT), S.TAIL_OUT, S.TAIL_IN])
+    raw = page.evaluate(_ROWS_JS, [list(S.MESSAGE_ROW), list(S.MESSAGE_TEXT), S.TAIL_OUT, S.TAIL_IN, S.QUOTE])
     out = []
     for r in raw:
         st = _status_of(r)
         is_out = _is_out(r, st)
-        out.append(Row(r["id"], is_out, st if is_out else "", rapikan(r["text"]), _waktu(r.get("pre", ""))))
+        out.append(Row(r["id"], is_out, st if is_out else "", rapikan(r["text"]), _waktu(r.get("pre", "")),
+                       rapikan(r.get("kutipan", ""))))
     return out
 
 
@@ -236,7 +251,9 @@ def chat_info(all_rows: list[Row]) -> ChatInfo:
         status = "dibalas"
     else:
         status = "dibaca" if all_rows[last_out].status == "read" else "terkirim"
-    return ChatInfo(status, all_rows[last_out].text, balasan, all_rows[first_out].status)
+    berisi = [r for r in all_rows if r.text]
+    terakhir_masuk = bool(balasan) and bool(berisi) and not berisi[-1].out
+    return ChatInfo(status, all_rows[last_out].text, balasan, all_rows[first_out].status, terakhir_masuk)
 
 
 def read_thread(b: Browser, nomor: str) -> tuple[ChatInfo, list[Row]]:

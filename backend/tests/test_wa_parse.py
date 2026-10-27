@@ -63,3 +63,12 @@ def test_waktu_pesan():
 def test_rapikan_teks_daftar():
     teks = "Untuk sekolah berikut:\n\n\n\n1. SD A (39,6%)  \n2. SD B\n\n\n\nTerima kasih"
     assert actions.rapikan(teks) == "Untuk sekolah berikut:\n\n1. SD A (39,6%)\n2. SD B\n\nTerima kasih"
+
+
+
+def test_terakhir_masuk_artinya_perlu_dibalas():
+    keluar, masuk = _row(True, "Broadcast", "read"), _row(False, "Siap pak")
+    assert actions.chat_info([keluar, masuk]).terakhir_masuk
+    assert not actions.chat_info([keluar, masuk, _row(True, "Terima kasih", "sent")]).terakhir_masuk
+    assert not actions.chat_info([keluar]).terakhir_masuk
+    assert not actions.chat_info([masuk, keluar]).terakhir_masuk  # pesan masuk sebelum broadcast bukan balasan

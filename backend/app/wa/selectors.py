@@ -63,6 +63,9 @@ MESSAGE_ROW = (
     '#main div[role="row"] div[data-id]',
 )
 MESSAGE_TEXT = ('[data-testid="selectable-text"]', "span.selectable-text")
+# Kotak kutipan di dalam pesan yang membalas pesan lain (nama atribut berubah-ubah antar versi WhatsApp Web)
+QUOTE = ('[data-testid="quoted-message"], [aria-label="Quoted message"], [aria-label="Pesan yang dikutip"], '
+         '[aria-label="Pesan dikutip"], .quoted-mention')
 TAIL_OUT = '[data-testid="tail-out"]'
 TAIL_IN = '[data-testid="tail-in"]'
 # Label tersembunyi di awal tiap pesan: "You:" untuk pesan kita, "<nama>:" untuk pesan masuk

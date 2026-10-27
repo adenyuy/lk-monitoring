@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
 import { LockIcon } from "./NoAccess";
-import { DaftarFasil, NotifList, useNotif, type Notif } from "./Notif";
+import { DaftarFasil, IzinDesktop, NotifList, useNotif, type Notif } from "./Notif";
 import { IconCutoff, IconHariIni, IconLog, IconPanduan, IconRekap, IconTanya } from "./Icons";
 import s from "./app.module.css";
 
@@ -273,7 +273,7 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
                 <span className={s.cdTime}>{hms(cd.detik)}</span>
               </div>
               <div className={s.amNotif}>
-                <h3>Notifikasi{nf.items.length > 0 && <span>{nf.items.length}</span>}</h3>
+                <h3>Notifikasi{nf.items.length > 0 && <span>{nf.items.length}</span>}<IzinDesktop /></h3>
                 <NotifList items={nf.items} onTutup={nf.sembunyikan} onLink={tutupMenu}
                   onDaftar={(x) => { setMenu(false); setDaftar(x); }} />
               </div>

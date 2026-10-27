@@ -42,6 +42,8 @@ Aplikasi memandu 4 langkah:
   - **Lanjutan dari kemarin**, **Minggu baru dimulai**, **Broadcast minggu ini sudah terkirim**.
   - **Fasil perlu dichat lagi**: sudah dihubungi minggu ini tapi isian LK-nya belum lengkap. Tekan **Lihat daftar**, lalu klik fasil untuk membuka LK dan chat-nya di Hari ini.
   - **Fasil di luar Broadcast belum dihubungi**: fasil P1/P2/P3 yang tidak dikirimi Broadcast otomatis. Chat langsung dari panelnya; setelah itu balasannya ikut dicek otomatis.
+  - **Fasil menunggu balasan Anda**: fasil sudah membalas dan belum dibalas lagi (dicek tiap 10 menit). Hilang sendiri setelah dibalas, dari aplikasi maupun dari HP.
+  - Tekan **Nyalakan notifikasi desktop** di panel notifikasi supaya Windows memberi tahu saat ada fasil baru membalas, selama halaman aplikasi terbuka.
   - **Ada perubahan data baru** di Broadcast atau LK.
 
 ### Alur satu minggu

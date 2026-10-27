@@ -13,9 +13,10 @@ const KOLOM: { k: TahapKini[]; label: string; lanjut: string }[] = [
   { k: ["lk_lengkap"], label: "LK lengkap", lanjut: "Beres minggu ini" },
 ];
 
-type Saring = "semua" | "p1" | "p2" | "p3" | "luar";
+type Saring = "semua" | "balas" | "p1" | "p2" | "p3" | "luar";
 const SARING: { k: Saring; label: string; cocok: (r: FasilRekap) => boolean }[] = [
   { k: "semua", label: "Semua", cocok: () => true },
+  { k: "balas", label: "Perlu dibalas", cocok: (r) => r.perlu_balas },
   { k: "p1", label: "P1", cocok: (r) => r.p1 > 0 },
   { k: "p2", label: "P2", cocok: (r) => r.p2 > 0 },
   { k: "p3", label: "P3", cocok: (r) => r.p3 > 0 },
@@ -46,7 +47,8 @@ export function TahapBoard({ fasil, onBuka }: { fasil: FasilRekap[]; onBuka: (no
       ...c,
       // Yang paling lama tidak ada kabar di atas, supaya disapa lebih dulu; yang belum pernah dihubungi urut P1 terbanyak
       isi: pilih.filter((r) => c.k.includes(r.tahap_kini)).sort((a, b) =>
-        (a.terakhir || "~").localeCompare(b.terakhir || "~") || b.p1 - a.p1 || a.nama.localeCompare(b.nama)),
+        Number(b.perlu_balas) - Number(a.perlu_balas)
+        || (a.terakhir || "~").localeCompare(b.terakhir || "~") || b.p1 - a.p1 || a.nama.localeCompare(b.nama)),
     }));
   }, [aktif, saring, cari]);
 
@@ -76,9 +78,11 @@ export function TahapBoard({ fasil, onBuka }: { fasil: FasilRekap[]; onBuka: (no
             <ul className={s.colList}>
               {c.isi.map((r) => (
                 <li key={r.nomor || r.nama}>
-                  <button type="button" className={s.tCard} disabled={!r.nomor} onClick={() => onBuka(r.nomor)}>
+                  <button type="button" className={`${s.tCard} ${r.perlu_balas ? s.tCardBalas : ""}`}
+                    disabled={!r.nomor} onClick={() => onBuka(r.nomor)}>
                     <b>{r.nama}</b>
                     <span className={s.tPills}>
+                      {r.perlu_balas && <em className={s.tBalas}>Perlu dibalas</em>}
                       {r.p1 > 0 && <em className={s.tP1}>P1 {r.p1}</em>}
                       {r.p2 > 0 && <em className={s.tP2}>P2 {r.p2}</em>}
                       {r.p3 > 0 && <em className={s.tP3}>P3 {r.p3}</em>}

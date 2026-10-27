@@ -14,7 +14,7 @@ from .wa import actions
 from .wa.browser import worker
 
 log = logging.getLogger(__name__)
-INTERVAL_DETIK = 15 * 60
+INTERVAL_DETIK = 10 * 60
 HARI_KE_BELAKANG = 7
 
 _lock = threading.Lock()
@@ -42,7 +42,8 @@ def refresh_once() -> dict:
             if info.status in ("dibaca", "dibalas") or info.centang in ("delivered", "read"):
                 tagging.tandai(nomor, "hijau")
             balasan = info.balasan[-1] if info.balasan else ""
-            store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"))
+            store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"),
+                                   info.terakhir_masuk)
             diperbarui += 1
         events.publish("chat_diperbarui", jumlah=diperbarui)
         return {"diperbarui": diperbarui, "dicek": len(nomor_list)}

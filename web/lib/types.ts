@@ -88,12 +88,12 @@ export type Today = {
 };
 
 export type FasilTindakLanjut = {
-  nomor: string; nama: string; kategori: "membalas" | "menunggu" | "manual"; alasan: string; dibalas: boolean;
+  nomor: string; nama: string; kategori: "balas" | "membalas" | "menunggu" | "manual"; alasan: string; dibalas: boolean;
   di_broadcast: boolean; p1: number; p2: number; p3: number; lengkap: number; perlu: number;
 };
 
 export type Pengingat = {
-  jenis: "terlewat" | "lanjut" | "minggu_baru" | "broadcast_selesai" | "tindak_lanjut" | "chat_manual";
+  jenis: "terlewat" | "lanjut" | "minggu_baru" | "broadcast_selesai" | "tindak_lanjut" | "chat_manual" | "perlu_balas";
   judul: string;
   isi: string;
   total?: number;
@@ -163,7 +163,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 15;
+export const API_REV = 16;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -172,7 +172,8 @@ export const KALIMAT_RISIKO = "risiko ditanggung sendiri";
 export type Percakapan = {
   status: "belum_ada" | "terkirim" | "dibaca" | "dibalas";
   dibaca_pada: string;
-  pesan: { keluar: boolean; teks: string; waktu: string; status: string }[];
+  perlu_balas?: boolean;
+  pesan: { keluar: boolean; teks: string; waktu: string; status: string; kutipan?: string }[];
 };
 
 export type ChatRekap = "belum" | "gagal" | "terkirim" | "dibaca" | "dibalas";
@@ -195,6 +196,7 @@ export type FasilRekap = {
   tahap_kini: TahapKini;
   terakhir: string;
   terakhir_label: string;
+  perlu_balas: boolean;
 };
 
 export type TahapKini = "belum" | "gagal" | "terkirim" | "dibaca" | "dibalas" | "ditanya" | "lk_lengkap" | "selesai";

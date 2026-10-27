@@ -147,6 +147,26 @@ def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
                      "isi": "Sisa minggu ini untuk tindak lanjut: chat fasil yang belum membalas dan lengkapi isian "
                             "LK. Senin depan Broadcast dikirim lagi dengan data progres terbaru."})
 
+    # Fasil yang membalas dan belum kita balas (paling atas: paling ditunggu)
+    perlu = store.perlu_dibalas(tahap.senin_iso())
+    if perlu:
+        di_bc = {i.nomor for i in items}
+        nama = {i.nomor: i.nama_fasil for i in items}
+        if any(x["nomor"] not in nama for x in perlu):
+            nama = {**aktivitas._nama_map(), **nama}
+        daftar_balas = []
+        for x in perlu:
+            cuplik = " ".join((x["balasan_terakhir"] or "").split())
+            cuplik = cuplik if len(cuplik) <= 60 else cuplik[:59] + "…"
+            jam = x["waktu_balasan"][11:16].replace(":", ".")
+            daftar_balas.append({"nomor": x["nomor"], "nama": nama.get(x["nomor"], x["nomor"]), "kategori": "balas",
+                                 "alasan": f"Membalas {jam}: \u201c{cuplik}\u201d", "dibalas": True,
+                                 "di_broadcast": x["nomor"] in di_bc, "p1": 0, "p2": 0, "p3": 0, "lengkap": 0,
+                                 "perlu": 0})
+        out.insert(0, {"jenis": "perlu_balas", "judul": f"{len(perlu)} fasil menunggu balasan Anda",
+                       "isi": "Mereka sudah membalas dan belum dibalas lagi. Balas dari panel fasil atau dari HP.",
+                       "total": len(perlu), "fasil": daftar_balas})
+
     # Daftar tindak lanjut: semua fasil milik petugas (Broadcast + LK) yang isian LK-nya belum lengkap
     smap = _sekolah_map()
     if smap:

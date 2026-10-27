@@ -29,6 +29,46 @@ function tulis(kunci: string, nilai: unknown) {
   }
 }
 
+const KUNCI_DESKTOP = "lkm-notif-desktop";
+
+/** Notifikasi Windows saat ada fasil baru yang membalas (hanya bila diizinkan dan halaman app terbuka). */
+function kabariDesktop(fasil: FasilTindakLanjut[]) {
+  const kunci = fasil.map((f) => `${f.nomor}|${f.alasan}`);
+  const lama = baca<string[] | null>(KUNCI_DESKTOP, null);
+  tulis(KUNCI_DESKTOP, kunci);
+  if (lama === null || typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  for (const f of fasil) {
+    if (lama.includes(`${f.nomor}|${f.alasan}`)) continue;
+    try {
+      const n = new Notification(`${f.nama} membalas`, { body: f.alasan, tag: f.nomor });
+      n.onclick = () => {
+        window.focus();
+        // Di luar React (handler notifikasi): muat ulang penuh ke Hari ini memang disengaja
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.href = `/today/?fasil=${encodeURIComponent(f.nomor)}`;
+      };
+    } catch {
+      /* browser menolak: abaikan */
+    }
+  }
+}
+
+/** Tombol izin notifikasi desktop (muncul sekali sampai diizinkan atau ditolak). */
+export function IzinDesktop() {
+  const [izin, setIzin] = useState<string>("granted");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIzin(typeof Notification === "undefined" ? "denied" : Notification.permission);
+  }, []);
+  if (izin !== "default") return null;
+  return (
+    <button type="button" className={s.nfIzin}
+      onClick={() => void Notification.requestPermission().then(setIzin)}>
+      Nyalakan notifikasi desktop
+    </button>
+  );
+}
+
 /** Notifikasi untuk tombol bulat: pengingat dari server + perubahan data baru. */
 export function useNotif(adaBaru: boolean) {
   const [data, setData] = useState<{ tanggal: string; items: Pengingat[] } | null>(null);
@@ -39,6 +79,7 @@ export function useNotif(adaBaru: boolean) {
     try {
       const r = await api<{ tanggal: string; items: Pengingat[] }>("/api/pengingat");
       setData(r);
+      kabariDesktop(r.items.find((x) => x.jenis === "perlu_balas")?.fasil ?? []);
       const t = baca<{ tanggal?: string; judul?: string[] }>(KUNCI_TUTUP, {});
       setTutup(t.tanggal === r.tanggal ? t.judul ?? [] : []);
     } catch {
@@ -59,7 +100,8 @@ export function useNotif(adaBaru: boolean) {
       isi: "Broadcast atau LK berubah sejak terakhir Anda membuka Log.", kunci: "log-baru", href: "/log/",
     }] : []),
     ...(data?.items ?? [])
-      .filter((x) => x.jenis === "tindak_lanjut" || x.jenis === "chat_manual" || !tutup.includes(x.judul))
+      .filter((x) => x.jenis === "tindak_lanjut" || x.jenis === "chat_manual" || x.jenis === "perlu_balas"
+        || !tutup.includes(x.judul))
       .map((x) => ({ ...x, kunci: `${data?.tanggal}|${x.jenis}|${x.judul}` })),
   ];
   const baru = items.filter((x) => !dilihat.includes(x.kunci)).length;
@@ -83,7 +125,7 @@ function Ikon({ jenis }: { jenis: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {jenis === "tindak_lanjut" || jenis === "chat_manual"
+      {jenis === "tindak_lanjut" || jenis === "chat_manual" || jenis === "perlu_balas"
         ? <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.5 8.5 0 1 1 21 11.5z" />
         : <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>}
     </svg>
@@ -127,6 +169,7 @@ export function NotifList({ items, onDaftar, onTutup, onLink }: {
 }
 
 const KATEGORI: Record<FasilTindakLanjut["kategori"], string> = {
+  balas: "Menunggu balasan Anda",
   membalas: "Sudah membalas, LK belum lengkap",
   menunggu: "Belum membalas",
   manual: "Di luar Broadcast, belum dihubungi",
@@ -174,13 +217,14 @@ export function DaftarFasil({ item, onBuka, onClose }: {
           {tampil.map((f) => (
             <li key={f.nomor}>
               <button type="button" onClick={() => onBuka(f.nomor)}>
-                <i className={f.kategori === "membalas" ? s.chipBalas : f.kategori === "manual" ? s.chipManual : undefined}
+                <i className={f.kategori === "membalas" || f.kategori === "balas" ? s.chipBalas : f.kategori === "manual" ? s.chipManual : undefined}
                   aria-hidden="true" />
                 <span className={s.dfNama}>
                   <b>{f.nama}</b>
                   <small>{f.alasan}</small>
                 </span>
                 <span className={s.dfPrio}>
+                  {f.kategori === "balas" && <em className={s.prBalas}>Perlu dibalas</em>}
                   {f.p1 > 0 && <em className={s.pr1}>P1 {f.p1}</em>}
                   {f.p2 > 0 && <em className={s.pr2}>P2 {f.p2}</em>}
                   {f.p3 > 0 && <em className={s.pr3}>P3 {f.p3}</em>}

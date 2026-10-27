@@ -101,8 +101,16 @@ def connect() -> sqlite3.Connection:
             _conn.row_factory = sqlite3.Row
             _conn.execute("PRAGMA journal_mode=WAL")
             _conn.executescript(SCHEMA)
+            _tambah_kolom(_conn)
             _conn.commit()
         return _conn
+
+
+def _tambah_kolom(conn: sqlite3.Connection) -> None:
+    """Kolom yang ditambahkan setelah rilis pertama (database lama tidak dibuat ulang)."""
+    ada = {r[1] for r in conn.execute("PRAGMA table_info(chat_status)")}
+    if "perlu_balas" not in ada:
+        conn.execute("ALTER TABLE chat_status ADD COLUMN perlu_balas INTEGER NOT NULL DEFAULT 0")
 
 
 def close() -> None:

@@ -790,3 +790,13 @@
   color: var(--ink-2);
   white-space: nowrap;
 }
+
+.tBalas {
+  background: #12a150;
+  color: #fff;
+}
+
+.tCardBalas {
+  border-color: #8fd4a8;
+  box-shadow: inset 3px 0 0 #12a150;
+}

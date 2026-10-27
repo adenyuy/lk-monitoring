@@ -82,6 +82,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
     manual = store.tahap_all()
     from .. import aktivitas
     terakhir = aktivitas.terakhir_sejak(tahap.senin_iso())
+    perlu_balas = {x["nomor"] for x in store.perlu_dibalas(tahap.senin_iso())}
 
     rows = []
     for key, f in fasil.items():
@@ -108,6 +109,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
             "tahap_kini": _tahap_kini(t, len(perlu), kontak.get(nomor)),
             "terakhir": terakhir.get(nomor, {}).get("waktu", ""),
             "terakhir_label": terakhir.get(nomor, {}).get("label", ""),
+            "perlu_balas": nomor in perlu_balas,
         })
     rows.sort(key=lambda r: (-r["p1"], r["nama"].casefold()))
 
