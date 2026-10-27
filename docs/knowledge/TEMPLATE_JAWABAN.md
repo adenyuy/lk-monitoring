@@ -1,6 +1,6 @@
 # Template jawaban untuk pertanyaan fasil
 
-43 template dalam 6 topik. Versi 2026-10-27.
+45 template dalam 6 topik. Versi 2026-10-27b.
 
 Di aplikasi: buka panel fasil → kolom **Di WhatsApp** → **Jawab pertanyaan…** → cari kata kunci → **Pakai**. Teks masuk ke kotak balasan dan bisa diedit dulu sebelum dikirim. `{nama}` otomatis diganti nama fasil.
 
@@ -11,7 +11,7 @@ Sumber:
 ## Daftar isi
 
 - **Adendum Kepala Sekolah**: Kapan pakai Adendum Kepala Sekolah, bedanya dengan Adendum PKS?; Bagaimana alur pengajuan Adendum Kepala Sekolah?; Dokumen dan data apa yang perlu disiapkan untuk Adendum Kepala Sekolah?; Data kepala sekolah baru diisi di menu mana?; Berita Acara Adendum Kepala Sekolah belum muncul; Kapan sekolah bisa TTE dokumen adendum kepala sekolah? Tombolnya tidak bisa; OTP untuk TTE adendum kepala sekolah tidak masuk; Kenapa nama kepala sekolah di biodata belum berubah?; PKS Adendum tertahan karena masih ada Adendum Kepala Sekolah
-- **PKS Adendum: syarat dan pengajuan**: Kapan PKS Adendum dipakai?; Bagaimana alur PKS Adendum dari awal sampai selesai?; Tombol buat adendum tidak bisa / apa syarat membuat adendum?; Muncul pesan "Sekolah Anda belum memiliki PKS yang ditandatangani"; Ketentuan isi form pengajuan adendum (Tahap 1); Durasi tambahan ditolak / batas durasi adendum; Isian menu/RAB ditolak sistem (Tahap 2); Apa saja 6 dokumen teknis adendum dan ukurannya?; Muncul pesan "Masih ada dokumen teknis yang belum diupload"; Dokumen tidak bisa diunggah ulang / "Dokumen sudah diverifikasi"; Tidak bisa membuat adendum baru karena ada adendum lain
+- **PKS Adendum: syarat dan pengajuan**: Kapan PKS Adendum dipakai?; Bagaimana alur PKS Adendum dari awal sampai selesai?; Tombol buat adendum tidak bisa / apa syarat membuat adendum?; Muncul pesan "Sekolah Anda belum memiliki PKS yang ditandatangani"; Ketentuan isi form pengajuan adendum (Tahap 1); Durasi tambahan ditolak / batas durasi adendum; Isian menu/RAB ditolak sistem (Tahap 2); Apa saja 6 dokumen teknis adendum dan ukurannya?; Muncul pesan "Masih ada dokumen teknis yang belum diupload"; Dokumen tidak bisa diunggah ulang / "Dokumen sudah diverifikasi"; Tidak bisa membuat adendum baru karena ada adendum lain; Bisakah ajukan dana tahap 2 (Laporan 50%) dulu sebelum adendum selesai?; Pengalihan dana antar-menu tanpa tambah biaya, termasuk adendum apa?
 - **Biodata dan Data Perencana**: Biodata sudah dikirim tapi tidak tercatat / masih draft; Biodata hanya bisa ditolak (jabatan / email kepala sekolah); Biodata terkunci karena Berita Acara Adendum sudah lengkap; Data Identitas Perencana: cara unggah dan statusnya; Perencana diganti, bagaimana caranya?
 - **Reviu, verval, dan dikembalikan**: Kesepakatan belum bisa disimpan karena laporan sekolah; Adendum dikembalikan (Tidak Sepakat / Ditolak Koordinator / Tim Substansi); BA belum bisa ditandatangani: belum diterima Koordinator; BA belum bisa: menunggu verifikasi dan validasi Tim Substansi; Adendum PKS terkunci karena Laporan 50% sedang dalam proses reviu; Adendum dikembalikan ke draft karena kesalahan sistem; Adendum durasi ditolak PMO
 - **Berita Acara dan TTD PKS Adendum**: Kenapa Berita Acara belum bisa ditandatangani?; Siapa saja yang TTD Berita Acara dan bagaimana caranya?; Muncul pesan "Checklist sudah dibaca belum lengkap"; Kenapa harus TTD ulang Berita Acara?; Nama Kepala Sekolah di Berita Acara berbeda dari Biodata; Tanda Tangan PKS Adendum terkunci; OTP untuk TTD PKS Adendum tidak masuk; Setelah kepala sekolah TTD, PKS Adendum kapan selesai?
@@ -268,6 +268,38 @@ Kata kunci: adendum lain, satu pengajuan, draft, pending, baru
 
 ```text
 Baik Bapak/Ibu {nama}, selama masih ada adendum berstatus *draft* atau *pending*, sekolah tidak bisa membuat adendum baru. Draft yang ada perlu dilanjutkan, dan yang pending ditunggu prosesnya. Mengajukan dua kali pada adendum yang sama juga akan ditolak.
+```
+
+### Bisakah ajukan dana tahap 2 (Laporan 50%) dulu sebelum adendum selesai?
+
+Kata kunci: tahap 2, dana tahap 2, laporan 50, pencairan, sebelum adendum, duluan, dulu
+
+```text
+Baik Bapak/Ibu {nama}, izin menjawab. Dana tahap 2 diproses dari *Laporan Kemajuan 50%*. Di aplikasi, hubungan Laporan 50% dengan adendum begini:
+
+*Sekolah Angkatan 1* (keduanya saling mengunci):
+• Bila adendum *sudah diajukan* dan belum tuntas, tombol Kirim ke Fasilitator dan verifikasi Kepala Sekolah di Laporan 50% *terkunci* sampai adendumnya selesai.
+• Bila adendum masih *draft* (belum diajukan), Laporan 50% bisa dikirim lebih dulu. Selama laporan direviu, adendum draft terkunci, dan terbuka lagi setelah laporan dikembalikan untuk revisi, ditandatangani Koordinator, atau SPP Tahap 2 disusun.
+
+*Sekolah selain Angkatan 1*: tidak ada kunci, Laporan 50% dan adendum bisa berjalan masing-masing.
+
+Jadi bila sekolah Angkatan 1 ingin tahap 2 lebih dulu, Laporan 50% perlu dikirim *sebelum* adendum diajukan. Untuk kebijakan pencairannya sendiri, izin kami konfirmasi dulu ke tim terkait ya 🙏
+```
+
+### Pengalihan dana antar-menu tanpa tambah biaya, termasuk adendum apa?
+
+Kata kunci: pengalihan, antar menu, geser dana, tidak ada penambahan, realokasi, ubah menu
+
+```text
+Baik Bapak/Ibu {nama}, pengalihan dana antar-menu tanpa penambahan biaya diajukan sebagai PKS Adendum jenis *ubah menu* (bukan ubah/tambah pagu).
+
+Yang perlu diperhatikan:
+• Total semua komponen *tidak boleh melebihi nilai PKS awal*. Bila melebihi, verval Tim Substansi akan memblokir.
+• Nilai konstruksi dihitung otomatis dari luasan dan tingkat kerusakan yang diisi; mobilisasi = (konstruksi + penataan) × persentase.
+• Adendum ubah menu melewati reviu Fasilitator, konfirmasi Koordinator, dan verval Tim Substansi sebelum Berita Acara.
+• Wajib 6 dokumen teknis (gambar, RAB, RPD, RKS, jadwal/kurva S, analisis kerusakan untuk menu rehab).
+
+Bila sekolah Angkatan 1 juga mengejar dana tahap 2, perhatikan urutan Laporan 50% dan adendum karena keduanya saling mengunci.
 ```
 
 ## Biodata dan Data Perencana
