@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kebijakan Privasi LK Monitoring</title>
+  <meta name="description" content="Data apa yang dipakai aplikasi LK Monitoring dan bagaimana data itu disimpan.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <div class="brand"><span aria-hidden="true">LK</span>LK Monitoring</div>
+    <div class="card">
+      <h1>Kebijakan Privasi</h1>
+      <p>Berlaku untuk aplikasi LK Monitoring, aplikasi internal Tim Monitoring Revitalisasi SD 2026. Terakhir diperbarui
+        27 Oktober 2026.</p>
+
+      <h2>Izin Google yang diminta</h2>
+      <ul>
+        <li><b>Alamat email akun Google</b>: untuk mencocokkan pengguna dengan daftar akses tim.</li>
+        <li><b>Google Sheets</b>: untuk membaca sheet Broadcast, LK, dan Akses milik tim, serta menulis isian LK dan
+          penanda warna pengiriman ke sheet tim tersebut. Aplikasi tidak membuka spreadsheet lain.</li>
+      </ul>
+
+      <h2>Di mana data disimpan</h2>
+      <p>Aplikasi berjalan di laptop pengguna. Token login Google, riwayat pengiriman, log aktivitas, dan sesi WhatsApp
+        disimpan di laptop itu saja (folder <code>%APPDATA%\LKMonitoring</code>). Tidak ada server milik aplikasi yang
+        menerima data tersebut. Isian LK disimpan di Google Sheets tim.</p>
+
+      <h2>Berbagi data</h2>
+      <p>Data tidak dijual dan tidak dibagikan ke pihak ketiga. Pesan WhatsApp dikirim dari akun WhatsApp pengguna
+        sendiri melalui WhatsApp Web, hanya ke nomor fasilitator yang tercantum di sheet tim.</p>
+
+      <h2>Penggunaan data Google</h2>
+      <p>Penggunaan informasi yang diterima dari Google API mengikuti
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data
+        Policy</a>, termasuk ketentuan Limited Use.</p>
+
+      <h2>Menghapus data</h2>
+      <p>Pengguna dapat keluar dari aplikasi (menu profil, lalu Keluar), mencabut izin di
+        <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>, dan menghapus folder
+        <code>%APPDATA%\LKMonitoring</code> di laptopnya.</p>
+
+      <h2>Kontak</h2>
+      <p>Hubungi admin Tim Monitoring melalui
+        <a href="https://github.com/adenyuy/lk-monitoring/issues">GitHub Issues</a>.</p>
+    </div>
+    <footer><a href="index.html">Beranda</a></footer>
+  </main>
+</body>
+</html>
