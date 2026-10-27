@@ -48,8 +48,9 @@ def to_refresh(since_tanggal: str) -> list[str]:
         "  UNION ALL SELECT nomor, waktu FROM aktivitas WHERE jenis = 'balas' AND waktu >= ?"
         ") GROUP BY nomor) k LEFT JOIN chat_status c ON c.nomor = k.nomor "
         "WHERE c.status IS NULL OR c.status != 'dibalas' OR c.waktu_balasan < k.w "
-        "OR c.perlu_balas = 1",  # cek lagi: mungkin sudah dibalas lewat HP
-        (since_tanggal, since_tanggal),
+        "OR c.perlu_balas = 1 "  # cek lagi: mungkin sudah dibalas lewat HP
+        "OR c.dicek < ?",  # belum pernah dicek sejak fitur "perlu dibalas" ada
+        (since_tanggal, since_tanggal, db.get_setting("perlu_balas_sejak") or ""),
     )
     return [r["nomor"] for r in rows]
 

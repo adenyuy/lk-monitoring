@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <span className={s.lbl}>Rekap</span>
       </Link>
       <Link href="/today/" className={s.item} aria-current={aktif("/today/")}>
-        <span className={s.ico}><IconHariIni /></span><span className={s.lbl}>Hari ini</span>
+        <span className={s.ico}><IconHariIni /></span><span className={s.lbl}>Blast</span>
       </Link>
       <Link href="/log/" className={s.item} aria-current={aktif("/log/")}>
         <span className={s.ico}><IconLog />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru" />}</span>

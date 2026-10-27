@@ -58,3 +58,17 @@ def test_perlu_dibalas_dan_dicek_ulang():
     assert store.perlu_dibalas("2026-10-26") == []
     assert "6281200000001" not in store.to_refresh("2026-10-20")
     _bersih()
+
+
+def test_chat_lama_dicek_ulang_sekali_untuk_perlu_dibalas():
+    _bersih()
+    with db.tx() as c:
+        c.execute("INSERT INTO sends(tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status) VALUES(?,?,?,?,?,?,?)",
+                  ("2026-10-26", "2026-10-26T10:05:00", 1, "Fasil A", "6281200000001", "h", "terkirim"))
+    store.save_chat_status("6281200000001", "dibalas", "Siap pak", "2026-10-26T11:00:00")  # sebelum fitur ada
+    db.set_setting("perlu_balas_sejak", "2026-10-27T09:00:00")
+    assert "6281200000001" in store.to_refresh("2026-10-20")
+    store.save_chat_status("6281200000001", "dibalas", "Siap pak", "2026-10-27T09:10:00", False)  # sudah dicek
+    assert "6281200000001" not in store.to_refresh("2026-10-20")
+    db.delete_setting("perlu_balas_sejak")
+    _bersih()

@@ -68,6 +68,11 @@ def _loop() -> None:
 
 
 def start_background() -> None:
+    # Sekali saja: chat yang terakhir dicek sebelum fitur "perlu dibalas" ada dicek ulang semua
+    from . import db
+
+    if not db.get_setting("perlu_balas_sejak"):
+        db.set_setting("perlu_balas_sejak", schedule.now().isoformat(timespec="seconds"))
     global _thread
     if _thread is None or not _thread.is_alive():
         _thread = threading.Thread(target=_loop, name="chat-refresh", daemon=True)
