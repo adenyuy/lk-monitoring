@@ -17,7 +17,7 @@ Langkah:
 3. Tunggu sampai selesai (5–15 menit pertama kali). Git, Python, dan Google Chrome dipasang otomatis bila belum ada.
 4. Aplikasi terbuka di browser, dan di Desktop muncul shortcut **LK Monitoring**.
 
-Selanjutnya cukup klik dua kali **LK Monitoring** di Desktop. Aplikasi memperbarui dirinya sendiri setiap dibuka.
+Selanjutnya cukup klik dua kali **LK Monitoring** di Desktop. Aplikasi memperbarui dirinya sendiri setiap dibuka. Bila aplikasi sedang jalan saat admin merilis versi baru, muncul banner biru **Versi baru tersedia**: tekan **Perbarui sekarang**.
 
 ## 2. Persiapan pertama
 
@@ -95,4 +95,4 @@ Ketuk tombol bulat → **Panduan** (aplikasi menunjuk bagian layar satu per satu
 | Ganti akun Google | Klik profil di kiri bawah → **Keluar / ganti akun Google**. |
 | Mematikan aplikasi | Klik dua kali **stop.bat** di `%LOCALAPPDATA%\LKMonitoring\app`. Aplikasi juga mati sendiri saat laptop dimatikan. |
 
-Data kamu (login, riwayat kirim, sesi WhatsApp) tersimpan di `%APPDATA%\LKMonitoring` dan tidak ikut terhapus saat aplikasi diperbarui.
+Data kamu (login, riwayat kirim, sesi WhatsApp) tersimpan di `%APPDATA%\LKMonitoring` dan tidak ikut terhapus saat aplikasi diperbarui atau cache browser dihapus. Jangan hapus folder itu di tengah minggu: aplikasi akan lupa siapa yang sudah dikirimi, sehingga Broadcast bisa terkirim dua kali.

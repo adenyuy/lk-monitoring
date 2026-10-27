@@ -156,11 +156,12 @@ lk-monitoring/
 Sebelum distribusi (hasil tinjauan 2026-10-27):
 
 - [x] **10.0a Tolak permintaan dari situs lain** (cek Host + Origin di server lokal).
-- [ ] **10.0b Bersihkan riwayat git** dari nama/nomor/email asli (repo publik), atau jadikan repo privat.
+- [ ] **10.0b Bersihkan riwayat git** (paket siap di `../bersihkan-riwayat/`, jalankan sesuai LANGKAH.md) dari nama/nomor/email asli (repo publik), atau jadikan repo privat.
 - [ ] **10.0c Pastikan sheet Broadcast & LK tidak "siapa saja yang punya link"** (ID sheet ada di repo publik).
-- [ ] **10.0d Status OAuth**: mode Testing = login ulang tiap 7 hari dan maks 100 pengguna; putuskan tetap Testing atau publish.
-- [ ] **10.0e Pembaruan saat server masih jalan**: tim bisa tertinggal versi berhari-hari bila laptop tidak dimatikan.
-- [ ] **10.0f Ringkasan tim untuk admin** (opsional): tiap aplikasi menulis status ke tab bersama.
+- [x] **10.0d Status OAuth** (tetap Testing): mode Testing = login ulang tiap 7 hari dan maks 100 pengguna; putuskan tetap Testing atau publish.
+- [x] **10.0e Pembaruan saat server masih jalan**: banner Versi baru tersedia + tombol Perbarui sekarang (dicek tiap 30 menit).
+- [-] (tidak dibuat) **10.0f Ringkasan tim untuk admin**.
+- [ ] **10.0g Uji rilis**: ikuti `docs/UJI_RILIS.md`.
 
 - [ ] **10.1 Uji lokal penuh** di laptop Marvin: setup dari nol, mode coba 5 fasil, kirim nyata 3 fasil, Riwayat & CSV, Tarik Cutoff ke file copy.
 - [ ] **10.2 Uji laptop bersih** (tanpa Python/Git): `install.bat` → app jalan < 15 menit.

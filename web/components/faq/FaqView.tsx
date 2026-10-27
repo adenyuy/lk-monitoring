@@ -274,6 +274,29 @@ const GRUP: { judul: string; isi: T[] }[] = [
         ),
       },
       {
+        id: "pembaruan",
+        q: "Bagaimana memperbarui aplikasi?",
+        a: (
+          <p>Saat admin merilis versi baru, muncul banner biru <b>Versi baru tersedia</b>. Tekan <b>Perbarui
+            sekarang</b>: aplikasi mulai ulang sekitar satu menit lalu halaman memuat ulang sendiri. Setelah itu tekan Buka
+            WhatsApp lagi (tidak perlu scan QR). Pembaruan ditolak selama Broadcast sedang dikirim.</p>
+        ),
+      },
+      {
+        id: "cache",
+        q: "Kalau cache browser dihapus, data saya hilang?",
+        a: (
+          <>
+            <p>Tidak. Data penting tersimpan di laptop di folder <b>%APPDATA%\LKMonitoring</b>, bukan di browser:
+              login Google, riwayat kirim, log, dan sesi WhatsApp. Isian LK tersimpan di sheet.</p>
+            <p>Yang hilang hanya kenyamanan tampilan: posisi tombol bulat, notifikasi yang sudah ditandai
+              &quot;Mengerti&quot;, dan tanda log sudah dilihat.</p>
+            <p><b>Jangan hapus folder %APPDATA%\LKMonitoring</b> di tengah minggu. Aplikasi akan lupa siapa yang sudah
+              dikirimi minggu ini, sehingga Broadcast bisa terkirim dua kali, dan Anda harus login serta scan QR ulang.</p>
+          </>
+        ),
+      },
+      {
         id: "restart",
         q: "Muncul pesan kuning “Server aplikasi perlu dijalankan ulang”.",
         a: (

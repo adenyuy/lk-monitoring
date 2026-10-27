@@ -77,3 +77,13 @@ def test_tolak_permintaan_dari_situs_lain():
     assert c.get("/api/health", headers={"Host": "127.0.0.1:8787"}).status_code == 200
     r = c.post("/api/settings", json={}, headers={"Origin": "http://127.0.0.1:8787"})
     assert r.status_code != 403
+
+
+def test_pembaruan_tidak_aktif_di_folder_develop():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    c = TestClient(app)
+    r = c.get("/api/pembaruan").json()
+    assert r["aktif"] is False and r["ada_baru"] is False
+    assert c.post("/api/pembaruan/pasang").status_code == 400

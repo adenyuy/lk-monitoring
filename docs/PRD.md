@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Pemilik** | Sari Petugas (Tim Monitoring Direktorat SD) |
+| **Pemilik** | Tim Monitoring Direktorat SD |
 | **Versi** | 1.0 – final untuk mulai development |
 | **Tanggal** | 25 Oktober 2026 |
 | **Repo** | `github.com/adenyuy/<nama-repo>` (publik) |

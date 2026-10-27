@@ -19,6 +19,29 @@ def health() -> dict[str, Any]:
     return {"ok": True, "version": config.VERSION}
 
 
+# ---------- pembaruan ----------
+
+@router.get("/pembaruan")
+def cek_pembaruan(paksa: bool = False) -> dict[str, Any]:
+    """Tanpa login: pembaruan tetap bisa dipasang walau login Google sedang habis."""
+    from .. import pembaruan
+
+    return pembaruan.cek(paksa)
+
+
+@router.post("/pembaruan/pasang")
+def pasang_pembaruan() -> dict[str, Any]:
+    from .. import pembaruan
+    from ..sender import sender
+
+    if not pembaruan.aktif():
+        raise HTTPException(400, "Pembaruan otomatis hanya tersedia di aplikasi hasil install.bat.")
+    if sender.state.running:
+        raise HTTPException(409, "Pengiriman sedang berjalan. Tunggu selesai atau tekan Berhenti dulu.")
+    pembaruan.pasang()
+    return {"ok": True, "versi": config.VERSION}
+
+
 # ---------- setup ----------
 
 @router.post("/setup/credentials")

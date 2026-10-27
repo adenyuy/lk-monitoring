@@ -12,6 +12,7 @@ import { LockIcon, NoAccess } from "./NoAccess";
 import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
+import { Pembaruan } from "./Pembaruan";
 import { IconCutoff, IconHariIni, IconLog, IconLogo, IconRekap } from "./Icons";
 import s from "./app.module.css";
 
@@ -157,6 +158,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         )}
+        <Pembaruan />
         <WaBanner wa={wa} onChange={setWa} />
         <main className={s.main}>{children}</main>
         <footer className={s.footer}>
