@@ -5,6 +5,7 @@ import { post } from "@/lib/api";
 import type { Fasil, Percakapan, SekolahLk } from "@/lib/types";
 import { grupRelevan } from "./LkPanel";
 import { Button, Spinner } from "@/components/ui";
+import { JawabPicker } from "./JawabPicker";
 import s from "./today.module.css";
 
 /** Tampilkan *teks* gaya WhatsApp sebagai huruf tebal. */
@@ -70,6 +71,7 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
   const [mengirim, setMengirim] = useState(false);
   const [kirimError, setKirimError] = useState<string | null>(null);
   const [jenis, setJenis] = useState("");
+  const [jawabBuka, setJawabBuka] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
 
   const baca = useCallback(async () => {
@@ -167,7 +169,15 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
       {catatan && <p className={s.waNote}>{catatan}</p>}
 
       <div className={s.composer}>
+        {jawabBuka && (
+          <JawabPicker nama={data.nama_fasil} onClose={() => setJawabBuka(false)}
+            onPilih={(isi) => { setTeks(isi); setJenis(""); setJawabBuka(false); }} />
+        )}
         <div className={s.templates} aria-label="Template pesan">
+          <button type="button" className={`${s.tpl} ${s.tplJawab}`} aria-expanded={jawabBuka}
+            onClick={() => setJawabBuka(!jawabBuka)}>
+            Jawab pertanyaan…
+          </button>
           {templates(data.nama_fasil, data.sekolah).map((t) => (
             <button key={t.kode} type="button" className={s.tpl}
               onClick={() => { setTeks(t.teks); setJenis(t.tanya ? "tanya_lk" : ""); }}>
