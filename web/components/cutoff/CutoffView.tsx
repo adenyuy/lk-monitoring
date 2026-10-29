@@ -275,10 +275,10 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
           {cek.peringatan && <Notice tone="warn" title="Periksa urutan kolom">{cek.peringatan}</Notice>}
           <dl className={s.stats}>
             <div><dt>Baris di file</dt><dd>{angka(cek.baris_file)}</dd></div>
-            <div><dt>Sekolah punya laporan mingguan</dt><dd>{angka(cek.sekolah_mingguan)}</dd></div>
+            <div><dt>Sekolah punya laporan mingguan/bulanan/bulanan</dt><dd>{angka(cek.sekolah_mingguan)}</dd></div>
             <div><dt>Sekolah punya laporan 50%</dt><dd>{angka(cek.sekolah_lap50)}</dd></div>
             <div><dt>Sekolah di {cek.tab}</dt><dd>{angka(cek.sekolah_sheet)}</dd></div>
-            <div><dt>Tanpa laporan mingguan</dt><dd>{angka(cek.tanpa_mingguan)}</dd></div>
+            <div><dt>Tanpa laporan mingguan/bulanan</dt><dd>{angka(cek.tanpa_mingguan)}</dd></div>
             <div className={s.statKey}><dt>Baris yang berubah</dt><dd>{angka(cek.berubah)}</dd></div>
           </dl>
           {cek.prioritas.length > 0 && (
@@ -302,7 +302,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
           {curiga && (
             <div className={s.guard}>
               <Notice tone="bad" title="File ini kemungkinan salah atau terpotong">
-                Hanya {angka(cek.sekolah_mingguan)} dari {angka(cek.sekolah_sheet)} sekolah di {cek.tab} punya laporan mingguan
+                Hanya {angka(cek.sekolah_mingguan)} dari {angka(cek.sekolah_sheet)} sekolah di {cek.tab} punya laporan mingguan/bulanan
                 di file ini. Bila ditulis, sekolah lain akan kehilangan progresnya dan banyak yang berubah jadi Prioritas 1.
               </Notice>
               <label className={s.yakin}>

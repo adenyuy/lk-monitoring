@@ -48,7 +48,7 @@ KOLOM = {
 
 # Posisi kolom di file cutoff (0 = A)
 CUT_NPSN, CUT_JENIS, CUT_CAPAIAN, CUT_SUBMIT, CUT_REVIU = 0, 2, 4, 5, 6
-JENIS_MINGGUAN = "laporan mingguan"
+JENIS_PROGRES = ("laporan mingguan", "laporan bulanan")  # progres = capaian tertinggi dari keduanya
 JENIS_50 = "laporan 50%"
 
 
@@ -137,7 +137,7 @@ def olah(df: pd.DataFrame):
         if not k:
             continue
         j = str(jenis).strip().lower()
-        if j == JENIS_MINGGUAN:
+        if j in JENIS_PROGRES:
             v = ke_capaian(capaian)
             if v is not None and (k not in progress or v > progress[k]):
                 progress[k] = v
@@ -178,7 +178,7 @@ def jalankan(mode: str, week_no: str, file: Path, dry_run: bool, tanya: bool, sp
     print(f"\nMembaca {file.name} ...")
     df = baca_cutoff(file)
     progress, lap50 = olah(df)
-    print(f"  {len(df):,} baris | {len(progress):,} sekolah punya Laporan Mingguan | "
+    print(f"  {len(df):,} baris | {len(progress):,} sekolah punya Laporan Mingguan/Bulanan | "
           f"{len(lap50):,} sekolah punya Laporan 50%  ({time.time() - t0:.1f} dtk)")
 
     print("\nMenghubungkan ke Google Sheets ...")
@@ -210,7 +210,7 @@ def jalankan(mode: str, week_no: str, file: Path, dry_run: bool, tanya: bool, sp
 
     # Ringkasan
     tidak_ketemu = sum(1 for k in npsn_list if k and k not in progress)
-    print(f'  "{nama_sheet}": {n:,} sekolah, {tidak_ketemu:,} tanpa Laporan Mingguan')
+    print(f'  "{nama_sheet}": {n:,} sekolah, {tidak_ketemu:,} tanpa Laporan Mingguan/Bulanan')
     if mode == "harian":
         hitung = pd.Series([x[0] for x in prio if x[0]]).value_counts()
         for label in ["Prioritas 1", "Prioritas 2", "Prioritas 3", "Selesai"]:

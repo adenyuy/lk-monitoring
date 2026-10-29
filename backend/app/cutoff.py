@@ -30,7 +30,7 @@ KOLOM = {
     "harian": {"mulai": "M", "akhir": "O", "label": "Harian"},
 }
 CUT_NPSN, CUT_JENIS, CUT_CAPAIAN, CUT_SUBMIT, CUT_REVIU = 0, 2, 4, 5, 6
-JENIS_MINGGUAN = "laporan mingguan"
+JENIS_PROGRES = ("laporan mingguan", "laporan bulanan")  # progres = capaian tertinggi dari keduanya
 JENIS_50 = "laporan 50%"
 PRIO_LABEL = ("Prioritas 1", "Prioritas 2", "Prioritas 3", "Selesai")
 RENCANA_DETIK = 30 * 60
@@ -102,7 +102,7 @@ def olah(df: pd.DataFrame) -> tuple[dict[str, float], dict[str, tuple[str, str]]
         if not k:
             continue
         j = str(jenis).strip().lower()
-        if j == JENIS_MINGGUAN:
+        if j in JENIS_PROGRES:
             v = ke_capaian(capaian)
             if v is not None and (k not in progress or v > progress[k]):
                 progress[k] = v

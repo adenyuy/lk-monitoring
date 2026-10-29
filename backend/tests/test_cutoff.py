@@ -9,13 +9,19 @@ CSV = (
     "111,SD A,Laporan 50%,1,,Ya,Tidak\n"
     "222,SD B,Laporan Mingguan,1,13.12,,\n"
     "333,SD C,Laporan 50%,1,,ya,ya\n"
+    "444,SD D,Laporan Mingguan,3,40.5,,\n"
+    "444,SD D,Laporan Bulanan,1,46.17,,\n"
+    "555,SD E,Laporan Bulanan,1,20,,\n"
+    "111,SD A,Laporan Bulanan,1,50,,\n"
+    "111,SD A,Laporan Pendahuluan,1,99,,\n"
 ).encode()
 
 
 def test_baca_dan_olah():
     df = cutoff.baca(CSV, "cutoff.csv")
     progress, lap50 = cutoff.olah(df)
-    assert progress == {"111": 55.5, "222": 13.12}  # ambil capaian tertinggi, '13.12' tetap angka
+    # capaian tertinggi dari Laporan Mingguan + Bulanan; jenis lain (Pendahuluan) diabaikan; '13.12' tetap angka
+    assert progress == {"111": 55.5, "222": 13.12, "444": 46.17, "555": 20.0}
     assert lap50 == {"111": ("Ya", "Tidak"), "333": ("Ya", "Ya")}
     assert cutoff.header_aneh(df) == ""
 
