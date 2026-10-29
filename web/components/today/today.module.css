@@ -1593,3 +1593,19 @@
   font-style: normal;
   font-weight: 500;
 }
+
+.schoolChips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.bimtekTag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #efeafb;
+  color: #5a3fae;
+  font-size: 11.5px;
+  font-weight: 500;
+}

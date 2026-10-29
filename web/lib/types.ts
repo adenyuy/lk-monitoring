@@ -88,7 +88,7 @@ export type Today = {
 };
 
 export type FasilTindakLanjut = {
-  nomor: string; nama: string; kategori: "balas" | "membalas" | "menunggu" | "manual"; alasan: string; dibalas: boolean;
+  nomor: string; nama: string; kategori: "balas" | "membalas" | "menunggu" | "manual" | "bimtek"; alasan: string; dibalas: boolean;
   di_broadcast: boolean; p1: number; p2: number; p3: number; lengkap: number; perlu: number;
 };
 
@@ -153,6 +153,8 @@ export type SekolahLk = {
   reviu: string;
   komunikasi: string;
   isian: Record<string, Isian>; // per blok: "1" Senin–Rabu, "2" Rabu–Jumat
+  /** Peserta bimtek yang laporan 50%-nya belum direviu (dari file yang diunggah di Rekap) */
+  bimtek?: { hotel: string; submit: string } | null;
 };
 
 export type LkOpsi = {
@@ -163,7 +165,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 16;
+export const API_REV = 17;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -197,6 +199,7 @@ export type FasilRekap = {
   terakhir: string;
   terakhir_label: string;
   perlu_balas: boolean;
+  bimtek: number;
 };
 
 export type TahapKini = "belum" | "gagal" | "terkirim" | "dibaca" | "dibalas" | "ditanya" | "lk_lengkap" | "selesai";
@@ -217,8 +220,11 @@ export type Rekap = {
   };
   alur: Record<"semua" | "p1" | "p2" | "p3", Alur>;
   luar_broadcast: { fasil: number; sekolah: number; perlu: number; p1_sekolah: number; p1_progres_50: number; dihubungi: number };
+  bimtek: BimtekInfo & { fasil: number; sekolah: number };
   fasil: FasilRekap[];
 };
+
+export type BimtekInfo = { ada: boolean; file?: string; per_tanggal?: string; diunggah?: string; sekolah?: number };
 
 export type CutoffRun = { waktu: string; file: string; mode: "harian" | "mingguan"; week: string; sekolah: number };
 

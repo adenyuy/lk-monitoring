@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .. import aktivitas, config, db, schedule, send_queue, store, tahap
+from .. import aktivitas, bimtek, config, db, schedule, send_queue, store, tahap
 from ..schedule import jam
 from ..sender import NotAllowed, sender
 from ..sheets import filter_petugas, nomor_key, nomor_lk, read_broadcast, read_lk, sekolah_per_fasil
@@ -214,6 +214,33 @@ def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
             out.append({"jenis": "tindak_lanjut", "judul": f"{n['membalas'] + n['menunggu']} fasil perlu dichat lagi",
                         "isi": (lambda x: x[:1].upper() + x[1:])(", ".join(bagian)) + ".", "total": n["membalas"] + n["menunggu"],
                         "fasil": [x for x in daftar if x["kategori"] != "manual"]})
+        # Peserta bimtek yang laporannya belum direviu: belum dichat dari aplikasi sejak daftar diunggah
+        bt = bimtek.info()
+        if bt and bt.get("sekolah"):
+            dichat = {r["nomor"] for r in db.query(
+                "SELECT DISTINCT nomor FROM aktivitas WHERE jenis = 'balas' AND waktu >= ?", (bt["diunggah"],))}
+            daftar_bt = []
+            for key, sekolah in smap.items():
+                tandai = [s for s in sekolah if bimtek.tanda(s, bt["sekolah"])]
+                if not tandai:
+                    continue
+                it = di_bc.get(key)
+                nomors = nomor_lk(sekolah[0])
+                nomor = it.nomor if it else next((n for n in nomors if nomor_key(n) == key), nomors[0] if nomors else "")
+                if not nomor or nomor in dichat:
+                    continue
+                daftar_bt.append({
+                    "nomor": nomor, "nama": it.nama_fasil if it else sekolah[0].fasil, "kategori": "bimtek",
+                    "alasan": f"{len(tandai)} sekolah peserta bimtek, laporan 50% belum direviu",
+                    "dibalas": False, "di_broadcast": it is not None, "p1": 0, "p2": 0, "p3": 0,
+                    "lengkap": 0, "perlu": 0,
+                })
+            if daftar_bt:
+                daftar_bt.sort(key=lambda x: x["nama"].casefold())
+                out.append({"jenis": "bimtek", "judul": f"{len(daftar_bt)} fasil peserta bimtek perlu dichat",
+                            "isi": "Laporan 50% sekolah binaannya belum direviu. Pakai template “Bimtek: belum "
+                                   "direviu” di panel fasil.",
+                            "total": len(daftar_bt), "fasil": daftar_bt})
         if n["manual"]:
             out.append({"jenis": "chat_manual", "judul": f"{n['manual']} fasil di luar Broadcast belum dihubungi",
                         "isi": "Mereka tidak dikirimi Broadcast otomatis. Chat langsung dari panel fasil.",
@@ -353,6 +380,7 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
         status = "Belum dikirim"
 
     blok = tahap.blok_hari_ini()
+    bt = bimtek.peta()
     nama_lk = sekolah[0].fasil if sekolah else ""
     minggu = send_queue.senin(schedule.now().date())
     terkirim_minggu_ini = [x for x in sends if x["status"] == "terkirim"
@@ -375,7 +403,7 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
         "sekolah": [
             {"npsn": s.npsn, "nama": s.nama, "progres": s.progres, "prioritas": s.prioritas,
              "submit": s.submit, "reviu": s.reviu, "komunikasi": s.komunikasi,
-             "isian": {str(b): v for b, v in s.isian.items()}}
+             "isian": {str(b): v for b, v in s.isian.items()}, "bimtek": bimtek.tanda(s, bt)}
             for s in sorted(sekolah, key=lambda x: (x.prioritas or "Z", x.nama))
         ],
     }

@@ -176,7 +176,10 @@ function SchoolItem({ x, opsi, blok, terbuka, onToggle, onSaved }: {
       <button type="button" className={s.schoolBtn} onClick={onToggle} aria-expanded={terbuka}>
         <div className={s.schoolTop}>
           <span className={s.schoolName}>{x.nama}</span>
-          <Chip tone={prioritasTone(x.prioritas)}>{prioritasLabel(x.prioritas)}</Chip>
+          <span className={s.schoolChips}>
+            {x.bimtek && <span className={s.bimtekTag} title={`Peserta bimtek (${x.bimtek.hotel}), laporan 50% belum direviu`}>Bimtek</span>}
+            <Chip tone={prioritasTone(x.prioritas)}>{prioritasLabel(x.prioritas)}</Chip>
+          </span>
         </div>
         <div className={s.schoolBar}>
           <span className={s.track}>

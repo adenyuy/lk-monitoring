@@ -16,6 +16,8 @@ function formatWa(teks: string) {
   );
 }
 
+const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
 function salam() {
   const h = new Date().getHours();
   return h < 11 ? "Selamat pagi" : h < 15 ? "Selamat siang" : h < 18 ? "Selamat sore" : "Selamat malam";
@@ -52,7 +54,18 @@ function templates(nama: string, sekolah: SekolahLk[]): Template[] {
     return ` (${p}, ${tahap})`;
   };
   const semua = aktif.filter((x) => pertanyaan(x).length);
+  const bimtek = aktif.filter((x) => x.bimtek);
+  const tgl = (iso: string) => {
+    const d = iso ? new Date(`${iso}T00:00:00`) : null;
+    return d ? ` (disubmit ${d.getDate()} ${BULAN[d.getMonth()]})` : "";
+  };
   const out: Template[] = [];
+  if (bimtek.length) out.push({ kode: "bimtek", label: `Bimtek: belum direviu (${bimtek.length})`, tanya: true,
+    teks: `${pembuka} Laporan kemajuan 50% sekolah binaan Bapak/Ibu berikut (peserta bimtek percepatan pelaporan) sudah disubmit, tetapi sampai saat ini belum direviu:
+
+${bimtek.map((x, i) => `${i + 1}. ${x.nama}${tgl(x.bimtek?.submit ?? "")}\n   Kendala reviu & perkiraan selesai: ...`).join("\n")}
+
+Mohon dibantu segera direviu. ${minta} ${tutup}` });
   if (semua.length) out.push({ kode: "semua", label: `Tanya semua sekaligus (${semua.length})`, tanya: true,
     teks: `${pembuka} Berikut sekolah dampingan Bapak/Ibu yang laporan kemajuan 50%-nya belum tuntas:
 

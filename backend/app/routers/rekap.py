@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from .. import db, schedule, store, tahap
+from .. import bimtek, db, schedule, store, tahap
 from ..sheets import filter_petugas, nomor_key, nomor_lk, normalize_petugas, read_broadcast, read_lk
 from ..wa.status import mask
 from .deps import require_feature
@@ -83,6 +83,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
     from .. import aktivitas
     terakhir = aktivitas.terakhir_sejak(tahap.senin_iso())
     perlu_balas = {x["nomor"] for x in store.perlu_dibalas(tahap.senin_iso())}
+    bt = bimtek.peta()
 
     rows = []
     for key, f in fasil.items():
@@ -110,6 +111,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
             "terakhir": terakhir.get(nomor, {}).get("waktu", ""),
             "terakhir_label": terakhir.get(nomor, {}).get("label", ""),
             "perlu_balas": nomor in perlu_balas,
+            "bimtek": sum(1 for s in sekolah if bimtek.tanda(s, bt)),
         })
     rows.sort(key=lambda r: (-r["p1"], r["nama"].casefold()))
 
@@ -154,6 +156,12 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
             "p1_sekolah": sum(r["p1"] for r in luar),
             "p1_progres_50": sum(r["p1_progres_50"] for r in luar),
             "dihubungi": sum(1 for r in luar if r["chat"] in ("terkirim", "dibaca", "dibalas")),
+        },
+        "bimtek": {
+            **({k: v for k, v in (bimtek.info() or {}).items() if k != "sekolah"}),
+            "ada": bool(bt),
+            "fasil": sum(1 for r in rows if r["bimtek"]),
+            "sekolah": sum(r["bimtek"] for r in rows),
         },
         "fasil": rows,
     }

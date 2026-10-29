@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { ChatRekap, FasilRekap, Rekap } from "@/lib/types";
 import { Chip, Notice, Spinner } from "@/components/ui";
 import { FasilDrawer } from "@/components/today/FasilDrawer";
+import { BimtekCard } from "./BimtekCard";
 import { TahapBoard } from "./TahapBoard";
 import s from "./rekap.module.css";
 
@@ -29,13 +30,14 @@ const TAHAP_LABEL: Record<FasilRekap["tahap_kini"], string> = {
 };
 const TAHAP = ["Broadcast terkirim", "Dibaca", "Fasil membalas", "Isian LK ditanyakan", "Isian LK lengkap"];
 
-type Filter = "semua" | "p1_belum" | "membalas" | "isian" | "luar";
+type Filter = "semua" | "p1_belum" | "membalas" | "isian" | "luar" | "bimtek";
 const FILTER: { k: Filter; label: string; cocok: (r: FasilRekap) => boolean }[] = [
   { k: "semua", label: "Semua", cocok: () => true },
   { k: "p1_belum", label: "Belum dihubungi", cocok: (r) => r.isian_perlu > 0 && (r.chat === "belum" || r.chat === "gagal") },
   { k: "membalas", label: "Sudah membalas", cocok: (r) => r.chat === "dibalas" },
   { k: "isian", label: "Isian LK belum lengkap", cocok: (r) => r.isian_lengkap < r.isian_perlu },
   { k: "luar", label: "Tidak masuk Broadcast", cocok: (r) => !r.di_broadcast },
+  { k: "bimtek", label: "Bimtek belum direviu", cocok: (r) => r.bimtek > 0 },
 ];
 
 type Kolom = "nama" | "p1" | "p2" | "p3" | "selesai" | "chat" | "isian";
@@ -194,6 +196,13 @@ export function RekapView() {
         </button>
       )}
 
+      <BimtekCard data={data.bimtek} onUbah={() => void muat()}
+        onLihat={() => {
+          setFilter("bimtek");
+          setHal(0);
+          document.getElementById("h-tabel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }} />
+
       <section className={s.card} aria-labelledby="h-tabel" data-tour="tabel">
         <div className={s.cardHead}>
           <h2 id="h-tabel">Per fasil</h2>
@@ -201,7 +210,7 @@ export function RekapView() {
             onChange={(e) => { setCari(e.target.value); setHal(0); }} aria-label="Cari nama fasil" />
         </div>
         <div className={s.filters} role="group" aria-label="Saring">
-          {FILTER.map((f) => (
+          {FILTER.filter((f) => f.k !== "bimtek" || data.bimtek.ada).map((f) => (
             <button key={f.k} type="button" aria-pressed={filter === f.k} onClick={() => { setFilter(f.k); setHal(0); }}>
               {f.label} <span>{data.fasil.filter(f.cocok).length}</span>
             </button>
@@ -231,6 +240,7 @@ export function RekapView() {
                     <span className={s.sub}>
                       {r.nomor_tersamar || "Nomor tidak ada"}
                       {!r.di_broadcast && <span className={s.luarTag}>Tidak masuk Broadcast</span>}
+                      {r.bimtek > 0 && <span className={s.bimtekTag}>Bimtek: {r.bimtek} sekolah belum direviu</span>}
                     </span>
                   </td>
                   <td className={s.num}>{r.p1 || <span className={s.zero}>0</span>}</td>

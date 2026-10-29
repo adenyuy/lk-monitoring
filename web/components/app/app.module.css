@@ -1273,6 +1273,10 @@
   background: #e0a43a;
 }
 
+.dfList i.chipBimtek {
+  background: #6d4fc2;
+}
+
 .dfNama {
   display: flex;
   flex-direction: column;

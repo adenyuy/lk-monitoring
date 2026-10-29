@@ -173,6 +173,7 @@ const KATEGORI: Record<FasilTindakLanjut["kategori"], string> = {
   membalas: "Sudah membalas, LK belum lengkap",
   menunggu: "Belum membalas",
   manual: "Di luar Broadcast, belum dihubungi",
+  bimtek: "Peserta bimtek, belum direviu",
 };
 
 /** Popup daftar fasil dari notifikasi, tiap baris menuju panel fasil di Hari ini. */
@@ -217,7 +218,7 @@ export function DaftarFasil({ item, onBuka, onClose }: {
           {tampil.map((f) => (
             <li key={f.nomor}>
               <button type="button" onClick={() => onBuka(f.nomor)}>
-                <i className={f.kategori === "membalas" || f.kategori === "balas" ? s.chipBalas : f.kategori === "manual" ? s.chipManual : undefined}
+                <i className={f.kategori === "membalas" || f.kategori === "balas" ? s.chipBalas : f.kategori === "manual" ? s.chipManual : f.kategori === "bimtek" ? s.chipBimtek : undefined}
                   aria-hidden="true" />
                 <span className={s.dfNama}>
                   <b>{f.nama}</b>
