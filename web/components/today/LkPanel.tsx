@@ -22,12 +22,23 @@ export function prioritasLabel(p: string) {
   return p || "–";
 }
 
-/** Alasan yang perlu diisi (sama dengan backend/app/tahap.py). */
-export function grupRelevan(x: SekolahLk): Grup["kode"][] {
-  const out: Grup["kode"][] = [];
-  if (x.progres === null || x.progres < 50) out.push("a");
-  if (x.submit !== "Ya") out.push("b");
-  else if (x.reviu !== "Ya") out.push("c");
+/** Alasan yang wajib diisi di LK: ketiganya selalu (sama dengan backend/app/tahap.py). */
+const WAJIB: Grup["kode"][] = ["a", "b", "c"];
+
+const cari = (pilihan: string[], kata: string) => pilihan.find((o) => o.toLowerCase().includes(kata)) ?? "";
+
+/** Jawaban yang sudah pasti dari data LK, diisikan otomatis bila kolomnya masih kosong:
+ *  belum submit + progres < 50% -> alasan submit "Progres fisik belum mencapai 50%";
+ *  belum submit -> alasan reviu "Sekolah Belum Submit" (belum bisa direviu). */
+export function isianOtomatis(x: SekolahLk, opsi: LkOpsi): Partial<Isian> {
+  const out: Partial<Isian> = {};
+  if (x.submit === "Ya") return out;
+  if (x.progres === null || x.progres < 50) {
+    const b = cari(opsi.opsi.alasan_submit, "belum mencapai 50");
+    if (b) out.b1 = b;
+  }
+  const c = cari(opsi.opsi.alasan_reviu, "belum submit");
+  if (c) out.c1 = c;
   return out;
 }
 
@@ -36,7 +47,7 @@ const selesai = (x: SekolahLk) => x.prioritas.trim().toLowerCase() === "selesai"
 /** Jumlah isian yang terisi dari yang dibutuhkan: status komunikasi + alasan yang relevan. */
 function kelengkapan(x: SekolahLk, blok: number) {
   const isi = { ...KOSONG, ...x.isian[String(blok)] };
-  const relevan = grupRelevan(x);
+  const relevan = WAJIB;
   const perlu = 1 + relevan.length;
   const ada = (x.komunikasi ? 1 : 0) + relevan.filter((g) => isi[`${g}1` as IsianKey]).length;
   return { ada, perlu };
@@ -170,7 +181,7 @@ function SchoolItem({ x, opsi, blok, terbuka, onToggle, onSaved }: {
         <div className={s.schoolMeta}>
           <span>NPSN {x.npsn}, submit {x.submit || "Tidak"}, reviu {x.reviu || "–"}</span>
           {selesai(x) ? null
-            : k.ada === k.perlu ? <span className={s.filled}>Isian lengkap</span>
+            : k.ada === k.perlu ? <span className={s.filled}>✓ Selesai</span>
             : k.ada > 0 ? <span className={s.toFill}>{k.ada} dari {k.perlu} terisi</span>
             : <span className={s.toFill}>Isi LK</span>}
         </div>
@@ -190,13 +201,17 @@ function SchoolForm({ x, opsi, blok, awal, onDone }: {
   awal: Isian;
   onDone: (isi: Isian | null) => void;
 }) {
-  const relevan = grupRelevan(x);
-  const [isi, setIsi] = useState<Isian>(awal);
-  const [semua, setSemua] = useState(false);
+  const oto = isianOtomatis(x, opsi);
+  // Kolom kosong yang jawabannya sudah pasti langsung terisi; tetap bisa diganti sebelum disimpan
+  const [isi, setIsi] = useState<Isian>(() => {
+    const awalIsi = { ...awal };
+    (Object.keys(oto) as IsianKey[]).forEach((k) => { if (!awalIsi[k]) awalIsi[k] = oto[k] ?? ""; });
+    return awalIsi;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const berubah = (Object.keys(isi) as IsianKey[]).filter((k) => isi[k] !== awal[k]);
-  const tampil = GRUP.filter((g) => semua || relevan.includes(g.kode));
+  const tampil = GRUP;
 
   async function simpan() {
     setBusy(true);
@@ -225,7 +240,10 @@ function SchoolForm({ x, opsi, blok, awal, onDone }: {
         const pilihan = opsi.opsi[g.opsi];
         return (
           <fieldset key={g.kode} className={s.fieldset}>
-            <legend className={s.legend}>{g.judul}</legend>
+            <legend className={s.legend}>
+              {g.judul}
+              {!awal[k1] && oto[k1] && isi[k1] === oto[k1] && <em className={s.otomatis}>terisi otomatis</em>}
+            </legend>
             <select value={isi[k1]} onChange={(e) => setIsi({ ...isi, [k1]: e.target.value })} aria-label={`Alasan: ${g.judul}`}>
               <option value="">Pilih alasan</option>
               {isi[k1] && !pilihan.includes(isi[k1]) && <option value={isi[k1]}>{isi[k1]}</option>}
@@ -240,9 +258,6 @@ function SchoolForm({ x, opsi, blok, awal, onDone }: {
       <div className={s.formActions}>
         <Button size="sm" loading={busy} disabled={berubah.length === 0} onClick={simpan}>Simpan ke LK</Button>
         <Button size="sm" variant="ghost" onClick={() => onDone(null)}>Batal</Button>
-        {!semua && relevan.length < 3 && (
-          <button type="button" className={s.linkBtn} onClick={() => setSemua(true)}>Tampilkan semua alasan</button>
-        )}
       </div>
     </div>
   );

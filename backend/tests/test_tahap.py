@@ -11,10 +11,9 @@ def _sekolah(**ubah):
     return s
 
 
-def test_grup_relevan():
-    assert tahap.grup_relevan(_sekolah()) == ["a", "b"]
-    assert tahap.grup_relevan(_sekolah(progres=70.0, submit="Ya", reviu="Tidak")) == ["c"]
-    assert tahap.grup_relevan(_sekolah(progres=70.0, submit="Ya", reviu="Ya")) == []
+def test_grup_relevan_selalu_tiga_alasan():
+    assert tahap.grup_relevan(_sekolah()) == ["a", "b", "c"]
+    assert tahap.grup_relevan(_sekolah(progres=70.0, submit="Ya", reviu="Tidak")) == ["a", "b", "c"]
 
 
 def test_lengkap_butuh_komunikasi_dan_alasan():
@@ -22,6 +21,8 @@ def test_lengkap_butuh_komunikasi_dan_alasan():
     assert not tahap.sekolah_lengkap(s, 1)
     s.komunikasi = "0. Terhubung"
     s.isian[1].update(a1="x", b1="y")
+    assert not tahap.sekolah_lengkap(s, 1)  # alasan reviu (c) juga wajib
+    s.isian[1].update(c1="z")
     assert tahap.sekolah_lengkap(s, 1) and not tahap.sekolah_lengkap(s, 2)
 
 

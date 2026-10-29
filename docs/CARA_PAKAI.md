@@ -58,7 +58,7 @@ Halaman Hari ini menampilkan **WEEK** yang sedang dipakai dan sesi isian LK hari
 
 - **Di LK**: sekolah binaan, progres, dan prioritas.
   - Pilih **Sesi Senin–Rabu / Rabu–Jumat**, isi **Status komunikasi** sekali untuk semua sekolahnya.
-  - Klik sekolah untuk mengisi alasan dan tindak lanjut, lalu **Simpan ke LK**. Sekolah berikutnya langsung terbuka.
+  - Klik sekolah untuk mengisi **ketiga alasan** (progres, submit, reviu) dan tindak lanjut, lalu **Simpan ke LK**. Sekolah yang belum submit terisi otomatis: alasan submit "Progres fisik belum mencapai 50%" (bila progres < 50%) dan alasan reviu "Sekolah Belum Submit". Tanda **✓ Selesai** muncul bila semua sudah terisi.
 - **Di WhatsApp**: percakapan dengan fasil.
   - Pakai tombol template (**Tanya belum submit**, **Tanya progres**, **Tanya belum reviu**, **Terima kasih**) lalu **Kirim balasan**.
 - **Tahap** di atas panel: Broadcast terkirim → Dibaca → Membalas → Isian ditanyakan → LK lengkap. Bila chat lewat HP, klik tahapnya untuk mencentang sendiri.

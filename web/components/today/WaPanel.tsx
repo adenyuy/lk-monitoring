@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { post } from "@/lib/api";
 import type { Fasil, Percakapan, SekolahLk } from "@/lib/types";
-import { grupRelevan } from "./LkPanel";
 import { Button, Spinner } from "@/components/ui";
 import { JawabPicker } from "./JawabPicker";
 import s from "./today.module.css";
@@ -23,38 +22,40 @@ function salam() {
 }
 
 const persen = (x: SekolahLk) => (x.progres === null ? "" : ` (${x.progres.toFixed(1).replace(".", ",")}%)`);
-const daftar = (xs: SekolahLk[], pakaiPersen = false) =>
-  xs.map((x, i) => `${i + 1}. ${x.nama}${pakaiPersen ? persen(x) : ""}`).join("\n");
 
 type Template = { kode: string; label: string; teks: string; tanya: boolean };
 
-/** Template pesan untuk menanyakan isian LK, hanya yang relevan dengan sekolah fasil ini. */
+/** Template pesan untuk menanyakan isian LK, hanya yang relevan dengan sekolah fasil ini.
+ *  Daftar sekolah diberi tempat jawaban per nomor supaya balasan fasil mudah direkap per sekolah. */
 function templates(nama: string, sekolah: SekolahLk[]): Template[] {
   const aktif = sekolah.filter((x) => x.prioritas.trim().toLowerCase() !== "selesai");
   const pembuka = `${salam()} Bapak/Ibu ${nama}, izin menindaklanjuti informasi sebelumnya.`;
+  const minta = "Mohon dibantu dijawab *per sekolah* sesuai nomor di atas (cukup ganti titik-titiknya), supaya kendalanya mudah kami rekap.";
   const tutup = "Terima kasih 🙏";
-  const progres = aktif.filter((x) => grupRelevan(x).includes("a"));
+  const isian = (xs: SekolahLk[], label: string, pakaiPersen = false) =>
+    xs.map((x, i) => `${i + 1}. ${x.nama}${pakaiPersen ? persen(x) : ""}\n   ${label}: ...`).join("\n");
+  const progres = aktif.filter((x) => x.progres === null || x.progres < 50);
   const submit = aktif.filter((x) => x.submit !== "Ya");
-  const reviu = aktif.filter((x) => grupRelevan(x).includes("c"));
+  const reviu = aktif.filter((x) => x.submit === "Ya" && x.reviu !== "Ya");
   const out: Template[] = [];
   if (submit.length) out.push({ kode: "submit", label: `Tanya belum submit (${submit.length})`, tanya: true,
-    teks: `${pembuka} Untuk sekolah berikut, laporan kemajuan pekerjaan 50% belum disubmit di aplikasi:
+    teks: `${pembuka} Laporan kemajuan pekerjaan 50% sekolah berikut belum disubmit di aplikasi:
 
-${daftar(submit)}
+${isian(submit, "Kendala & rencana unggah", true)}
 
-Boleh dibantu informasikan kendalanya apa, dan kapan rencana laporannya diunggah? ${tutup}` });
+${minta} ${tutup}` });
   if (progres.length) out.push({ kode: "progres", label: `Tanya progres < 50% (${progres.length})`, tanya: true,
-    teks: `${pembuka} Untuk sekolah berikut, progres fisiknya masih di bawah 50%:
+    teks: `${pembuka} Progres fisik sekolah berikut masih di bawah 50%:
 
-${daftar(progres, true)}
+${isian(progres, "Kendala di lapangan & rencana tindak lanjut", true)}
 
-Boleh dibantu informasikan kendala di lapangan dan rencana tindak lanjutnya? ${tutup}` });
+${minta} ${tutup}` });
   if (reviu.length) out.push({ kode: "reviu", label: `Tanya belum reviu (${reviu.length})`, tanya: true,
     teks: `${pembuka} Laporan kemajuan 50% sekolah berikut sudah diajukan, tetapi belum direviu:
 
-${daftar(reviu)}
+${isian(reviu, "Kendala reviu & perkiraan selesai")}
 
-Mohon bantuannya untuk mereviu, atau informasikan bila ada kendala. ${tutup}` });
+${minta} ${tutup}` });
   out.push({ kode: "makasih", label: "Terima kasih", tanya: false,
     teks: `Terima kasih atas informasinya, Bapak/Ibu ${nama}. Sudah kami catat ${"🙏"}` });
   return out;
