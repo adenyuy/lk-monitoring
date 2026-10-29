@@ -22,8 +22,11 @@ export function prioritasLabel(p: string) {
   return p || "–";
 }
 
-/** Alasan yang wajib diisi di LK: ketiganya selalu (sama dengan backend/app/tahap.py). */
-const WAJIB: Grup["kode"][] = ["a", "b", "c"];
+/** Alasan yang wajib diisi di LK (sama dengan backend/app/tahap.py):
+ *  submit dan reviu selalu; progres hanya bila progres masih < 50%. */
+function wajib(x: SekolahLk): Grup["kode"][] {
+  return x.progres === null || x.progres < 50 ? ["a", "b", "c"] : ["b", "c"];
+}
 
 const cari = (pilihan: string[], kata: string) => pilihan.find((o) => o.toLowerCase().includes(kata)) ?? "";
 
@@ -47,7 +50,7 @@ const selesai = (x: SekolahLk) => x.prioritas.trim().toLowerCase() === "selesai"
 /** Jumlah isian yang terisi dari yang dibutuhkan: status komunikasi + alasan yang relevan. */
 function kelengkapan(x: SekolahLk, blok: number) {
   const isi = { ...KOSONG, ...x.isian[String(blok)] };
-  const relevan = WAJIB;
+  const relevan = wajib(x);
   const perlu = 1 + relevan.length;
   const ada = (x.komunikasi ? 1 : 0) + relevan.filter((g) => isi[`${g}1` as IsianKey]).length;
   return { ada, perlu };
@@ -211,7 +214,14 @@ function SchoolForm({ x, opsi, blok, awal, onDone }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const berubah = (Object.keys(isi) as IsianKey[]).filter((k) => isi[k] !== awal[k]);
-  const tampil = GRUP;
+  const tampil = GRUP.filter((g) => wajib(x).includes(g.kode));
+
+  /** Salin tindak lanjut dari satu alasan ke alasan lain yang tampil. */
+  function samakan(dari: IsianKey) {
+    const baru = { ...isi };
+    tampil.forEach((g) => { baru[`${g.kode}2` as IsianKey] = isi[dari]; });
+    setIsi(baru);
+  }
 
   async function simpan() {
     setBusy(true);
@@ -251,6 +261,11 @@ function SchoolForm({ x, opsi, blok, awal, onDone }: {
             </select>
             <textarea rows={2} maxLength={500} placeholder="Tindak lanjut, misalnya: fasil akan mendampingi sekolah unggah laporan Kamis"
               value={isi[k2]} onChange={(e) => setIsi({ ...isi, [k2]: e.target.value })} aria-label={`Tindak lanjut: ${g.judul}`} />
+            {isi[k2].trim() && tampil.some((h) => isi[`${h.kode}2` as IsianKey] !== isi[k2]) && (
+              <button type="button" className={s.linkBtn} onClick={() => samakan(k2)}>
+                Pakai tindak lanjut ini untuk semua alasan
+              </button>
+            )}
           </fieldset>
         );
       })}
