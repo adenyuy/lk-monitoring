@@ -127,23 +127,107 @@ def petugas_summary(rows: list[BroadcastRow]) -> list[dict[str, Any]]:
 
 
 # ---------- LK WEEK n ----------
-# Range dibaca: B..AA mulai baris LK_FIRST_ROW. Indeks relatif terhadap kolom B.
-_B, _C, _D, _E, _F, _G, _H, _I = 0, 1, 2, 3, 4, 5, 6, 7
-_J, _K, _L, _M, _N, _O = 8, 9, 10, 11, 12, 13
-
-# Kolom isian LK. Status komunikasi (I) satu per baris; alasan + tindak lanjut ada dua blok:
-# blok 1 = sesi Senin–Rabu (P..U), blok 2 = sesi Rabu–Jumat (V..AA).
+# Kolom LK TIDAK dipatok ke huruf: dibaca dari judul di baris 2 (admin bisa menyisipkan/memindah kolom).
 ISIAN_KEYS = ("a1", "a2", "b1", "b2", "c1", "c2")
-BLOK_KOLOM = {1: ("P", "Q", "R", "S", "T", "U"), 2: ("V", "W", "X", "Y", "Z", "AA")}
-KOMUNIKASI_KOLOM = "I"
+
+# Judul kolom (dinormalkan: huruf kecil, spasi tunggal) -> nama field
+JUDUL_KOLOM = {
+    "nama pic": "petugas",
+    "npsn": "npsn",
+    "nama sekolah": "nama",
+    "kab/kota": "kab",
+    "fasilitator": "fasil",
+    "no fasil": "nomor",
+    "prioritas": "prioritas",
+    "status komunikasi": "komunikasi",
+    "% progress fisik baseline": "progres_base",
+    "status submit 50% baseline": "submit_base",
+    "status reviu 50% baseline": "reviu_base",
+    "% progress fisik": "progres",
+    "status submit 50%": "submit",
+    "status reviu 50%": "reviu",
+}
+# "A1. Alasan ...", "A.2. Tindak Lanjut", "C2. Tindak Lanjut": kemunculan pertama = sesi Senin–Rabu, kedua = Rabu–Jumat
+_RE_ISIAN = re.compile(r"^([abc])\.?\s*([12])\.")
 
 
-def _col_index(letter: str) -> int:
-    """'B' -> 0, 'AA' -> 25 (relatif terhadap kolom B)."""
+class LkKolomError(Exception):
+    pass
+
+
+def col_letter(i: int) -> str:
+    """0 -> 'A', 26 -> 'AA'."""
+    s = ""
+    i += 1
+    while i:
+        i, r = divmod(i - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def col_number(letter: str) -> int:
+    """'A' -> 0, 'AA' -> 26."""
     n = 0
     for ch in letter:
         n = n * 26 + (ord(ch) - 64)
-    return n - 2
+    return n - 1
+
+
+@dataclass(frozen=True)
+class LkKolom:
+    """Huruf kolom tiap isian LK, hasil deteksi judul baris 2."""
+    petugas: str
+    npsn: str
+    nama: str
+    kab: str
+    fasil: str
+    nomor: str
+    prioritas: str
+    komunikasi: str
+    progres_base: str
+    submit_base: str
+    reviu_base: str
+    progres: str
+    submit: str
+    reviu: str
+    blok: dict[int, tuple[str, ...]]  # {1: (a1..c2), 2: (a1..c2)}
+
+    @property
+    def terakhir(self) -> str:
+        semua = [getattr(self, f) for f in set(JUDUL_KOLOM.values())] + [c for cols in self.blok.values() for c in cols]
+        return col_letter(max(col_number(c) for c in semua))
+
+    def ringkas(self) -> dict[str, Any]:
+        return {
+            **{f: getattr(self, f) for f in sorted(set(JUDUL_KOLOM.values()))},
+            "blok": {b: f"{cols[0]}–{cols[-1]}" for b, cols in self.blok.items()},
+        }
+
+
+def _judul(v: Any) -> str:
+    return re.sub(r"\s+", " ", str(v if v is not None else "")).strip().lower()
+
+
+def parse_kolom(header: list[Any]) -> LkKolom:
+    """Baris judul LK (mulai kolom A) -> LkKolom. Gagal bila ada judul yang tidak ketemu."""
+    pos: dict[str, str] = {}
+    isian: dict[str, list[str]] = {k: [] for k in ISIAN_KEYS}
+    for i, v in enumerate(header):
+        h = _judul(v)
+        f = JUDUL_KOLOM.get(h)
+        if f and f not in pos:
+            pos[f] = col_letter(i)
+            continue
+        m = _RE_ISIAN.match(h)
+        if m:
+            isian[m.group(1) + m.group(2)].append(col_letter(i))
+    hilang = [j for j, f in JUDUL_KOLOM.items() if f not in pos]
+    hilang += [f"{k.upper()} (sesi {n})" for k, cols in isian.items() for n in (1, 2) if len(cols) < n]
+    if hilang:
+        raise LkKolomError("Judul kolom LK tidak ketemu di baris 2: " + ", ".join(hilang)
+                           + ". Kemungkinan judulnya diganti; samakan lagi judulnya atau kabari pengembang.")
+    blok = {n: tuple(isian[k][n - 1] for k in ISIAN_KEYS) for n in (1, 2)}
+    return LkKolom(**pos, blok=blok)
 
 
 @dataclass
@@ -156,7 +240,7 @@ class Sekolah:
     fasil: str
     nomor_fasil: str
     prioritas: str
-    progres: float | None  # 0..100, harian (M) bila ada, selain itu baseline (J)
+    progres: float | None  # 0..100, harian bila ada, selain itu baseline
     submit: str
     reviu: str
     nomor_keys: list[str] = field(default_factory=list)
@@ -178,34 +262,36 @@ def _progres(v: Any) -> float | None:
     return f
 
 
-def parse_lk(values: list[list[Any]], first_row: int = config.LK_FIRST_ROW) -> list[Sekolah]:
+def parse_lk(values: list[list[Any]], kol: LkKolom, first_row: int = config.LK_FIRST_ROW) -> list[Sekolah]:
+    """Baris data LK (mulai kolom A) -> Sekolah, memakai posisi kolom hasil `parse_kolom`."""
+    i = {f: col_number(getattr(kol, f)) for f in set(JUDUL_KOLOM.values())}
     out = []
     for n, r in enumerate(values, start=first_row):
-        npsn = re.sub(r"\.0+$", "", _cell(r, _C))
+        npsn = re.sub(r"\.0+$", "", _cell(r, i["npsn"]))
         if not npsn:
             continue
-        nomor_raw = _cell(r, _G)
+        nomor_raw = _cell(r, i["nomor"])
         keys = [k for k in (nomor_key(p) for p in re.split(r"[,/;]", nomor_raw)) if k]
-        harian = _progres(r[_M]) if _M < len(r) else None
-        baseline = _progres(r[_J]) if _J < len(r) else None
+        harian = _progres(r[i["progres"]]) if i["progres"] < len(r) else None
+        baseline = _progres(r[i["progres_base"]]) if i["progres_base"] < len(r) else None
         out.append(
             Sekolah(
                 baris=n,
-                petugas=clean_petugas(_cell(r, _B)),
+                petugas=clean_petugas(_cell(r, i["petugas"])),
                 npsn=npsn,
-                nama=_cell(r, _D),
-                kab_kota=_cell(r, _E),
-                fasil=_cell(r, _F),
+                nama=_cell(r, i["nama"]),
+                kab_kota=_cell(r, i["kab"]),
+                fasil=_cell(r, i["fasil"]),
                 nomor_fasil=nomor_raw,
-                prioritas=_cell(r, _H),
+                prioritas=_cell(r, i["prioritas"]),
                 progres=harian if harian is not None else baseline,
-                submit=_cell(r, _N) or _cell(r, _K),
-                reviu=_cell(r, _O) or _cell(r, _L),
+                submit=_cell(r, i["submit"]) or _cell(r, i["submit_base"]),
+                reviu=_cell(r, i["reviu"]) or _cell(r, i["reviu_base"]),
                 nomor_keys=keys,
-                komunikasi=_cell(r, _I),
+                komunikasi=_cell(r, i["komunikasi"]),
                 isian={
-                    b: {k: _cell(r, _col_index(col)) for k, col in zip(ISIAN_KEYS, cols)}
-                    for b, cols in BLOK_KOLOM.items()
+                    b: {k: _cell(r, col_number(col)) for k, col in zip(ISIAN_KEYS, cols)}
+                    for b, cols in kol.blok.items()
                 },
             )
         )
@@ -288,16 +374,30 @@ def read_lk(week: str, refresh: bool = False) -> list[Sekolah]:
     tab = f"{config.LK_WEEK_PREFIX}{week}" if str(week).isdigit() else str(week)
 
     def load() -> list[Sekolah]:
+        kol = kolom_lk(week, refresh=True)
         ss = gspread_client().open_by_key(config.LK_SHEET_ID)
-        rng = f"'{tab}'!B{config.LK_FIRST_ROW}:AA"
+        rng = f"'{tab}'!A{config.LK_FIRST_ROW}:{kol.terakhir}"
         values = ss.values_get(rng, params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
-        data = parse_lk(values)
+        data = parse_lk(values, kol)
         from . import perubahan  # hindari import melingkar
 
         perubahan.catat_lk(tab, data)
         return data
 
     return cache.get(f"lk:{tab}", config.LK_CACHE_SECONDS, load, refresh)
+
+
+def kolom_lk(week: str, refresh: bool = False) -> LkKolom:
+    """Posisi kolom LK WEEK n dari judul baris 2 (cache 5 menit; `refresh` untuk sebelum menulis)."""
+    tab = lk_tab(week)
+
+    def load() -> LkKolom:
+        ss = gspread_client().open_by_key(config.LK_SHEET_ID)
+        r = config.LK_FIRST_ROW - 1
+        header = (ss.values_get(f"'{tab}'!A{r}:BZ{r}").get("values") or [[]])[0]
+        return parse_kolom(header)
+
+    return cache.get(f"lkkol:{tab}", 300, load, refresh)
 
 
 def daftar_week() -> list[str]:
@@ -354,14 +454,15 @@ def _npsn(v: Any) -> str:
     return re.sub(r"\.0+$", "", str(v if v is not None else "").strip())
 
 
-def write_isian(week: str, perubahan: list[tuple["Sekolah", dict[str, str]]]) -> None:
-    """Tulis sel isian LK. `perubahan` = [(sekolah, {kolom: nilai})]. Baris dicek dulu lewat NPSN
-    (kolom C) supaya tidak menulis ke sekolah lain bila urutan sheet sudah berubah."""
+def write_isian(week: str, perubahan: list[tuple["Sekolah", dict[str, str]]], kol: LkKolom | None = None) -> None:
+    """Tulis sel isian LK. `perubahan` = [(sekolah, {kolom: nilai})], huruf kolom dari `kol` (deteksi judul terbaru).
+    Baris dicek dulu lewat NPSN supaya tidak menulis ke sekolah lain bila urutan sheet sudah berubah."""
     if not perubahan:
         return
     tab = lk_tab(week)
+    kol = kol or kolom_lk(week, refresh=True)
     ss = gspread_client().open_by_key(config.LK_SHEET_ID)
-    cek = ss.values_batch_get([f"'{tab}'!C{s.baris}" for s, _ in perubahan],
+    cek = ss.values_batch_get([f"'{tab}'!{kol.npsn}{s.baris}" for s, _ in perubahan],
                               params={"valueRenderOption": "UNFORMATTED_VALUE"})
     for (s, _), vr in zip(perubahan, cek.get("valueRanges", [])):
         got = _npsn((vr.get("values") or [[""]])[0][0])

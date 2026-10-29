@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import cutoff, db, schedule
+from .. import cutoff, db, schedule, tahap
 from .deps import require_feature
 
 from ..sheets import week_aktif  # noqa: E402
@@ -40,7 +40,16 @@ def info(_=Depends(admin)) -> dict[str, Any]:
     except Exception as e:
         raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
     riw = cutoff.riwayat()
+    # Kolom tujuan hasil deteksi judul LK (admin bisa menyisipkan kolom); ditampilkan supaya bisa dicek sebelum menarik
+    kolom: dict[str, Any] = {}
+    try:
+        w = week_aktif()
+        kolom = {m: cutoff._kolom(w, m) for m in ("harian", "mingguan")}
+        kolom["blok"] = {str(b): tahap.blok_kolom_label(b) for b in (1, 2)}
+    except cutoff.CutoffError as e:
+        kolom = {"error": str(e)}
     return {
+        "kolom": kolom,
         "weeks": weeks,
         "week_aktif": week_aktif(),
         "week1_senin": _minggu1(riw).isoformat(),

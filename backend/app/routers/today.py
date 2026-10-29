@@ -140,7 +140,7 @@ def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
             elif now.weekday() == 0:
                 out.append({"jenis": "minggu_baru", "judul": "Minggu baru dimulai",
                             "isi": f"Semua {belum} fasil di Broadcast masuk antrean lagi. Isian LK minggu ini "
-                                   f"mulai di sesi Senin–Rabu (kolom P–U)."})
+                                   f"mulai di sesi Senin–Rabu" + (f" (kolom {tahap.blok_kolom_label(1)})." if tahap.blok_kolom_label(1) else ".")})
 
     if not libur and not belum and items and any(i.status == "terkirim" for i in items):
         out.append({"jenis": "broadcast_selesai", "judul": "Broadcast minggu ini sudah terkirim ke semua fasil",
@@ -391,7 +391,7 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
         "nama_fasil": row.nama_fasil if row else (last["nama_fasil"] if last else (nama_lk or "Fasilitator")),
         "di_broadcast": row is not None,
         "kirim_ulang": {"bisa": bool(terkirim_minggu_ini) and row is not None, "diminta": ulang_aktif},
-        "blok": {"no": blok, "label": tahap.BLOK_LABEL[blok], "kolom": tahap.BLOK_KOLOM_LABEL[blok]},
+        "blok": {"no": blok, "label": tahap.BLOK_LABEL[blok], "kolom": tahap.blok_kolom_label(blok)},
         "tahap": tahap.hitung(nomor, sekolah, tahap.kontak_minggu().get(nomor), store.tahap_all().get(nomor, {}), blok),
         "nomor_tersamar": mask(nomor),
         "status": status,

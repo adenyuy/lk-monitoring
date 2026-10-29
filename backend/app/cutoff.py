@@ -20,15 +20,10 @@ from typing import Any
 import pandas as pd
 
 from . import config, db, schedule
-from .sheets import cache, gspread_client, lk_tab
+from .sheets import cache, col_number, gspread_client, kolom_lk, lk_tab
 
 WEEK_FIRST_ROW = config.LK_FIRST_ROW
-COL_NPSN = "C"
-COL_PRIORITAS = "H"
-KOLOM = {
-    "mingguan": {"mulai": "J", "akhir": "L", "label": "Mingguan (Baseline)"},
-    "harian": {"mulai": "M", "akhir": "O", "label": "Harian"},
-}
+MODE_LABEL = {"mingguan": "Mingguan (Baseline)", "harian": "Harian"}
 CUT_NPSN, CUT_JENIS, CUT_CAPAIAN, CUT_SUBMIT, CUT_REVIU = 0, 2, 4, 5, 6
 JENIS_PROGRES = ("laporan mingguan", "laporan bulanan")  # progres = capaian tertinggi dari keduanya
 JENIS_50 = "laporan 50%"
@@ -136,10 +131,24 @@ def bangun(npsn_list: list[str], progress: dict, lap50: dict) -> tuple[list[list
 
 
 def col_index(letter: str) -> int:
-    n = 0
-    for ch in letter:
-        n = n * 26 + ord(ch) - 64
-    return n - 1
+    return col_number(letter)
+
+
+def _kolom(week: str, mode: str) -> dict[str, str]:
+    """Kolom tujuan tarikan, dari judul LK terbaru (bukan huruf tetap: admin bisa menyisipkan kolom).
+    Progres, submit, dan reviu harus berdampingan karena ditulis sebagai satu blok."""
+    try:
+        kol = kolom_lk(week, refresh=True)
+    except Exception as e:
+        raise CutoffError(f"Judul kolom LK tidak terbaca: {e}") from e
+    cols = ((kol.progres_base, kol.submit_base, kol.reviu_base) if mode == "mingguan"
+            else (kol.progres, kol.submit, kol.reviu))
+    n = [col_number(c) for c in cols]
+    if n != list(range(n[0], n[0] + 3)):
+        raise CutoffError(f"Kolom progres, submit, dan reviu {MODE_LABEL[mode].lower()} di LK tidak berdampingan "
+                          f"({', '.join(cols)}). Rapikan urutannya dulu.")
+    return {"mulai": cols[0], "akhir": cols[2], "label": MODE_LABEL[mode], "npsn": kol.npsn,
+            "prioritas": kol.prioritas}
 
 
 # ---------- rencana (cek dulu) lalu tulis ----------
@@ -155,6 +164,7 @@ class Rencana:
     blok: list[list]
     prio: list[list]
     ringkasan: dict[str, Any] = field(default_factory=dict)
+    kol: dict[str, str] = field(default_factory=dict)  # kolom tujuan saat dicek (lihat _kolom)
     dibuat: float = field(default_factory=time.time)
 
 
@@ -179,7 +189,7 @@ def _bandingkan(lama: list[list], baru: list[list]) -> int:
 
 
 def siapkan(data: bytes, nama_file: str, mode: str, week: str) -> Rencana:
-    if mode not in KOLOM:
+    if mode not in MODE_LABEL:
         raise CutoffError("Mode harus harian atau mingguan.")
     df = baca(data, nama_file)
     progress, lap50 = olah(df)
@@ -189,17 +199,17 @@ def siapkan(data: bytes, nama_file: str, mode: str, week: str) -> Rencana:
         ws = ss.worksheet(tab)
     except Exception as e:
         raise CutoffError(f'Sheet "{tab}" tidak ditemukan di LK. Buat dulu sheet-nya.') from e
-    kol = KOLOM[mode]
-    rng = [f"'{tab}'!{COL_NPSN}{WEEK_FIRST_ROW}:{COL_NPSN}",
+    kol = _kolom(week, mode)
+    rng = [f"'{tab}'!{kol['npsn']}{WEEK_FIRST_ROW}:{kol['npsn']}",
            f"'{tab}'!{kol['mulai']}{WEEK_FIRST_ROW}:{kol['akhir']}"]
     if mode == "harian":
-        rng.append(f"'{tab}'!{COL_PRIORITAS}{WEEK_FIRST_ROW}:{COL_PRIORITAS}")
+        rng.append(f"'{tab}'!{kol['prioritas']}{WEEK_FIRST_ROW}:{kol['prioritas']}")
     got = ss.values_batch_get(rng, params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("valueRanges", [])
     npsn_list = [key_npsn(r[0]) if r else "" for r in got[0].get("values", [])]
     while npsn_list and not npsn_list[-1]:
         npsn_list.pop()
     if not npsn_list:
-        raise CutoffError(f'Tidak ada NPSN di kolom {COL_NPSN} sheet "{tab}".')
+        raise CutoffError(f'Tidak ada NPSN di kolom {kol["npsn"]} sheet "{tab}".')
     blok, prio = bangun(npsn_list, progress, lap50)
 
     berubah = _bandingkan(got[1].get("values", []), blok)
@@ -210,11 +220,11 @@ def siapkan(data: bytes, nama_file: str, mode: str, week: str) -> Rencana:
     else:
         berubah_p, sebelum = 0, Counter()
     sesudah = Counter(p[0] for p in prio if p[0])
-    kolom = f"{kol['mulai']}–{kol['akhir']}" + (f" dan {COL_PRIORITAS}" if mode == "harian" else "")
+    kolom = f"{kol['mulai']}–{kol['akhir']}" + (f" dan {kol['prioritas']}" if mode == "harian" else "")
 
     r = Rencana(
         token=secrets.token_urlsafe(16), mode=mode, week=str(week), tab=tab, nama_file=nama_file,
-        n=len(npsn_list), blok=blok, prio=prio,
+        n=len(npsn_list), blok=blok, prio=prio, kol=kol,
         ringkasan={
             "baris_file": int(len(df)),
             "sekolah_mingguan": len(progress),
@@ -243,12 +253,14 @@ def tulis(token: str) -> dict[str, Any]:
         r = _rencana.pop(token, None)
     if r is None or time.time() - r.dibuat > RENCANA_DETIK:
         raise CutoffError("Hasil cek sudah kedaluwarsa. Cek file lagi.")
-    kol = KOLOM[r.mode]
+    kol = _kolom(r.week, r.mode)
+    if kol != r.kol:
+        raise CutoffError("Kolom LK berubah sejak file dicek (ada kolom disisipkan/dipindah). Cek file lagi.")
     akhir = WEEK_FIRST_ROW + r.n - 1
     ss = gspread_client().open_by_key(config.LK_SHEET_ID)
     data = [{"range": f"'{r.tab}'!{kol['mulai']}{WEEK_FIRST_ROW}:{kol['akhir']}{akhir}", "values": r.blok}]
     if r.mode == "harian":
-        data.append({"range": f"'{r.tab}'!{COL_PRIORITAS}{WEEK_FIRST_ROW}:{COL_PRIORITAS}{akhir}", "values": r.prio})
+        data.append({"range": f"'{r.tab}'!{kol['prioritas']}{WEEK_FIRST_ROW}:{kol['prioritas']}{akhir}", "values": r.prio})
     ss.values_batch_update({"valueInputOption": "RAW", "data": data})
 
     now = schedule.now()

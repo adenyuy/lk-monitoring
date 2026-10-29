@@ -1,11 +1,12 @@
 from app import sheets, tahap
+from tests import lk_uji
 
 BARIS = ["P", "11112222", "SD A", "Kab", "Fasil", "6281200000001", "Prioritas 1", "", 0.3, "Tidak", "Tidak",
          0.3, "Tidak", "Tidak"] + [""] * 12
 
 
 def _sekolah(**ubah):
-    s = sheets.parse_lk([BARIS])[0]
+    s = lk_uji.parse([BARIS])[0]
     for k, v in ubah.items():
         setattr(s, k, v)
     return s

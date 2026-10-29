@@ -190,6 +190,13 @@ def jalankan(mode: str, week_no: str, file: Path, dry_run: bool, tanya: bool, sp
     except gspread.WorksheetNotFound:
         sys.exit(f'Sheet "{nama_sheet}" tidak ditemukan. Buat dulu sheet-nya, lalu jalankan lagi.')
 
+    # Huruf kolom di atas tetap; tolak bila judulnya sudah tidak cocok (admin menyisipkan/memindah kolom).
+    # Aplikasi (backend/app/cutoff.py) mendeteksi kolom dari judul, pakai itu bila skrip ini ditolak.
+    judul = [str(x).strip().lower() for x in (ws.get(f"{kol['mulai']}2:{kol['akhir']}2") or [[]])[0]]
+    if not judul or "progress fisik" not in judul[0] or "submit" not in judul[1] or "reviu" not in judul[2]:
+        sys.exit(f"Judul kolom {kol['mulai']}-{kol['akhir']} di baris 2 tidak sesuai ({judul}). "
+                 "Susunan kolom LK sudah berubah; pakai menu Tarik data di aplikasi.")
+
     npsn_rows = ws.get(f"{COL_NPSN}{WEEK_FIRST_ROW}:{COL_NPSN}", major_dimension="COLUMNS")
     npsn_list = [key_npsn(v) for v in (npsn_rows[0] if npsn_rows else [])]
     while npsn_list and not npsn_list[-1]:

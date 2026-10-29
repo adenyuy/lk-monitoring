@@ -1,4 +1,5 @@
 from app import db, perubahan, sheets
+from tests import lk_uji
 
 
 def _bc(nomor, nama, pesan):
@@ -28,10 +29,10 @@ def test_lk_perubahan_prioritas_dan_progres():
     db.delete_setting("potret_lk:WEEK 9")
     baris = ["Petugas Uji", "111", "SD SATU", "Kab", "Fasil A", "6281200000001", "Prioritas 1", "",
              0.4, "Tidak", "Tidak", 0.4, "Tidak", "Tidak"]
-    perubahan.catat_lk("WEEK 9", sheets.parse_lk([baris]))
+    perubahan.catat_lk("WEEK 9", lk_uji.parse([baris]))
     baris2 = list(baris)
     baris2[6], baris2[11], baris2[12] = "Prioritas 3", 0.55, "Ya"
-    perubahan.catat_lk("WEEK 9", sheets.parse_lk([baris2]))
+    perubahan.catat_lk("WEEK 9", lk_uji.parse([baris2]))
     e = perubahan.daftar()[0]
     assert e["judul"] == "LK WEEK 9"
     assert e["ringkasan"].startswith("1 sekolah P1 → P3")

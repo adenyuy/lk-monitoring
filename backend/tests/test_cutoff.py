@@ -59,9 +59,11 @@ def test_tulis_memakai_rencana(monkeypatch):
             return SS()
 
     monkeypatch.setattr(cutoff, "gspread_client", lambda: GC())
+    kol = {"mulai": "M", "akhir": "O", "label": "Harian", "npsn": "C", "prioritas": "H"}
+    monkeypatch.setattr(cutoff, "_kolom", lambda week, mode: kol)
     r = cutoff.Rencana(token="t", mode="harian", week="1", tab="WEEK 1", nama_file="c.csv", n=2,
                        blok=[[0.5, "Ya", "Ya"], ["", "Tidak", "Tidak"]], prio=[["Selesai"], ["Prioritas 1"]],
-                       ringkasan={"sheet_id": 9, "kolom": "M–O dan H"})
+                       ringkasan={"sheet_id": 9, "kolom": "M–O dan H"}, kol=dict(kol))
     cutoff._rencana["t"] = r
     hasil = cutoff.tulis("t")
     ranges = [d["range"] for d in tulisan["values"]["data"]]
@@ -71,3 +73,23 @@ def test_tulis_memakai_rencana(monkeypatch):
     import pytest
     with pytest.raises(cutoff.CutoffError):  # token sekali pakai
         cutoff.tulis("t")
+
+
+def test_tulis_ditolak_bila_kolom_berubah_sejak_dicek(monkeypatch):
+    import pytest
+    monkeypatch.setattr(cutoff, "_kolom", lambda week, mode: {"mulai": "O", "akhir": "Q", "label": "Harian",
+                                                              "npsn": "C", "prioritas": "H"})
+    cutoff._rencana["u"] = cutoff.Rencana(token="u", mode="harian", week="1", tab="WEEK 1", nama_file="c.csv", n=1,
+                                          blok=[[0.5, "Ya", "Ya"]], prio=[["Selesai"]],
+                                          kol={"mulai": "M", "akhir": "O", "label": "Harian", "npsn": "C",
+                                               "prioritas": "H"})
+    with pytest.raises(cutoff.CutoffError, match="berubah"):
+        cutoff.tulis("u")
+
+
+def test_kolom_cutoff_dari_judul(monkeypatch):
+    from app import sheets
+    from tests import lk_uji
+    judul = lk_uji.JUDUL_LAMA[:9] + ["Status Komunikasi (bantuan)", "Waktu Tunggu"] + lk_uji.JUDUL_LAMA[9:]
+    monkeypatch.setattr(cutoff, "kolom_lk", lambda week, refresh=False: sheets.parse_kolom(judul))
+    assert cutoff._kolom("1", "mingguan")["mulai"] == "L" and cutoff._kolom("1", "harian")["akhir"] == "Q"

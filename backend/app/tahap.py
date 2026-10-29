@@ -17,11 +17,21 @@ TAHAP = (
     ("lk_lengkap", "Isian LK lengkap"),
 )
 BLOK_LABEL = {1: "Senin–Rabu", 2: "Rabu–Jumat"}
-BLOK_KOLOM_LABEL = {1: "P–U", 2: "V–AA"}
+
+
+def blok_kolom_label(blok: int) -> str:
+    """Rentang kolom isian sesi di LK (mis. 'X–AC'), dari judul kolom terbaru. Kosong bila LK tidak terbaca."""
+    from .sheets import kolom_lk, week_aktif
+
+    try:
+        cols = kolom_lk(week_aktif()).blok[blok]
+        return f"{cols[0]}–{cols[-1]}"
+    except Exception:
+        return ""
 
 
 def blok_hari_ini() -> int:
-    """Senin–Selasa isi blok 1 (P–U), Rabu dan seterusnya blok 2 (V–AA)."""
+    """Senin–Selasa isi blok 1 (sesi Senin–Rabu), Rabu dan seterusnya blok 2 (sesi Rabu–Jumat)."""
     return 1 if schedule.now().weekday() <= 1 else 2
 
 

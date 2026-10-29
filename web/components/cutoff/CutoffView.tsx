@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, api, post } from "@/lib/api";
-import type { CutoffCek, CutoffInfo, CutoffRun } from "@/lib/types";
+import type { CutoffCek, CutoffInfo, CutoffKolom, CutoffRun } from "@/lib/types";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { NoAccess } from "@/components/app/NoAccess";
 import s from "./cutoff.module.css";
@@ -101,8 +101,8 @@ function Kalender({ info, onUbah }: { info: CutoffInfo; onUbah: (i: CutoffInfo) 
               </span>
               <button type="button" className={`${s.big} ${mingguan.length ? s.on : ""}`}
                 aria-label={`WEEK ${w} mingguan: ${mingguan.length ? "sudah ditarik" : "belum ditarik"}`}
-                onMouseEnter={() => setDetail({ judul: `WEEK ${w}, tarik mingguan (baseline J–L)`, runs: mingguan })}
-                onFocus={() => setDetail({ judul: `WEEK ${w}, tarik mingguan (baseline J–L)`, runs: mingguan })} />
+                onMouseEnter={() => setDetail({ judul: `WEEK ${w}, tarik mingguan (baseline)`, runs: mingguan })}
+                onFocus={() => setDetail({ judul: `WEEK ${w}, tarik mingguan (baseline)`, runs: mingguan })} />
               <span className={s.calDays}>
                 {HARI.map((h, i) => {
                   const d = tambahHari(senin, i);
@@ -155,6 +155,33 @@ function Kalender({ info, onUbah }: { info: CutoffInfo; onUbah: (i: CutoffInfo) 
         <small>Riwayat dicatat di laptop ini, jadi tarikan dari laptop admin lain tidak ikut tampil.</small>
       </div>
     </section>
+  );
+}
+
+const rentang = (k?: CutoffKolom) => (k ? `${k.mulai}–${k.akhir}` : "progres/submit/reviu");
+
+/** Kolom LK yang terbaca dari judul baris 2. Bila admin menyisipkan/memindah kolom, aplikasi ikut menyesuaikan. */
+function KolomLk({ kolom }: { kolom: CutoffInfo["kolom"] }) {
+  if (kolom.error) {
+    return <Notice tone="bad" title="Kolom LK tidak dikenali">{kolom.error}</Notice>;
+  }
+  if (!kolom.harian || !kolom.mingguan) return null;
+  const baris = [
+    ["NPSN", kolom.harian.npsn],
+    ["Prioritas", kolom.harian.prioritas],
+    ["Baseline (progres, submit, reviu)", rentang(kolom.mingguan)],
+    ["Harian (progres, submit, reviu)", rentang(kolom.harian)],
+    ["Isian sesi Senin–Rabu", kolom.blok?.["1"] ?? "–"],
+    ["Isian sesi Rabu–Jumat", kolom.blok?.["2"] ?? "–"],
+  ];
+  return (
+    <details className={s.kolomLk}>
+      <summary>Kolom LK terbaca otomatis dari judul baris 2</summary>
+      <dl>
+        {baris.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+      </dl>
+      <p>Kalau admin menyisipkan atau memindah kolom, aplikasi menyesuaikan sendiri selama judul kolomnya tetap sama.</p>
+    </details>
   );
 }
 
@@ -220,8 +247,8 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
         <legend>Jenis tarikan</legend>
         <div className={s.modes}>
           {([
-            ["harian", "Harian", "Progres, submit, dan reviu terbaru ke kolom M–O, lalu hitung ulang Prioritas (H)."],
-            ["mingguan", "Mingguan (baseline)", "Data awal pekan ke kolom J–L. Biasanya tiap Senin."],
+            ["harian", "Harian", `Progres, submit, dan reviu terbaru ke kolom ${rentang(info.kolom.harian)}, lalu hitung ulang Prioritas${info.kolom.harian ? ` (${info.kolom.harian.prioritas})` : ""}.`],
+            ["mingguan", "Mingguan (baseline)", `Data awal pekan ke kolom ${rentang(info.kolom.mingguan)}. Biasanya tiap Senin.`],
           ] as const).map(([k, judul, isi]) => (
             <label key={k} className={`${s.mode} ${mode === k ? s.modeOn : ""}`}>
               <input type="radio" name="mode" value={k} checked={mode === k} onChange={() => { setMode(k); reset(); }} />
@@ -231,6 +258,8 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
           ))}
         </div>
       </fieldset>
+
+      <KolomLk kolom={info.kolom} />
 
       <label className={s.field}>
         <span className={s.legend}>Sheet tujuan</span>

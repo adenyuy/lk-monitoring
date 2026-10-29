@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from .. import aktivitas, db, tahap
 from ..sheets import (
-    BLOK_KOLOM, ISIAN_KEYS, KOMUNIKASI_KOLOM, LkWriteError, normalize_petugas, read_lk, read_validasi, write_isian,
+    ISIAN_KEYS, LkKolomError, LkWriteError, kolom_lk, normalize_petugas, read_lk, read_validasi, write_isian,
 )
 from .deps import require_feature
 
@@ -38,8 +38,8 @@ def opsi(_=Depends(wa_blast)) -> dict[str, Any]:
     return {
         "opsi": _opsi(),
         "blok_default": blok_default(),
-        "blok_kolom": tahap.BLOK_KOLOM_LABEL[blok_default()],
-        "blok": [{"no": b, "label": BLOK_LABEL[b]} for b in BLOK_KOLOM],
+        "blok_kolom": tahap.blok_kolom_label(blok_default()),
+        "blok": [{"no": b, "label": BLOK_LABEL[b]} for b in BLOK_LABEL],
     }
 
 
@@ -63,6 +63,13 @@ def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
     except Exception as e:
         raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
     milik = {s.npsn: s for s in semua if normalize_petugas(s.petugas) == petugas}
+    # Posisi kolom dibaca ulang dari judul tepat sebelum menulis: admin bisa menyisipkan/memindah kolom kapan saja
+    try:
+        kol = kolom_lk(week, refresh=True)
+    except LkKolomError as e:
+        raise HTTPException(409, str(e)) from e
+    except Exception as e:
+        raise HTTPException(502, f"Judul kolom LK tidak bisa dibaca: {e}") from e
     opsi_lk = _opsi()
     blok = req.blok or blok_default()
 
@@ -76,7 +83,7 @@ def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
             v = it.komunikasi.strip()
             if v and v not in opsi_lk["komunikasi"]:
                 raise HTTPException(400, f"Status komunikasi '{v}' tidak ada di pilihan.")
-            sel[KOMUNIKASI_KOLOM] = v
+            sel[kol.komunikasi] = v
         for k, v in it.isian.items():
             if k not in ISIAN_KEYS:
                 raise HTTPException(400, f"Kolom isian '{k}' tidak dikenal.")
@@ -85,12 +92,12 @@ def isi(req: IsiReq, _=Depends(wa_blast)) -> dict[str, Any]:
                 raise HTTPException(400, f"Isian terlalu panjang (maks {MAKS_TEKS} karakter).")
             if k in OPSI_UNTUK and v and v not in opsi_lk[OPSI_UNTUK[k]]:
                 raise HTTPException(400, f"Alasan '{v}' tidak ada di pilihan.")
-            sel[BLOK_KOLOM[blok][ISIAN_KEYS.index(k)]] = v
+            sel[kol.blok[blok][ISIAN_KEYS.index(k)]] = v
         if sel:
             perubahan.append((s, sel, it))
 
     try:
-        write_isian(week, [(s, sel) for s, sel, _ in perubahan])
+        write_isian(week, [(s, sel) for s, sel, _ in perubahan], kol)
     except LkWriteError as e:
         raise HTTPException(409, str(e)) from e
     except Exception as e:

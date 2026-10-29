@@ -125,7 +125,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
     return {
         "tanggal_panjang": schedule.tanggal_panjang(schedule.now().date()),
         "week": week,
-        "blok": {"no": blok, "label": tahap.BLOK_LABEL[blok], "kolom": tahap.BLOK_KOLOM_LABEL[blok]},
+        "blok": {"no": blok, "label": tahap.BLOK_LABEL[blok], "kolom": tahap.blok_kolom_label(blok)},
         "sekolah": {"total": len(lk), "p1": prio_all["p1"], "p2": prio_all["p2"], "p3": prio_all["p3"],
                     "selesai": prio_all["selesai"]},
         "fasil_total": len(rows),
@@ -140,7 +140,7 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
         "isian": {
             "perlu": len(perlu_all),
             "blok": [
-                {"no": b, "label": tahap.BLOK_LABEL[b], "kolom": tahap.BLOK_KOLOM_LABEL[b],
+                {"no": b, "label": tahap.BLOK_LABEL[b], "kolom": tahap.blok_kolom_label(b),
                  "lengkap": sum(1 for s in perlu_all if tahap.sekolah_lengkap(s, b))}
                 for b in (1, 2)
             ],

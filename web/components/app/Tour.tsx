@@ -35,7 +35,7 @@ export const PANDUAN: Record<string, Langkah[]> = {
   "/cutoff/": [
     ...UMUM,
     { target: "kalender", judul: "Riwayat tarik", isi: "Kotak besar = tarik mingguan per WEEK, kotak kecil = tarik harian per hari. Hijau berarti sudah ditarik." },
-    { target: "mode", judul: "Jenis tarikan", isi: "Harian mengisi M–O dan menghitung ulang Prioritas. Mingguan mengisi baseline J–L." },
+    { target: "mode", judul: "Jenis tarikan", isi: "Harian mengisi progres, submit, dan reviu terbaru lalu menghitung ulang Prioritas. Mingguan mengisi baseline." },
     { target: "file", judul: "File cutoff", isi: "Pilih atau seret file CSV/Excel dari aplikasi, lalu tekan Cek file. Belum ada yang ditulis sampai Anda menekan Tulis." },
   ],
 };

@@ -7,6 +7,7 @@ from pathlib import Path
 # Harus di-set sebelum modul app diimpor.
 os.environ["LKM_DATA_DIR"] = tempfile.mkdtemp(prefix="lkm-test-")
 os.environ["LKM_TANPA_PEMBARUAN"] = "1"  # jangan git fetch / restart saat test
+os.environ["LKM_LK_OTOMATIS_OFF"] = "1"  # jangan menulis status komunikasi ke LK sungguhan saat test
 os.environ["LKM_TAG_OFF"] = "1"  # jangan pernah mewarnai sheet Broadcast sungguhan saat test
 # ID sheet palsu: tes tidak pernah membuka sheet sungguhan
 for _k in ("BROADCAST", "LK", "ACCESS"):

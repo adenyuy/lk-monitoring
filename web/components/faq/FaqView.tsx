@@ -159,7 +159,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
         q: "Apa yang berubah di hari Senin?",
         a: (
           <p>Hitungan &quot;sudah dikirimi&quot; berlaku per minggu, Senin sampai Minggu. Hari Senin semua fasil di Broadcast
-            masuk antrean lagi, dan isian LK pindah ke kolom sesi Senin–Rabu (P–U).</p>
+            masuk antrean lagi, dan isian LK pindah ke kolom sesi Senin–Rabu.</p>
         ),
       },
       {
@@ -213,9 +213,10 @@ const GRUP: { judul: string; isi: T[] }[] = [
         id: "blok-lk",
         q: "Isian LK masuk ke kolom sesi yang mana?",
         a: (
-          <p>Senin dan Selasa otomatis ke sesi <b>Senin–Rabu</b> (kolom P–U). Rabu sampai Jumat ke sesi <b>Rabu–Jumat</b>
-            (kolom V–AA). Anda bisa menggantinya di panel LK. Status komunikasi diisi sekali per fasil untuk semua
-            sekolahnya.</p>
+          <p>Senin dan Selasa otomatis ke sesi <b>Senin–Rabu</b>, Rabu sampai Jumat ke sesi <b>Rabu–Jumat</b>. Anda bisa
+            menggantinya di panel LK. Status komunikasi diisi sekali per fasil untuk semua sekolahnya, dan otomatis
+            jadi <b>Terhubung</b> begitu fasil membalas chat. Posisi kolom dibaca dari judul di baris 2, jadi kalau admin
+            menyisipkan atau memindah kolom, aplikasi ikut menyesuaikan.</p>
         ),
       },
       {

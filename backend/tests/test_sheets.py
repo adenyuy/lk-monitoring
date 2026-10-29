@@ -1,4 +1,5 @@
 from app import sheets
+from tests import lk_uji
 
 # Semua nama, nomor, dan sekolah di file ini karangan (repo publik).
 BROADCAST = [
@@ -60,7 +61,7 @@ LK = [
 
 
 def test_parse_lk():
-    data = sheets.parse_lk(LK)
+    data = lk_uji.parse(LK)
     assert len(data) == 3
     a = data[0]
     assert (a.baris, a.npsn, a.prioritas, a.progres, a.submit) == (3, "90000001", "Prioritas 1", 65.0, "Tidak")
@@ -72,7 +73,7 @@ def test_parse_lk():
 
 
 def test_sekolah_per_fasil_hanya_milik_petugas():
-    m = sheets.sekolah_per_fasil(sheets.parse_lk(LK), "*Sari Petugas*")
+    m = sheets.sekolah_per_fasil(lk_uji.parse(LK), "*Sari Petugas*")
     assert sheets.nomor_key("6281200001111") in m
     assert sheets.nomor_key("6281200003333") not in m  # milik petugas lain
     assert m[sheets.nomor_key("081200002222")][0].nama == "SD CONTOH 2"
