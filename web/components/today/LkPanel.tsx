@@ -22,10 +22,14 @@ export function prioritasLabel(p: string) {
   return p || "–";
 }
 
-/** Alasan yang wajib diisi di LK (sama dengan backend/app/tahap.py):
- *  submit dan reviu selalu; progres hanya bila progres masih < 50%. */
+/** Alasan yang wajib diisi di LK, mengikuti tahapan sekolah (sama dengan backend/app/tahap.py):
+ *  progres < 50% -> tiga alasan; sudah 50% tapi belum submit -> submit + reviu;
+ *  sudah submit tapi belum direviu -> reviu saja. */
 function wajib(x: SekolahLk): Grup["kode"][] {
-  return x.progres === null || x.progres < 50 ? ["a", "b", "c"] : ["b", "c"];
+  if (x.progres === null || x.progres < 50) return ["a", "b", "c"];
+  if (x.submit !== "Ya") return ["b", "c"];
+  if (x.reviu !== "Ya") return ["c"];
+  return [];
 }
 
 const cari = (pilihan: string[], kata: string) => pilihan.find((o) => o.toLowerCase().includes(kata)) ?? "";

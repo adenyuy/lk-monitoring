@@ -26,11 +26,18 @@ def blok_hari_ini() -> int:
 
 
 def grup_relevan(s: Sekolah) -> list[str]:
-    """Alasan yang wajib diisi di LK: submit (b) dan reviu (c) selalu; progres (a) hanya bila progres < 50%.
+    """Alasan yang wajib diisi di LK, mengikuti tahapan sekolah:
+    progres < 50% -> progres, submit, reviu; sudah 50% tapi belum submit -> submit, reviu;
+    sudah submit tapi belum direviu -> reviu saja.
 
     Sekolah yang belum submit dapat isian otomatis di aplikasi (b bila progres < 50%, c selalu)."""
-    a = ["a"] if s.progres is None or s.progres < 50 else []
-    return a + ["b", "c"]
+    if s.progres is None or s.progres < 50:
+        return ["a", "b", "c"]
+    if s.submit != "Ya":
+        return ["b", "c"]
+    if s.reviu != "Ya":
+        return ["c"]
+    return []
 
 
 def sekolah_lengkap(s: Sekolah, blok: int) -> bool:

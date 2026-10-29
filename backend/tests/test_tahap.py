@@ -13,8 +13,11 @@ def _sekolah(**ubah):
 
 def test_grup_relevan():
     assert tahap.grup_relevan(_sekolah()) == ["a", "b", "c"]
-    # progres sudah >= 50%: alasan progres tidak perlu
+    # progres sudah >= 50% tapi belum submit: alasan submit dan reviu
     assert tahap.grup_relevan(_sekolah(progres=82.6, submit="Tidak", reviu="Tidak")) == ["b", "c"]
+    # sudah submit, belum direviu: alasan reviu saja
+    assert tahap.grup_relevan(_sekolah(progres=82.6, submit="Ya", reviu="Tidak")) == ["c"]
+    assert tahap.grup_relevan(_sekolah(progres=82.6, submit="Ya", reviu="Ya")) == []
 
 
 def test_lengkap_butuh_komunikasi_dan_alasan():
