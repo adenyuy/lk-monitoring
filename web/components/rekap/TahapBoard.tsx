@@ -81,6 +81,16 @@ export function TahapBoard({ fasil, onBuka }: { fasil: FasilRekap[]; onBuka: (no
                   <button type="button" className={`${s.tCard} ${r.perlu_balas ? s.tCardBalas : ""}`}
                     disabled={!r.nomor} onClick={() => onBuka(r.nomor)}>
                     <b>{r.nama}</b>
+                    {r.isian_perlu > 0 && (
+                      <span className={s.tLk} title={`Isian LK lengkap ${r.isian_lengkap} dari ${r.isian_perlu} sekolah yang perlu diisi`}>
+                        <span className={s.tLkTrack}>
+                          <span style={{ width: `${Math.round((r.isian_lengkap / r.isian_perlu) * 100)}%` }} />
+                        </span>
+                        <span className={r.isian_lengkap >= r.isian_perlu ? s.tLkOk : undefined}>
+                          LK {r.isian_lengkap}/{r.isian_perlu}
+                        </span>
+                      </span>
+                    )}
                     <span className={s.tPills}>
                       {r.perlu_balas && <em className={s.tBalas}>Perlu dibalas</em>}
                       {r.p1 > 0 && <em className={s.tP1}>P1 {r.p1}</em>}
