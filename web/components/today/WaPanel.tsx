@@ -90,8 +90,17 @@ ${minta} ${tutup}` });
 ${isian(reviu, "Kendala reviu & perkiraan selesai")}
 
 ${minta} ${tutup}` });
+  // Pengingat sesuai sekolah yang dipegang: percepatan (progres < 50%), submit laporan 50%, reviu
+  const ingat: string[] = [];
+  if (progres.length) ingat.push(`mempercepat pekerjaan ${progres.length} sekolah yang progresnya masih di bawah 50%`);
+  const submit50 = submit.filter((x) => x.progres !== null && x.progres >= 50);
+  if (submit50.length) ingat.push(`segera submit laporan 50% untuk ${submit50.length} sekolah yang progresnya sudah 50%`);
+  if (reviu.length) ingat.push(`segera mereviu laporan 50% ${reviu.length} sekolah yang sudah disubmit`);
+  const pesanIngat = ingat.length
+    ? `\n\nMohon Bapak/Ibu selalu mengingatkan dan mendampingi sekolah binaan untuk ${ingat.length > 1 ? `${ingat.slice(0, -1).join(", ")}, serta ${ingat[ingat.length - 1]}` : ingat[0]}.`
+    : "";
   out.push({ kode: "makasih", label: "Terima kasih", tanya: false,
-    teks: `Terima kasih atas informasinya, Bapak/Ibu ${nama}. Sudah kami catat ${"🙏"}` });
+    teks: `Terima kasih atas informasinya, Bapak/Ibu ${nama}. Sudah kami catat.${pesanIngat} ${"🙏"}` });
   return out;
 }
 
