@@ -222,6 +222,16 @@ const GRUP: { judul: string; isi: T[] }[] = [
         ),
       },
       {
+        id: "eskalasi",
+        q: "Fasil punya masalah yang harus dijawab tim lain. Dicatat di mana?",
+        a: (
+          <p>Buka fasilnya, tekan <b>Eskalasi</b> di kanan atas, pilih sekolah, kelompok permasalahan, tulis keterangannya,
+            lalu centang tim tujuan (Aplikasi, Substansi, PMO, dan lainnya). Aplikasi menulisnya ke sheet LK Eskalasi
+            dengan tanggal hari ini dan status Belum Ditindaklanjuti. Kalau sekolah itu sudah pernah dieskalasi, masalah
+            baru ditambahkan sebagai baris baru. Status dari tim terkait bisa dilihat di popup yang sama.</p>
+        ),
+      },
+      {
         id: "chat-hp",
         q: "Saya membalas fasil lewat HP. Apakah tercatat?",
         a: (

@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from . import chat_refresh, config, db, lk_otomatis, paths
 from .cutoff import susulkan_riwayat  # bukan `cutoff`: nama itu dipakai router di bawah
-from .routers import bimtek, chat, core, cutoff, lk, log, rekap, send, today, wa
+from .routers import bimtek, chat, core, cutoff, eskalasi, lk, log, rekap, send, today, wa
 from .wa.browser import worker
 
 
@@ -85,6 +85,7 @@ app.include_router(rekap.router)
 app.include_router(log.router)
 app.include_router(cutoff.router)
 app.include_router(bimtek.router)
+app.include_router(eskalasi.router)
 
 
 @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)

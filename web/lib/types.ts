@@ -165,7 +165,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 18;
+export const API_REV = 19;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -299,3 +299,12 @@ export type Aktivitas = {
 
 export type LogHari = { tanggal: string; perubahan: Perubahan[]; aktivitas: Aktivitas[] };
 export type FasilTercatat = { nomor: string; nama: string; terakhir: string };
+
+export type Eskalasi = {
+  baris: number; npsn: string; nama: string; keterangan: string; permasalahan: string;
+  tgl_awal: string; tgl_selesai: string; status: string; tim: string[];
+};
+export type EskalasiInfo = {
+  opsi: { permasalahan: string[]; status: string[]; tim: string[] };
+  eskalasi: Eskalasi[];
+};

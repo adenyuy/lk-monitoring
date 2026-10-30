@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import type { Fasil, Tahap } from "@/lib/types";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
+import { EskalasiDialog } from "./EskalasiDialog";
 import { LkPanel } from "./LkPanel";
 import { WaPanel } from "./WaPanel";
 import { inisial } from "./FasilList";
@@ -23,6 +24,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [eskalasi, setEskalasi] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -73,6 +75,12 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
             <h2>{data?.nama_fasil ?? "Memuat…"}</h2>
             {data && <span>{data.nomor_tersamar} <Chip tone={toneStatus(data.status)}>{data.status}</Chip></span>}
           </div>
+          {data && data.sekolah.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => setEskalasi(true)}
+              title="Catat masalah khusus sekolah yang harus dijawab tim terkait ke LK Eskalasi">
+              Eskalasi
+            </Button>
+          )}
           <Button variant="secondary" size="sm" loading={opening} onClick={bukaWa}>Buka di WhatsApp Web</Button>
           <button ref={closeRef} type="button" className={s.close} onClick={onClose} aria-label="Tutup">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -97,6 +105,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
           </div>
         )}
       </aside>
+      {eskalasi && data && <EskalasiDialog sekolah={data.sekolah} onClose={() => setEskalasi(false)} />}
     </div>
   );
 }
