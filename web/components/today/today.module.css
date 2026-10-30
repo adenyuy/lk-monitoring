@@ -1609,3 +1609,12 @@
   font-size: 11.5px;
   font-weight: 500;
 }
+
+/* Tombol "Butuh bantuan" di kepala panel fasil */
+.bantuBtn {
+  background: var(--bad-bg);
+}
+
+.bantuBtn:hover {
+  border-color: var(--bad-fg);
+}

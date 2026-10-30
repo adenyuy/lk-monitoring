@@ -223,12 +223,14 @@ const GRUP: { judul: string; isi: T[] }[] = [
       },
       {
         id: "eskalasi",
-        q: "Fasil punya masalah yang harus dijawab tim lain. Dicatat di mana?",
+        q: "Pertanyaan fasil tidak bisa saya jawab. Minta bantuan ke mana?",
         a: (
-          <p>Buka fasilnya, tekan <b>Eskalasi</b> di kanan atas, pilih sekolah, kelompok permasalahan, tulis keterangannya,
-            lalu centang tim tujuan (Aplikasi, Substansi, PMO, dan lainnya). Aplikasi menulisnya ke sheet LK Eskalasi
-            dengan tanggal hari ini dan status Belum Ditindaklanjuti. Kalau sekolah itu sudah pernah dieskalasi, masalah
-            baru ditambahkan sebagai baris baru. Status dari tim terkait bisa dilihat di popup yang sama.</p>
+          <p>Buka fasilnya lalu tekan tombol merah <b>Butuh bantuan</b>. Di tab <b>Tanya teman PIC</b> pilih teman dari
+            Kontak PIC: chat-nya terbuka di jendela WhatsApp aplikasi dan draf pembuka sudah disalin. Untuk kasus unik yang
+            harus dijawab stream lain, pakai tab <b>Eskalasi ke stream lain</b>: pilih sekolah, kelompok permasalahan,
+            tulis keterangan, centang tim tujuan, lalu catat. Aplikasi menulisnya ke sheet LK Eskalasi dengan tanggal hari
+            ini, dan status dari tim terkait bisa dilihat di tab yang sama. Saat pertama dipakai, admin cukup menempel
+            link LK Eskalasi sekali; link itu berlaku untuk seluruh tim.</p>
         ),
       },
       {

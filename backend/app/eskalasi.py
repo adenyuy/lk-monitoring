@@ -37,6 +37,10 @@ class EskalasiError(Exception):
     """Pesannya ditampilkan langsung ke pengguna."""
 
 
+class LinkBelumAda(EskalasiError):
+    pass
+
+
 def key_npsn(v: Any) -> str:
     return re.sub(r"\.0+$", "", str(v).strip())
 
@@ -71,9 +75,68 @@ def sheet_id() -> str:
 
     sid = cache.get("eskalasi_id", 600, load)
     if not sid:
-        raise EskalasiError('Link LK Eskalasi belum dipasang admin. Tambahkan baris "lk_eskalasi" berisi link sheet '
+        raise LinkBelumAda('Link LK Eskalasi belum dipasang admin. Tambahkan baris "lk_eskalasi" berisi link sheet '
                             'di tab Pengaturan pada sheet Akses.')
     return sid
+
+
+def pasang_link(link: str, untuk_tim: bool) -> str:
+    """Simpan link LK Eskalasi di laptop ini; admin (`untuk_tim`) juga menulisnya ke tab Pengaturan sheet Akses
+    supaya seluruh tim langsung memakainya."""
+    sid = _id_dari(link)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{20,}", sid):
+        raise EskalasiError("Itu bukan link Google Sheets. Salin link dari address bar sheet LK Eskalasi.")
+    try:
+        judul = [w.title for w in gspread_client().open_by_key(sid).worksheets()]
+    except Exception as e:
+        raise EskalasiError(f"Sheet tidak bisa dibuka dengan akun ini: {e}") from e
+    if TAB not in judul:
+        raise EskalasiError(f'Sheet ini tidak punya tab "{TAB}". Pastikan link-nya LK Eskalasi.')
+    f = paths.DATA_DIR / "sheets.json"
+    try:
+        data = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    except (ValueError, OSError):
+        data = {}
+    data["eskalasi"] = sid
+    paths.ensure_dirs()
+    f.write_text(json.dumps(data), encoding="utf-8")
+    if untuk_tim:
+        ss = gspread_client().open_by_key(config.ACCESS_SHEET_ID)
+        if TAB_PENGATURAN not in [w.title for w in ss.worksheets()]:
+            ss.add_worksheet(TAB_PENGATURAN, rows=20, cols=3)
+            ss.values_update(f"'{TAB_PENGATURAN}'!A1:C1", params={"valueInputOption": "RAW"},
+                             body={"values": [["kunci", "nilai", "keterangan"]]})
+        baris = ss.values_get(f"'{TAB_PENGATURAN}'!A1:A50").get("values", [])
+        n = next((i + 1 for i, r in enumerate(baris) if r and str(r[0]).strip().casefold() == "lk_eskalasi"),
+                 len(baris) + 1)
+        ss.values_update(f"'{TAB_PENGATURAN}'!A{n}:C{n}", params={"valueInputOption": "RAW"},
+                         body={"values": [["lk_eskalasi", f"https://docs.google.com/spreadsheets/d/{sid}/edit",
+                                           "Sheet LK Eskalasi untuk tombol Butuh bantuan di aplikasi"]]})
+    cache.clear()
+    return sid
+
+
+def kontak_pic() -> list[dict[str, str]]:
+    """Tab tersembunyi "Kontak PIC" di sheet Broadcast: nama dan nomor WhatsApp teman petugas."""
+    from .sheets import normalize_nomor
+
+    def load() -> list[dict[str, str]]:
+        ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
+        nilai = ss.values_get("'Kontak PIC'!A1:D").get("values", [])
+        if not nilai:
+            return []
+        judul = [" ".join(str(h).lower().split()) for h in nilai[0]]
+        i_nama = judul.index("nama pic") if "nama pic" in judul else 1
+        i_nomor = judul.index("nomor pic") if "nomor pic" in judul else 2
+        out = []
+        for r in nilai[1:]:
+            nama = str(r[i_nama]).strip() if i_nama < len(r) else ""
+            nomor = normalize_nomor(str(r[i_nomor])) if i_nomor < len(r) else ""
+            if nama and nomor:
+                out.append({"nama": " ".join(nama.split()), "nomor": nomor})
+        return out
+
+    return cache.get("kontak_pic", 600, load)
 
 
 def _ss():

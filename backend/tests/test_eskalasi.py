@@ -72,3 +72,37 @@ def test_catat_ditolak(ss):
 
 def test_id_dari_link():
     assert eskalasi._id_dari("https://docs.google.com/spreadsheets/d/AAAAAAAAAAAAAAAAAAAAAAAAAA/edit#gid=1") == "A" * 26
+
+
+def test_kontak_pic(monkeypatch):
+    class B:
+        def values_get(self, rng, params=None):
+            return {"values": [["No.", "Nama PIC", "Nomor PIC", "WhatsApp"], ["1", " Ani  Putri ", "6281234567890", ""],
+                               ["2", "Tanpa Nomor", "", ""]]}
+    monkeypatch.setattr(eskalasi, "gspread_client", lambda: type("GC", (), {"open_by_key": lambda self, _: B()})())
+    eskalasi.cache.clear()
+    assert eskalasi.kontak_pic() == [{"nama": "Ani Putri", "nomor": "6281234567890"}]
+
+
+def test_pasang_link_untuk_tim(monkeypatch, tmp_path):
+    ditulis = []
+
+    class S:
+        def worksheets(self):
+            return [type("W", (), {"title": eskalasi.TAB})(), type("W", (), {"title": eskalasi.TAB_PENGATURAN})()]
+
+        def values_get(self, rng, params=None):
+            return {"values": [["kunci"], ["lain"]]}
+
+        def values_update(self, rng, params=None, body=None):
+            ditulis.append((rng, body["values"][0][0]))
+
+    monkeypatch.setattr(eskalasi, "gspread_client", lambda: type("GC", (), {"open_by_key": lambda self, _: S()})())
+    monkeypatch.setattr(eskalasi.paths, "DATA_DIR", tmp_path)
+    monkeypatch.delenv("LKM_ESKALASI_SHEET_ID", raising=False)
+    sid = "B" * 28
+    assert eskalasi.pasang_link(f"https://docs.google.com/spreadsheets/d/{sid}/edit#gid=1", True) == sid
+    assert ditulis == [("'Pengaturan'!A3:C3", "lk_eskalasi")]
+    assert eskalasi.sheet_id() == sid  # tersimpan di sheets.json laptop ini
+    with pytest.raises(eskalasi.EskalasiError):
+        eskalasi.pasang_link("bukan link", False)

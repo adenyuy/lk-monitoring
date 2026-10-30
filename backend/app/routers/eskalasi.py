@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .. import aktivitas, db, eskalasi
+from ..access import Access
 from ..sheets import nomor_lk, normalize_petugas, read_lk, week_aktif
 from .deps import require_feature
 
@@ -26,7 +27,35 @@ def _jalan(fn, *args):
 @router.get("")
 def daftar(npsn: str = Query("", max_length=4000), _=Depends(wa_blast)) -> dict[str, Any]:
     pilih = [x for x in npsn.split(",") if x.strip()]
-    return {"opsi": _jalan(eskalasi.opsi), "eskalasi": _jalan(eskalasi.daftar, pilih) if pilih else []}
+    try:
+        eskalasi.sheet_id()
+    except eskalasi.LinkBelumAda:
+        return {"perlu_link": True, "opsi": None, "eskalasi": []}
+    return {"perlu_link": False, "opsi": _jalan(eskalasi.opsi),
+            "eskalasi": _jalan(eskalasi.daftar, pilih) if pilih else []}
+
+
+class LinkReq(BaseModel):
+    link: str = Field(min_length=10, max_length=500)
+
+
+@router.post("/link")
+def pasang_link(req: LinkReq, acc: Access = Depends(wa_blast)) -> dict[str, Any]:
+    """Admin (fitur cutoff) memasang untuk seluruh tim; petugas lain hanya untuk laptopnya sendiri."""
+    untuk_tim = acc.has("cutoff")
+    _jalan(eskalasi.pasang_link, req.link, untuk_tim)
+    return {"ok": True, "untuk_tim": untuk_tim}
+
+
+@router.get("/kontak")
+def kontak(_=Depends(wa_blast)) -> dict[str, Any]:
+    """Teman petugas dari tab Kontak PIC sheet Broadcast, tanpa diri sendiri."""
+    saya = normalize_petugas(db.get_setting("nama_petugas") or "")
+    try:
+        semua = eskalasi.kontak_pic()
+    except Exception as e:
+        raise HTTPException(502, f"Tab Kontak PIC di sheet Broadcast tidak bisa dibaca: {e}") from e
+    return {"kontak": [k for k in semua if normalize_petugas(k["nama"]) != saya]}
 
 
 class CatatReq(BaseModel):

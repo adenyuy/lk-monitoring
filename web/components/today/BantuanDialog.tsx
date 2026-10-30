@@ -17,26 +17,12 @@ function toneStatus(st: string) {
   return "muted" as const;
 }
 
-/** Popup LK Eskalasi: permasalahan sekolah yang harus dijawab tim terkait (stream), ditulis ke sheet LK Eskalasi. */
-export function EskalasiDialog({ sekolah, onClose }: { sekolah: SekolahLk[]; onClose: () => void }) {
-  const [info, setInfo] = useState<EskalasiInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pilih, setPilih] = useState<string[]>([]);
-  const [masalah, setMasalah] = useState("");
-  const [ket, setKet] = useState("");
-  const [tim, setTim] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [hasil, setHasil] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
-  const tutupRef = useRef<HTMLButtonElement>(null);
-  const npsn = sekolah.map((x) => x.npsn).join(",");
+type Teman = { nama: string; nomor: string };
 
-  useEffect(() => {
-    let batal = false;
-    api<EskalasiInfo>(`/api/eskalasi?npsn=${encodeURIComponent(npsn)}`)
-      .then((d) => { if (!batal) setInfo(d); })
-      .catch((e) => { if (!batal) setError(e instanceof Error ? e.message : String(e)); });
-    return () => { batal = true; };
-  }, [npsn]);
+/** Popup "Butuh bantuan": tanya teman PIC lewat WhatsApp, atau eskalasi ke stream lain lewat LK Eskalasi. */
+export function BantuanDialog({ namaFasil, sekolah, onClose }: { namaFasil: string; sekolah: SekolahLk[]; onClose: () => void }) {
+  const [tab, setTab] = useState<"teman" | "eskalasi">("teman");
+  const tutupRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     tutupRef.current?.focus();
@@ -46,6 +32,152 @@ export function EskalasiDialog({ sekolah, onClose }: { sekolah: SekolahLk[]; onC
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
+
+  return (
+    <div className={s.scrim} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="esk-judul">
+        <header className={s.head}>
+          <div>
+            <h2 id="esk-judul">Butuh bantuan</h2>
+            <p>Pertanyaan fasil {namaFasil} belum bisa Anda jawab? Tanya teman dulu. Kasus unik yang harus dijawab
+              stream lain? Catat di LK Eskalasi.</p>
+          </div>
+          <button ref={tutupRef} type="button" className={s.close} onClick={onClose} aria-label="Tutup">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </header>
+        <div className={s.tabs} role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "teman"} onClick={() => setTab("teman")}>Tanya teman PIC</button>
+          <button type="button" role="tab" aria-selected={tab === "eskalasi"} onClick={() => setTab("eskalasi")}>Eskalasi ke stream lain</button>
+        </div>
+        <div className={s.body}>
+          {tab === "teman" ? <TanyaTeman namaFasil={namaFasil} /> : <FormEskalasi sekolah={sekolah} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Teman petugas dari tab Kontak PIC (sheet Broadcast). Chat dibuka di jendela WhatsApp aplikasi. */
+function TanyaTeman({ namaFasil }: { namaFasil: string }) {
+  const [kontak, setKontak] = useState<Teman[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [cari, setCari] = useState("");
+  const [buka, setBuka] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
+
+  useEffect(() => {
+    api<{ kontak: Teman[] }>("/api/eskalasi/kontak")
+      .then((d) => setKontak(d.kontak))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  async function chat(t: Teman) {
+    setBuka(t.nomor);
+    setInfo(null);
+    const draf = `Halo ${t.nama.split(" ")[0]}, mau tanya soal fasil ${namaFasil}: `;
+    let disalin = false;
+    try {
+      await navigator.clipboard.writeText(draf);
+      disalin = true;
+    } catch {
+      /* clipboard bisa ditolak browser; chat tetap dibuka */
+    }
+    try {
+      await post(`/api/wa/open/${t.nomor}`);
+      setInfo({ tone: "ok", teks: `Chat ${t.nama} terbuka di jendela WhatsApp.${disalin ? " Draf pembuka sudah disalin, tempel dengan Ctrl+V." : ""}` });
+    } catch (e) {
+      setInfo({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBuka(null);
+    }
+  }
+
+  if (error) return <Notice tone="bad" title="Kontak PIC tidak terbaca">{error}</Notice>;
+  if (!kontak) return <div className={s.muted}><Spinner label="Memuat" /> Membaca Kontak PIC…</div>;
+  const q = cari.trim().toLowerCase();
+  const daftar = kontak.filter((k) => !q || k.nama.toLowerCase().includes(q));
+  return (
+    <>
+      <label className={s.field}>
+        <span className={s.label}>Cari teman</span>
+        <input type="search" value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Ketik nama" />
+      </label>
+      {info && <Notice tone={info.tone}>{info.teks}</Notice>}
+      <ul className={s.teman}>
+        {daftar.map((k) => (
+          <li key={k.nomor}>
+            <span className={s.avatar} aria-hidden="true">{k.nama.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</span>
+            <b>{k.nama}</b>
+            <Button variant="secondary" size="sm" loading={buka === k.nomor} disabled={buka !== null} onClick={() => void chat(k)}>
+              Chat
+            </Button>
+          </li>
+        ))}
+        {daftar.length === 0 && <li className={s.muted}>Tidak ada nama yang cocok.</li>}
+      </ul>
+      <p className={s.hint}>Nomor dari tab Kontak PIC di sheet Broadcast.</p>
+    </>
+  );
+}
+
+/** Pasang link LK Eskalasi. Admin: berlaku untuk seluruh tim (disimpan di sheet Akses). */
+function PasangLink({ onSelesai }: { onSelesai: () => void }) {
+  const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function pasang() {
+    setBusy(true);
+    setError(null);
+    try {
+      await post("/api/eskalasi/link", { link });
+      onSelesai();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={s.pasang}>
+      <Notice tone="warn" title="Link LK Eskalasi belum dipasang">
+        Tempel link sheet LK Eskalasi di bawah. Bila akun Anda admin, link ini langsung berlaku untuk seluruh tim.
+      </Notice>
+      <label className={s.field}>
+        <span className={s.label}>Link sheet LK Eskalasi</span>
+        <input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" />
+      </label>
+      {error && <Notice tone="bad" title="Belum bisa dipasang">{error}</Notice>}
+      <div className={s.actions}>
+        <Button loading={busy} disabled={busy || link.trim().length < 10} onClick={pasang}>Pasang link</Button>
+      </div>
+    </div>
+  );
+}
+
+function FormEskalasi({ sekolah }: { sekolah: SekolahLk[] }) {
+  const [info, setInfo] = useState<EskalasiInfo | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pilih, setPilih] = useState<string[]>([]);
+  const [masalah, setMasalah] = useState("");
+  const [ket, setKet] = useState("");
+  const [tim, setTim] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [hasil, setHasil] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
+  const [versi, setVersi] = useState(0);
+  const npsn = sekolah.map((x) => x.npsn).join(",");
+
+  useEffect(() => {
+    let batal = false;
+    api<EskalasiInfo>(`/api/eskalasi?npsn=${encodeURIComponent(npsn)}`)
+      .then((d) => { if (!batal) { setInfo(d); setError(null); } })
+      .catch((e) => { if (!batal) setError(e instanceof Error ? e.message : String(e)); });
+    return () => { batal = true; };
+  }, [npsn, versi]);
 
   const ganti = (daftar: string[], v: string) => (daftar.includes(v) ? daftar.filter((x) => x !== v) : [...daftar, v]);
   const siap = pilih.length > 0 && ket.trim() !== "" && tim.length > 0;
@@ -75,26 +207,14 @@ export function EskalasiDialog({ sekolah, onClose }: { sekolah: SekolahLk[]; onC
 
   const namaSekolah = (n: string) => sekolah.find((x) => x.npsn === n)?.nama;
 
-  return (
-    <div className={s.scrim} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="esk-judul">
-        <header className={s.head}>
-          <div>
-            <h2 id="esk-judul">LK Eskalasi</h2>
-            <p>Untuk masalah khusus yang harus dijawab tim terkait. Ditulis ke sheet LK Eskalasi.</p>
-          </div>
-          <button ref={tutupRef} type="button" className={s.close} onClick={onClose} aria-label="Tutup">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path d="M18 6 6 18M6 6l12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-        </header>
+  if (info?.perlu_link) return <PasangLink onSelesai={() => setVersi((v) => v + 1)} />;
 
-        <div className={s.body}>
+  return (
+    <>
           {error && <Notice tone="bad" title="LK Eskalasi tidak bisa dibuka">{error}</Notice>}
           {!info && !error && <div className={s.muted}><Spinner label="Memuat" /> Membaca LK Eskalasi…</div>}
 
-          {info && (
+          {info?.opsi && (
             <>
               <fieldset className={s.field}>
                 <legend>Sekolah <span>{pilih.length} dipilih</span></legend>
@@ -175,8 +295,6 @@ export function EskalasiDialog({ sekolah, onClose }: { sekolah: SekolahLk[]; onC
               </section>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </>
   );
 }

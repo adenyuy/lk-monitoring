@@ -305,6 +305,7 @@ export type Eskalasi = {
   tgl_awal: string; tgl_selesai: string; status: string; tim: string[];
 };
 export type EskalasiInfo = {
-  opsi: { permasalahan: string[]; status: string[]; tim: string[] };
+  perlu_link: boolean;
+  opsi: { permasalahan: string[]; status: string[]; tim: string[] } | null;
   eskalasi: Eskalasi[];
 };

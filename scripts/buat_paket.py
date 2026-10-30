@@ -4,7 +4,7 @@ Paket = credentials.json (OAuth aplikasi desktop) + alamat tiga sheet tim. Teman
 di langkah "Masuk Google". Alamat sheet tidak pernah ditulis di repo karena sheet dibagikan lewat link.
 
 Pakai:
-    python buat_paket.py credentials.json LINK_BROADCAST LINK_LK LINK_AKSES [-o lk-monitoring.json]
+    python buat_paket.py credentials.json LINK_BROADCAST LINK_LK LINK_AKSES [--eskalasi LINK] [-o lk-monitoring.json]
 
 LINK_* boleh berupa link Google Sheets lengkap atau ID-nya saja.
 Kirim hasilnya lewat jalur pribadi (WA/Drive terbatas), jangan diunggah ke repo.
@@ -31,6 +31,7 @@ def main() -> None:
     ap.add_argument("broadcast", help="link atau ID sheet Broadcast")
     ap.add_argument("lk", help="link atau ID sheet LK Monitoring")
     ap.add_argument("akses", help="link atau ID sheet Akses")
+    ap.add_argument("--eskalasi", help="link atau ID sheet LK Eskalasi (opsional; bisa juga dipasang admin dari aplikasi)")
     ap.add_argument("-o", "--output", type=Path, default=Path("lk-monitoring.json"))
     a = ap.parse_args()
 
@@ -38,6 +39,8 @@ def main() -> None:
     if "installed" not in data:
         sys.exit('credentials.json harus tipe "Desktop app" (ada bagian "installed").')
     data["lkm_sheets"] = {"broadcast": id_sheet(a.broadcast), "lk": id_sheet(a.lk), "akses": id_sheet(a.akses)}
+    if a.eskalasi:
+        data["lkm_sheets"]["eskalasi"] = id_sheet(a.eskalasi)
     a.output.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"Selesai: {a.output.resolve()}")
 

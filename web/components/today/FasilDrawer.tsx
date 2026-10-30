@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import type { Fasil, Tahap } from "@/lib/types";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
-import { EskalasiDialog } from "./EskalasiDialog";
+import { BantuanDialog } from "./BantuanDialog";
 import { LkPanel } from "./LkPanel";
 import { WaPanel } from "./WaPanel";
 import { inisial } from "./FasilList";
@@ -75,10 +75,13 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
             <h2>{data?.nama_fasil ?? "Memuat…"}</h2>
             {data && <span>{data.nomor_tersamar} <Chip tone={toneStatus(data.status)}>{data.status}</Chip></span>}
           </div>
-          {data && data.sekolah.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={() => setEskalasi(true)}
-              title="Catat masalah khusus sekolah yang harus dijawab tim terkait ke LK Eskalasi">
-              Eskalasi
+          {data && (
+            <Button variant="danger" size="sm" className={s.bantuBtn} onClick={() => setEskalasi(true)}
+              title="Tanya teman PIC, atau eskalasi kasus unik ke stream lain lewat LK Eskalasi">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="9.5" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6M12 17.2h.01" />
+              </svg>
+              Butuh bantuan
             </Button>
           )}
           <Button variant="secondary" size="sm" loading={opening} onClick={bukaWa}>Buka di WhatsApp Web</Button>
@@ -105,7 +108,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
           </div>
         )}
       </aside>
-      {eskalasi && data && <EskalasiDialog sekolah={data.sekolah} onClose={() => setEskalasi(false)} />}
+      {eskalasi && data && <BantuanDialog namaFasil={data.nama_fasil} sekolah={data.sekolah} onClose={() => setEskalasi(false)} />}
     </div>
   );
 }

@@ -65,6 +65,8 @@ def save_credentials(raw: bytes) -> None:
     paths.ensure_dirs()
     paths.CREDENTIALS_FILE.write_text(json.dumps(data), encoding="utf-8")
     if ids is not None:
+        if (sheets or {}).get("eskalasi"):  # opsional: sheet LK Eskalasi
+            ids["eskalasi"] = id_sheet(str(sheets["eskalasi"]))
         (paths.DATA_DIR / "sheets.json").write_text(json.dumps(ids), encoding="utf-8")
 
 
