@@ -193,3 +193,15 @@ def test_kolom_cutoff_dari_judul(monkeypatch):
     judul = lk_uji.JUDUL_LAMA[:9] + ["Status Komunikasi (bantuan)", "Waktu Tunggu"] + lk_uji.JUDUL_LAMA[9:]
     monkeypatch.setattr(cutoff, "kolom_lk", lambda week, refresh=False: sheets.parse_kolom(judul))
     assert cutoff._kolom("1", "mingguan")["mulai"] == "L" and cutoff._kolom("1", "harian")["akhir"] == "Q"
+
+
+def test_judul_fasilitator_hilang_karena_table():
+    import pytest
+
+    from app import sheets
+    from tests import lk_uji
+    judul = list(lk_uji.JUDUL_LAMA)
+    i = [sheets._judul(j) for j in judul].index("fasilitator")
+    assert sheets.parse_kolom(judul[:i] + ["Column 6"] + judul[i + 1:]).fasil == sheets.col_letter(i)
+    with pytest.raises(sheets.LkKolomError):  # judul lain yang bukan nama bawaan Table tetap ditolak
+        sheets.parse_kolom(judul[:i] + ["Catatan"] + judul[i + 1:])

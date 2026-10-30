@@ -221,6 +221,12 @@ def parse_kolom(header: list[Any]) -> LkKolom:
         m = _RE_ISIAN.match(h)
         if m:
             isian[m.group(1) + m.group(2)].append(col_letter(i))
+    # Sheet yang diubah jadi Table Google Sheets bisa kehilangan judul (tampil "Column 6"): kolom fasilitator
+    # selalu tepat di kiri "No Fasil", jadi pakai posisi itu bila judulnya kosong / nama bawaan Table.
+    if "fasil" not in pos and "nomor" in pos:
+        i = col_number(pos["nomor"]) - 1
+        if i >= 0 and re.fullmatch(r"(column \d+)?", _judul(header[i])):
+            pos["fasil"] = col_letter(i)
     hilang = [j for j, f in JUDUL_KOLOM.items() if f not in pos]
     hilang += [f"{k.upper()} (sesi {n})" for k, cols in isian.items() for n in (1, 2) if len(cols) < n]
     if hilang:
