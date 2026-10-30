@@ -79,7 +79,8 @@ export function TahapBoard({ fasil, onBuka }: { fasil: FasilRekap[]; onBuka: (no
               {c.isi.map((r) => (
                 <li key={r.nomor || r.nama}>
                   <button type="button" className={`${s.tCard} ${r.perlu_balas ? s.tCardBalas : ""}`}
-                    disabled={!r.nomor} onClick={() => onBuka(r.nomor)}>
+                    disabled={!r.nomor} onClick={() => onBuka(r.nomor)}
+                    title={r.nomor ? undefined : "Nomor WhatsApp fasil ini kosong di sheet Broadcast dan di kolom No Fasil LK. Isi nomornya dulu supaya bisa dibuka."}>
                     <b>{r.nama}</b>
                     {r.isian_perlu > 0 && (
                       <span className={s.tLk} title={`Isian LK lengkap ${r.isian_lengkap} dari ${r.isian_perlu} sekolah yang perlu diisi`}>
@@ -92,6 +93,7 @@ export function TahapBoard({ fasil, onBuka }: { fasil: FasilRekap[]; onBuka: (no
                       </span>
                     )}
                     <span className={s.tPills}>
+                      {!r.nomor && <em className={s.tGagal}>Nomor WA kosong</em>}
                       {r.perlu_balas && <em className={s.tBalas}>Perlu dibalas</em>}
                       {r.p1 > 0 && <em className={s.tP1}>P1 {r.p1}</em>}
                       {r.p2 > 0 && <em className={s.tP2}>P2 {r.p2}</em>}
