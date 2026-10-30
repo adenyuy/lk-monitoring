@@ -114,7 +114,7 @@ def me() -> dict[str, Any]:
     if out["email"]:
         try:
             acc = access_for(out["email"])
-            out["access"] = {"nama_petugas": acc.nama_petugas, "fitur": list(acc.fitur)}
+            out["access"] = {"nama_petugas": acc.nama_petugas, "fitur": list(acc.fitur), "admin": acc.admin}
         except AccessError as e:
             out["access_error"] = str(e)
         except Exception as e:  # mis. sheet Akses tidak bisa dibuka

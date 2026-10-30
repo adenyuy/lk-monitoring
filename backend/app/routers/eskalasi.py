@@ -43,8 +43,8 @@ class LinkReq(BaseModel):
 
 @router.post("/link")
 def pasang_link(req: LinkReq, acc: Access = Depends(wa_blast)) -> dict[str, Any]:
-    """Admin (fitur cutoff) memasang untuk seluruh tim; petugas lain hanya untuk laptopnya sendiri."""
-    untuk_tim = acc.has("cutoff")
+    """Admin memasang untuk seluruh tim; petugas lain hanya untuk laptopnya sendiri."""
+    untuk_tim = acc.admin
     _jalan(eskalasi.pasang_link, req.link, untuk_tim)
     return {"ok": True, "untuk_tim": untuk_tim}
 

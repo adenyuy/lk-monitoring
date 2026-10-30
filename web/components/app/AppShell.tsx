@@ -13,7 +13,7 @@ import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
-import { IconCutoff, IconHariIni, IconLog, IconLogo, IconRekap } from "./Icons";
+import { IconAdmin, IconCutoff, IconHariIni, IconLog, IconLogo, IconRekap } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -117,6 +117,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className={s.ico}><IconCutoff /><span className={s.lockBadge}><LockIcon size={10} /></span></span>
           <span className={s.lbl}>Tarik Cutoff</span>
         </button>
+      )}
+      {me.access?.admin && (
+        <Link href="/admin/" className={s.item} aria-current={aktif("/admin/")}>
+          <span className={s.ico}><IconAdmin /></span><span className={s.lbl}>Admin</span>
+        </Link>
       )}
     </>
   );

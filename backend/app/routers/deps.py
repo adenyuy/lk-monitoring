@@ -23,6 +23,13 @@ def require_access() -> Access:
         raise HTTPException(403, str(e)) from e
 
 
+def require_admin() -> Access:
+    acc = require_access()
+    if not acc.admin:
+        raise HTTPException(403, "Halaman ini khusus admin (catatan \"admin\" di sheet Akses).")
+    return acc
+
+
 def require_feature(feature: str):
     def dep() -> Access:
         acc = require_access()

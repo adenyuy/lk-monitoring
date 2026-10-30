@@ -30,3 +30,6 @@ export const IconTanya = () => (
 export const IconLog = () => (
   <Svg><rect x="3.5" y="4.5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17" /><path d="M8 2.5v4" /><path d="M16 2.5v4" /><path d="M8 14h3" /><path d="M8 17h6" /></Svg>
 );
+export const IconAdmin = () => (
+  <Svg><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z" /><circle cx="12" cy="10.5" r="2.3" /><path d="M8.3 16.2a4.2 4.2 0 0 1 7.4 0" /></Svg>
+);

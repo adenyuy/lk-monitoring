@@ -7,7 +7,7 @@ export type Me = {
   login: { status: "idle" | "running" | "done" | "error"; error: string };
   logged_in: boolean;
   email: string | null;
-  access: { nama_petugas: string; fitur: string[] } | null;
+  access: { nama_petugas: string; fitur: string[]; admin?: boolean } | null;
   access_error: string | null;
   settings: {
     nama_petugas: string | null;
@@ -165,7 +165,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 19;
+export const API_REV = 20;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;

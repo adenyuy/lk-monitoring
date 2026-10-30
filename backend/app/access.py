@@ -1,6 +1,6 @@
 """Daftar akses pengguna dari sheet Akses (milik admin).
 
-Kolom: email | nama_petugas | fitur   (fitur dipisah koma: wa_blast, cutoff)
+Kolom: email | nama_petugas | fitur | catatan   (fitur dipisah koma: wa_blast, cutoff; catatan "admin" = admin)
 """
 
 from dataclasses import dataclass
@@ -20,6 +20,7 @@ class Access:
     email: str
     nama_petugas: str
     fitur: tuple[str, ...]
+    admin: bool = False  # catatan "admin": boleh mengelola sheet Akses dari halaman Admin
 
     def has(self, feature: str) -> bool:
         return feature in self.fitur
@@ -35,6 +36,7 @@ def parse_access(values: list[list[Any]]) -> dict[str, Access]:
         i_fitur = header.index("fitur")
     except ValueError as e:
         raise AccessError("Sheet Akses harus punya kolom: email, nama_petugas, fitur.") from e
+    i_catatan = header.index("catatan") if "catatan" in header else -1
 
     out = {}
     for r in values[1:]:
@@ -45,7 +47,8 @@ def parse_access(values: list[list[Any]]) -> dict[str, Access]:
         fitur = tuple(
             f for f in (x.strip().casefold() for x in cell(i_fitur).split(",")) if f in config.FEATURES
         )
-        out[email] = Access(email=email, nama_petugas=clean_petugas(cell(i_nama)), fitur=fitur)
+        admin = i_catatan >= 0 and cell(i_catatan).casefold() == "admin"
+        out[email] = Access(email=email, nama_petugas=clean_petugas(cell(i_nama)), fitur=fitur, admin=admin)
     return out
 
 
@@ -57,7 +60,7 @@ def read_access(refresh: bool = False) -> dict[str, Access]:
 
     def load() -> dict[str, Access]:
         ss = gspread_client().open_by_key(config.ACCESS_SHEET_ID)
-        values = ss.values_get(f"'{config.ACCESS_TAB}'!A1:C").get("values", [])
+        values = ss.values_get(f"'{config.ACCESS_TAB}'!A1:D").get("values", [])
         return parse_access(values)
 
     return cache.get("access", config.ACCESS_CACHE_SECONDS, load, refresh)
