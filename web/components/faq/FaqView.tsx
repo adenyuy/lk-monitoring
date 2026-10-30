@@ -217,7 +217,10 @@ const GRUP: { judul: string; isi: T[] }[] = [
             menggantinya di panel LK. Status komunikasi diisi sekali per fasil untuk semua sekolahnya, dan terisi
             otomatis dari chat minggu ini: <b>Terhubung</b> bila fasil membalas, <b>Chat hanya di Read</b> bila pesan
             hanya dibaca, dan <b>Nomor Tidak Terhubung Whatsapp</b> bila nomornya tidak terdaftar. Pilihan yang Anda isi
-            sendiri (mis. Respon Lambat) tidak ditimpa. Posisi kolom dibaca dari judul di baris 2, jadi kalau admin
+            sendiri (mis. Respon Lambat) tidak ditimpa. Alasan yang sudah pasti juga langsung ditulis ke LK di kolom sesi
+            hari ini: sekolah belum submit dengan progres di bawah 50% mendapat alasan submit <b>Progres fisik belum
+            mencapai 50%</b>, dan semua sekolah yang belum submit mendapat alasan reviu <b>Sekolah Belum Submit</b>.
+            Bila sekolah itu kemudian submit, alasan otomatis tadi dikosongkan lagi. Posisi kolom dibaca dari judul di baris 2, jadi kalau admin
             menyisipkan atau memindah kolom, aplikasi ikut menyesuaikan.</p>
         ),
       },

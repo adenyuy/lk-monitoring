@@ -58,3 +58,37 @@ def test_status_minggu_dari_chat():
     store.save_chat_status(b, "dibaca", "", now)
     st = lk_otomatis.status_minggu()
     assert (st.get(a), st.get(b), st.get(c)) == (lk_otomatis.TERHUBUNG, lk_otomatis.HANYA_READ, lk_otomatis.TIDAK_WA)
+
+
+def test_isi_alasan_yang_sudah_pasti(monkeypatch):
+    def baris(npsn, progres, submit, c1=""):
+        b = _baris(npsn, A, "Prioritas 1", "")
+        b[11], b[12] = progres, submit
+        b[18] = c1  # C1 sesi Senin–Rabu
+        return b
+
+    data = lk_uji.parse([
+        baris("1", 0.3, "Tidak"),                                 # < 50% belum submit: B1 + C1
+        baris("2", 0.6, "Tidak"),                                 # >= 50% belum submit: C1 saja
+        baris("3", 0.7, "Ya", c1="18. Sekolah Belum Submit"),     # sudah submit: C1 otomatis dikosongkan
+        baris("4", 0.3, "Tidak", c1="17. Fasil tidak dapat dihubungi"),  # isian manual tidak ditimpa
+    ])
+    ditulis = []
+    db.set_setting("nama_petugas", "Petugas Uji")
+    monkeypatch.setattr(lk_otomatis.tahap, "blok_hari_ini", lambda: 1)
+    monkeypatch.setattr(lk_otomatis, "week_aktif", lambda: "1")
+    monkeypatch.setattr(lk_otomatis, "read_lk", lambda week, refresh=False: data)
+    monkeypatch.setattr(lk_otomatis, "read_validasi", lambda: {
+        "alasan_submit": ["1. Progres fisik belum mencapai 50%", "8. Lainnya"],
+        "alasan_reviu": ["17. Fasil tidak dapat dihubungi", "18. Sekolah Belum Submit"]})
+    monkeypatch.setattr(lk_otomatis, "kolom_lk", lambda week, refresh=False: lk_uji.KOL)
+    monkeypatch.setattr(lk_otomatis, "write_isian", lambda week, p, kol=None: ditulis.extend(p))
+    b1, c1 = lk_uji.KOL.blok[1][2], lk_uji.KOL.blok[1][4]
+    assert lk_otomatis.isi_alasan() == 4
+    hasil = {s.npsn: sel for s, sel in ditulis}
+    assert hasil["1"] == {b1: "1. Progres fisik belum mencapai 50%", c1: "18. Sekolah Belum Submit"}
+    assert hasil["2"] == {c1: "18. Sekolah Belum Submit"}
+    assert hasil["3"] == {c1: ""}
+    assert hasil["4"] == {b1: "1. Progres fisik belum mencapai 50%"}
+    ditulis.clear()
+    assert lk_otomatis.isi_alasan() == 0  # sudah terisi

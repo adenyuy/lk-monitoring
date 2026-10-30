@@ -6,6 +6,11 @@
 
 Terhubung menimpa status kosong atau status otomatis lain (Read / Tidak terhubung / Checklist 1); status lain
 hanya mengisi yang kosong, jadi pilihan manual (mis. "Respon Lambat") tidak tertimpa. Sekolah Selesai tidak disentuh.
+
+Alasan yang sudah pasti dari data LK juga diisi di kolom sesi hari ini (bila masih kosong):
+- belum submit dan progres < 50%  -> alasan submit "Progres fisik belum mencapai 50%"
+- belum submit                    -> alasan reviu "Sekolah Belum Submit"
+Bila datanya sudah berubah (mis. sekolah sudah submit), alasan otomatis yang tidak berlaku lagi dikosongkan.
 Dijalankan di latar (tidak menahan pengecekan chat) dan tidak pernah menggagalkan aksi utama.
 """
 
@@ -16,7 +21,10 @@ import time
 
 from . import aktivitas, db, tahap
 from .send_queue import GAGAL_PERMANEN
-from .sheets import kolom_lk, nomor_key, read_lk, read_validasi, sekolah_per_fasil, week_aktif, write_isian
+from .sheets import (
+    ISIAN_KEYS, kolom_lk, nomor_key, nomor_lk, normalize_petugas, read_lk, read_validasi, sekolah_per_fasil, week_aktif,
+    write_isian,
+)
 
 log = logging.getLogger(__name__)
 _lock = threading.Lock()
@@ -71,8 +79,70 @@ def status_minggu() -> dict[str, str]:
     return out
 
 
+def _cari(opsi: list[str], kata: str) -> str:
+    return next((o for o in opsi if kata in o.lower()), "")
+
+
+def alasan_pasti(s, opsi: dict[str, list[str]]) -> dict[str, str]:
+    """{b1/c1: pilihan} yang sudah pasti dari progres & status submit (sama dengan isianOtomatis di web)."""
+    if str(s.submit).strip().lower() == "ya":
+        return {}
+    out = {}
+    if s.progres is None or s.progres < 50:
+        out["b1"] = _cari(opsi["alasan_submit"], "belum mencapai 50")
+    out["c1"] = _cari(opsi["alasan_reviu"], "belum submit")
+    return {k: v for k, v in out.items() if v}
+
+
+def isi_alasan() -> int:
+    """Isi alasan yang sudah pasti di kolom sesi hari ini untuk sekolah binaan petugas ini."""
+    petugas = normalize_petugas(db.get_setting("nama_petugas") or "")
+    if not petugas:
+        return 0
+    week = week_aktif()
+    opsi = read_validasi()
+    otomatis = {"b1": _cari(opsi["alasan_submit"], "belum mencapai 50"), "c1": _cari(opsi["alasan_reviu"], "belum submit")}
+    blok = tahap.blok_hari_ini()
+    kol = kolom_lk(week, refresh=True)
+    ubah, per_fasil = [], {}
+    for s in read_lk(week, refresh=True):
+        if normalize_petugas(s.petugas) != petugas or not tahap.perlu_isian(s):
+            continue
+        isi = s.isian.get(blok, {})
+        pasti = alasan_pasti(s, opsi)
+        sel = {}
+        for k, oto in otomatis.items():
+            lama = (isi.get(k) or "").strip()
+            if k in pasti and not lama:
+                sel[k] = pasti[k]
+            elif k not in pasti and oto and lama == oto:
+                sel[k] = ""  # tidak berlaku lagi
+        if sel:
+            ubah.append((s, sel))
+            per_fasil.setdefault((nomor_lk(s) or [f"nama:{s.fasil}"])[0], []).append(s)
+    if not ubah:
+        return 0
+    write_isian(week, [(s, {kol.blok[blok][ISIAN_KEYS.index(k)]: v for k, v in sel.items()}) for s, sel in ubah], kol)
+    for s, sel in ubah:
+        s.isian.setdefault(blok, {}).update(sel)
+    for nomor, sekolah in per_fasil.items():
+        aktivitas.catat(nomor, "lk", f"Alasan otomatis (belum 50% / belum submit) untuk {len(sekolah)} sekolah",
+                        sekolah[0].fasil)
+    return len(ubah)
+
+
 def sinkron() -> int:
-    """Tulis status komunikasi otomatis ke LK. Mengembalikan jumlah sekolah yang diubah."""
+    """Tulis isian otomatis (status komunikasi + alasan pasti) ke LK. Mengembalikan jumlah sekolah yang diubah."""
+    n = 0
+    try:
+        with _lock:
+            n = isi_alasan()
+    except Exception:
+        log.exception("Gagal mengisi alasan otomatis")
+    return n + _sinkron_komunikasi()
+
+
+def _sinkron_komunikasi() -> int:
     try:
         with _lock:
             status = status_minggu()
@@ -107,7 +177,7 @@ def sinkron() -> int:
 
 def _loop() -> None:
     while True:
-        _bangun.wait()
+        _bangun.wait(timeout=30 * 60)  # juga tiap 30 menit: progres/submit bisa berubah karena tarik cutoff
         time.sleep(5)  # kumpulkan beberapa pemicu (satu putaran cek chat) jadi sekali tulis
         _bangun.clear()
         sinkron()
