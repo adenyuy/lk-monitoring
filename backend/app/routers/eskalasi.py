@@ -5,7 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .. import aktivitas, db, eskalasi
+from .. import aktivitas, db, eskalasi, schedule
+from ..wa import actions
+from . import chat
 from ..access import Access
 from ..sheets import nomor_lk, normalize_petugas, read_lk, week_aktif
 from .deps import require_feature
@@ -86,3 +88,61 @@ def catat(req: CatatReq, _=Depends(wa_blast)) -> dict[str, Any]:
                     f"Eskalasi ke {', '.join(req.tim)}: {req.permasalahan or 'tanpa kelompok'} untuk {nama}",
                     sekolah[0].fasil)
     return hasil
+
+
+# ---------- chat teman PIC (dibaca & dibalas di panel aplikasi, bukan di WhatsApp Web) ----------
+
+def _nomor_teman(nomor: str) -> dict[str, str]:
+    from ..sheets import normalize_nomor
+
+    n = normalize_nomor(nomor)
+    try:
+        teman = next((k for k in eskalasi.kontak_pic() if k["nomor"] == n), None)
+    except Exception as e:
+        raise HTTPException(502, f"Tab Kontak PIC di sheet Broadcast tidak bisa dibaca: {e}") from e
+    if not teman:
+        raise HTTPException(403, "Nomor ini tidak ada di Kontak PIC.")
+    return teman
+
+
+def _percakapan(rows) -> dict[str, Any]:
+    return {"pesan": [{"keluar": r.out, "teks": r.text, "waktu": r.waktu, "status": r.status, "kutipan": r.kutipan}
+                      for r in rows if r.text][-40:],
+            "dibaca_pada": schedule.now().strftime("%H.%M")}
+
+
+@router.post("/teman/{nomor}/baca")
+def baca_teman(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
+    t = _nomor_teman(nomor)
+    chat._siap()
+    _, rows = chat._jalan(lambda b: actions.read_thread(b, t["nomor"]), timeout=90)
+    return _percakapan(rows)
+
+
+class KirimTemanReq(BaseModel):
+    pesan: str = Field(min_length=1, max_length=chat.MAKS_BALASAN)
+    fasil: str = ""  # nomor fasil yang ditanyakan, untuk riwayat
+
+
+@router.post("/teman/{nomor}/kirim")
+def kirim_teman(nomor: str, req: KirimTemanReq, _=Depends(wa_blast)) -> dict[str, Any]:
+    t = _nomor_teman(nomor)
+    teks = req.pesan.strip()
+    if not teks:
+        raise HTTPException(400, "Pesan masih kosong.")
+    chat._siap()
+
+    def run(b):
+        res = actions.reply(b, t["nomor"], teks)
+        if res.status != "terkirim":
+            return res, None
+        b.page.wait_for_timeout(800)
+        return res, actions.read_thread(b, t["nomor"])
+
+    res, thread = chat._jalan(run, timeout=120)
+    if res.status != "terkirim":
+        raise HTTPException(502, f"Pesan belum terkirim: {res.keterangan}")
+    if req.fasil:
+        from ..sheets import normalize_nomor
+        aktivitas.catat(normalize_nomor(req.fasil), "lk", f"Ditanyakan ke teman PIC {t['nama']}")
+    return _percakapan(thread[1])

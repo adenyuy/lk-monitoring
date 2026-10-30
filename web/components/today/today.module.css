@@ -1618,3 +1618,37 @@
 .bantuBtn:hover {
   border-color: var(--bad-fg);
 }
+
+.hide {
+  display: none !important;
+}
+
+/* Tombol kecil di bawah gelembung pesan: teruskan ke teman / pakai jawaban teman */
+.msgAksi {
+  margin-left: 8px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.msgAksi:hover {
+  text-decoration: underline;
+}
+
+.sideTeman {
+  box-shadow: inset 0 3px 0 var(--primary);
+}
+
+.temanJudul {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.temanJudul > span {
+  font-weight: 400;
+}

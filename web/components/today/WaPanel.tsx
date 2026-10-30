@@ -8,7 +8,7 @@ import { JawabPicker } from "./JawabPicker";
 import s from "./today.module.css";
 
 /** Tampilkan *teks* gaya WhatsApp sebagai huruf tebal. */
-function formatWa(teks: string) {
+export function formatWa(teks: string) {
   return teks.split(/(\*[^*\n]+\*)/g).map((bagian, i) =>
     bagian.length > 2 && bagian.startsWith("*") && bagian.endsWith("*")
       ? <b key={i}>{bagian.slice(1, -1)}</b>
@@ -104,10 +104,19 @@ ${minta} ${tutup}` });
   return out;
 }
 
-const CENTANG: Record<string, string> = { read: "Dibaca", delivered: "Diterima", sent: "Terkirim", pending: "Menunggu" };
+export const CENTANG: Record<string, string> = { read: "Dibaca", delivered: "Diterima", sent: "Terkirim", pending: "Menunggu" };
 
 /** Kolom "Di WhatsApp": baca percakapan langsung dari WhatsApp app dan balas dari sini. */
-export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil; onChanged: () => void }) {
+export function WaPanel({ nomor, data, onChanged, onTeruskan, isi, tersembunyi }: {
+  nomor: string;
+  data: Fasil;
+  onChanged: () => void;
+  /** Teruskan pesan fasil ke teman PIC */
+  onTeruskan: (teks: string) => void;
+  /** Isi kotak balasan dari luar (jawaban teman); `kunci` berubah tiap kali diisi */
+  isi: { teks: string; kunci: number } | null;
+  tersembunyi: boolean;
+}) {
   const [chat, setChat] = useState<Percakapan | null>(null);
   const [membaca, setMembaca] = useState(false);
   const [catatan, setCatatan] = useState<string | null>(null);
@@ -137,6 +146,12 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
   }, [baca]);
 
   useEffect(() => {
+    // Jawaban teman yang dipilih "Pakai untuk balas fasil"
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isi) { setTeks(isi.teks); setJenis(""); }
+  }, [isi]);
+
+  useEffect(() => {
     const el = threadRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [chat]);
@@ -162,7 +177,7 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
   const pesan = chat?.pesan ?? [];
 
   return (
-    <section className={`${s.side} ${s.sideWa}`} aria-label="Di WhatsApp">
+    <section className={`${s.side} ${s.sideWa} ${tersembunyi ? s.hide : ""}`} aria-label="Di WhatsApp">
       <h3>
         Di WhatsApp
         <button type="button" className={s.linkBtn} onClick={() => void baca()} disabled={membaca}>
@@ -181,6 +196,12 @@ export function WaPanel({ nomor, data, onChanged }: { nomor: string; data: Fasil
               <div className={s.msgMeta}>
                 {m.waktu || (m.keluar ? "Kamu" : "Fasil")}
                 {m.keluar && m.status ? `, ${CENTANG[m.status] ?? m.status}` : ""}
+                {!m.keluar && (
+                  <button type="button" className={s.msgAksi} onClick={() => onTeruskan(m.teks)}
+                    title="Tanyakan pesan ini ke teman PIC">
+                    Teruskan ke teman
+                  </button>
+                )}
               </div>
             </div>
           ))

@@ -106,3 +106,33 @@ def test_pasang_link_untuk_tim(monkeypatch, tmp_path):
     assert eskalasi.sheet_id() == sid  # tersimpan di sheets.json laptop ini
     with pytest.raises(eskalasi.EskalasiError):
         eskalasi.pasang_link("bukan link", False)
+
+
+def test_chat_teman_hanya_kontak_pic(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.routers import eskalasi as r
+    from app.wa import actions
+
+    monkeypatch.setattr(eskalasi, "kontak_pic", lambda: [{"nama": "Ani", "nomor": "6281234567890"}])
+    monkeypatch.setattr(r.chat, "_siap", lambda: None)
+    baris = [actions.Row(id="1", out=False, text="Bisa, caranya begini", waktu="10.00", status="")]
+    terkirim = []
+
+    def jalan(fn, timeout):
+        b = type("B", (), {"page": type("P", (), {"wait_for_timeout": lambda self, ms: None})()})()
+        return fn(b)
+
+    monkeypatch.setattr(r.chat, "_jalan", jalan)
+    monkeypatch.setattr(actions, "read_thread", lambda b, n: (None, baris))
+    monkeypatch.setattr(actions, "reply", lambda b, n, t: terkirim.append((n, t)) or type("R", (), {"status": "terkirim"})())
+    app.dependency_overrides[r.wa_blast] = lambda: None
+    try:
+        c = TestClient(app)
+        assert c.post("/api/eskalasi/teman/6289999999999/baca").status_code == 403  # bukan teman PIC
+        assert c.post("/api/eskalasi/teman/081234567890/baca").json()["pesan"][0]["teks"] == "Bisa, caranya begini"
+        assert c.post("/api/eskalasi/teman/6281234567890/kirim", json={"pesan": " tanya "}).status_code == 200
+        assert terkirim == [("6281234567890", "tanya")]
+    finally:
+        app.dependency_overrides.clear()

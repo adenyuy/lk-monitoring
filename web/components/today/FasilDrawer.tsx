@@ -6,6 +6,7 @@ import type { Fasil, Tahap } from "@/lib/types";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { BantuanDialog } from "./BantuanDialog";
 import { LkPanel } from "./LkPanel";
+import { TemanPanel, type Teman } from "./TemanPanel";
 import { WaPanel } from "./WaPanel";
 import { inisial } from "./FasilList";
 import s from "./today.module.css";
@@ -24,7 +25,10 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
-  const [eskalasi, setEskalasi] = useState(false);
+  // Butuh bantuan: null = tertutup; terusan = pesan fasil yang diteruskan ("" = dibuka biasa)
+  const [bantuan, setBantuan] = useState<{ terusan: string } | null>(null);
+  const [teman, setTeman] = useState<(Teman & { draf: string; kunci: number }) | null>(null);
+  const [isiFasil, setIsiFasil] = useState<{ teks: string; kunci: number } | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -76,7 +80,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
             {data && <span>{data.nomor_tersamar} <Chip tone={toneStatus(data.status)}>{data.status}</Chip></span>}
           </div>
           {data && (
-            <Button variant="danger" size="sm" className={s.bantuBtn} onClick={() => setEskalasi(true)}
+            <Button variant="danger" size="sm" className={s.bantuBtn} onClick={() => setBantuan({ terusan: "" })}
               title="Tanya teman PIC, atau eskalasi kasus unik ke stream lain lewat LK Eskalasi">
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <circle cx="12" cy="12" r="9.5" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6M12 17.2h.01" />
@@ -104,11 +108,27 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
                 void muatUlang(); // perbarui tahap "Isian LK lengkap"
               }} />
 
-            <WaPanel nomor={nomor} data={data} onChanged={() => void muatUlang()} />
+            <WaPanel nomor={nomor} data={data} onChanged={() => void muatUlang()} tersembunyi={!!teman} isi={isiFasil}
+              onTeruskan={(teks) => setBantuan({ terusan: teks })} />
+            {teman && (
+              <TemanPanel key={teman.kunci} teman={teman} draf={teman.draf} nomorFasil={nomor}
+                onKembali={() => setTeman(null)}
+                onPakai={(teks) => { setIsiFasil({ teks, kunci: Date.now() }); setTeman(null); }} />
+            )}
           </div>
         )}
       </aside>
-      {eskalasi && data && <BantuanDialog namaFasil={data.nama_fasil} sekolah={data.sekolah} onClose={() => setEskalasi(false)} />}
+      {bantuan && data && (
+        <BantuanDialog namaFasil={data.nama_fasil} sekolah={data.sekolah} terusan={bantuan.terusan}
+          onClose={() => setBantuan(null)}
+          onPilihTeman={(t) => {
+            const draf = bantuan.terusan
+              ? `*Diteruskan dari fasil ${data.nama_fasil}:*\n${bantuan.terusan.split("\n").map((b) => `> ${b}`).join("\n")}\n\nPertanyaan saya: `
+              : `Halo ${t.nama.split(" ")[0]}, mau tanya soal fasil ${data.nama_fasil}: `;
+            setTeman({ ...t, draf, kunci: Date.now() });
+            setBantuan(null);
+          }} />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import type { EskalasiInfo, SekolahLk } from "@/lib/types";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
+import type { Teman } from "./TemanPanel";
 import s from "./eskalasi.module.css";
 
 const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -17,10 +18,16 @@ function toneStatus(st: string) {
   return "muted" as const;
 }
 
-type Teman = { nama: string; nomor: string };
 
 /** Popup "Butuh bantuan": tanya teman PIC lewat WhatsApp, atau eskalasi ke stream lain lewat LK Eskalasi. */
-export function BantuanDialog({ namaFasil, sekolah, onClose }: { namaFasil: string; sekolah: SekolahLk[]; onClose: () => void }) {
+export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClose }: {
+  namaFasil: string;
+  sekolah: SekolahLk[];
+  /** Pesan fasil yang akan diteruskan ke teman (dari tombol "Teruskan ke teman"); "" bila dibuka biasa */
+  terusan: string;
+  onPilihTeman: (t: Teman) => void;
+  onClose: () => void;
+}) {
   const [tab, setTab] = useState<"teman" | "eskalasi">("teman");
   const tutupRef = useRef<HTMLButtonElement>(null);
 
@@ -38,9 +45,9 @@ export function BantuanDialog({ namaFasil, sekolah, onClose }: { namaFasil: stri
       <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="esk-judul">
         <header className={s.head}>
           <div>
-            <h2 id="esk-judul">Butuh bantuan</h2>
-            <p>Pertanyaan fasil {namaFasil} belum bisa Anda jawab? Tanya teman dulu. Kasus unik yang harus dijawab
-              stream lain? Catat di LK Eskalasi.</p>
+            <h2 id="esk-judul">{terusan ? "Teruskan ke teman PIC" : "Butuh bantuan"}</h2>
+            <p>{terusan ? "Pilih teman. Chat-nya dibuka di panel kanan dengan pesan fasil sudah dikutip."
+              : `Pertanyaan fasil ${namaFasil} belum bisa Anda jawab? Tanya teman dulu. Kasus unik yang harus dijawab stream lain? Catat di LK Eskalasi.`}</p>
           </div>
           <button ref={tutupRef} type="button" className={s.close} onClick={onClose} aria-label="Tutup">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -48,52 +55,30 @@ export function BantuanDialog({ namaFasil, sekolah, onClose }: { namaFasil: stri
             </svg>
           </button>
         </header>
-        <div className={s.tabs} role="tablist">
+        {terusan && <blockquote className={s.terusan}>{terusan}</blockquote>}
+        {!terusan && <div className={s.tabs} role="tablist">
           <button type="button" role="tab" aria-selected={tab === "teman"} onClick={() => setTab("teman")}>Tanya teman PIC</button>
           <button type="button" role="tab" aria-selected={tab === "eskalasi"} onClick={() => setTab("eskalasi")}>Eskalasi ke stream lain</button>
-        </div>
+        </div>}
         <div className={s.body}>
-          {tab === "teman" ? <TanyaTeman namaFasil={namaFasil} /> : <FormEskalasi sekolah={sekolah} />}
+          {tab === "teman" || terusan ? <TanyaTeman onPilih={onPilihTeman} /> : <FormEskalasi sekolah={sekolah} />}
         </div>
       </div>
     </div>
   );
 }
 
-/** Teman petugas dari tab Kontak PIC (sheet Broadcast). Chat dibuka di jendela WhatsApp aplikasi. */
-function TanyaTeman({ namaFasil }: { namaFasil: string }) {
+/** Teman petugas dari tab Kontak PIC (sheet Broadcast). Chat dibuka di panel kanan aplikasi. */
+function TanyaTeman({ onPilih }: { onPilih: (t: Teman) => void }) {
   const [kontak, setKontak] = useState<Teman[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cari, setCari] = useState("");
-  const [buka, setBuka] = useState<string | null>(null);
-  const [info, setInfo] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
 
   useEffect(() => {
     api<{ kontak: Teman[] }>("/api/eskalasi/kontak")
       .then((d) => setKontak(d.kontak))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
-
-  async function chat(t: Teman) {
-    setBuka(t.nomor);
-    setInfo(null);
-    const draf = `Halo ${t.nama.split(" ")[0]}, mau tanya soal fasil ${namaFasil}: `;
-    let disalin = false;
-    try {
-      await navigator.clipboard.writeText(draf);
-      disalin = true;
-    } catch {
-      /* clipboard bisa ditolak browser; chat tetap dibuka */
-    }
-    try {
-      await post(`/api/wa/open/${t.nomor}`);
-      setInfo({ tone: "ok", teks: `Chat ${t.nama} terbuka di jendela WhatsApp.${disalin ? " Draf pembuka sudah disalin, tempel dengan Ctrl+V." : ""}` });
-    } catch (e) {
-      setInfo({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setBuka(null);
-    }
-  }
 
   if (error) return <Notice tone="bad" title="Kontak PIC tidak terbaca">{error}</Notice>;
   if (!kontak) return <div className={s.muted}><Spinner label="Memuat" /> Membaca Kontak PIC…</div>;
@@ -105,15 +90,12 @@ function TanyaTeman({ namaFasil }: { namaFasil: string }) {
         <span className={s.label}>Cari teman</span>
         <input type="search" value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Ketik nama" />
       </label>
-      {info && <Notice tone={info.tone}>{info.teks}</Notice>}
       <ul className={s.teman}>
         {daftar.map((k) => (
           <li key={k.nomor}>
             <span className={s.avatar} aria-hidden="true">{k.nama.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</span>
             <b>{k.nama}</b>
-            <Button variant="secondary" size="sm" loading={buka === k.nomor} disabled={buka !== null} onClick={() => void chat(k)}>
-              Chat
-            </Button>
+            <Button variant="secondary" size="sm" onClick={() => onPilih(k)}>Chat</Button>
           </li>
         ))}
         {daftar.length === 0 && <li className={s.muted}>Tidak ada nama yang cocok.</li>}

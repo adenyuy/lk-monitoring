@@ -226,7 +226,9 @@ const GRUP: { judul: string; isi: T[] }[] = [
         q: "Pertanyaan fasil tidak bisa saya jawab. Minta bantuan ke mana?",
         a: (
           <p>Buka fasilnya lalu tekan tombol merah <b>Butuh bantuan</b>. Di tab <b>Tanya teman PIC</b> pilih teman dari
-            Kontak PIC: chat-nya terbuka di jendela WhatsApp aplikasi dan draf pembuka sudah disalin. Untuk kasus unik yang
+            Kontak PIC: chat-nya terbuka di panel kanan, menggantikan chat fasil sementara. Bisa juga langsung dari pesan
+            fasil: tekan <b>Teruskan ke teman</b> di bawah pesannya, maka pesan itu ikut dikutip. Jawaban teman bisa
+            dipindah ke kotak balasan fasil dengan <b>Pakai untuk balas fasil</b>. Untuk kasus unik yang
             harus dijawab stream lain, pakai tab <b>Eskalasi ke stream lain</b>: pilih sekolah, kelompok permasalahan,
             tulis keterangan, centang tim tujuan, lalu catat. Aplikasi menulisnya ke sheet LK Eskalasi dengan tanggal hari
             ini, dan status dari tim terkait bisa dilihat di tab yang sama. Saat pertama dipakai, admin cukup menempel
