@@ -18,6 +18,10 @@ def _snapshot() -> dict[str, Any]:
     except Exception as e:
         return {"state": "error", "nomor": "", "nomor_tersamar": "", "error": str(e)}
     if snap["state"] == "logged_in":
+        if not db.get_setting("wa_terhubung", False):
+            from .. import chat_refresh
+
+            chat_refresh.trigger()  # baru pertama tertaut: langsung pindai chat fasil
         db.set_setting("wa_terhubung", True)
         db.set_setting("wa_nomor", snap["nomor"])
     snap.pop("nomor", None)  # nomor lengkap tidak dikirim ke UI
