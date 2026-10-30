@@ -452,19 +452,63 @@ def riwayat() -> list[dict[str, Any]]:
 
 # ---------- riwayat bersama (semua admin) ----------
 
+def _tambah_log(ss, baris: list[list]) -> None:
+    if LOG_TAB not in [w.title for w in ss.worksheets()]:
+        ws = ss.add_worksheet(LOG_TAB, rows=200, cols=len(LOG_JUDUL))
+        ss.batch_update({"requests": [{"updateSheetProperties": {
+            "properties": {"sheetId": ws.id, "hidden": True}, "fields": "hidden"}}]})
+        ss.values_update(f"'{LOG_TAB}'!A1", params={"valueInputOption": "RAW"}, body={"values": [LOG_JUDUL]})
+    ss.values_append(f"'{LOG_TAB}'!A:F", params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"},
+                     body={"values": baris})
+    cache.clear()
+
+
 def catat_bersama(baris: list) -> None:
     """Tambahkan satu baris ke tab tersembunyi 'Log Tarik Data'. Tidak pernah menggagalkan tarikan."""
     try:
-        ss = gspread_client().open_by_key(config.LK_SHEET_ID)
-        if LOG_TAB not in [w.title for w in ss.worksheets()]:
-            ws = ss.add_worksheet(LOG_TAB, rows=200, cols=len(LOG_JUDUL))
-            ss.batch_update({"requests": [{"updateSheetProperties": {
-                "properties": {"sheetId": ws.id, "hidden": True}, "fields": "hidden"}}]})
-            ss.values_update(f"'{LOG_TAB}'!A1", params={"valueInputOption": "RAW"}, body={"values": [LOG_JUDUL]})
-        ss.values_append(f"'{LOG_TAB}'!A:F", params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"},
-                         body={"values": [baris]})
+        _tambah_log(gspread_client().open_by_key(config.LK_SHEET_ID), [baris])
     except Exception:
         log.exception("Gagal mencatat riwayat tarik ke LK")
+
+
+def _baca_log(ss) -> list[dict[str, Any]]:
+    if LOG_TAB not in [w.title for w in ss.worksheets()]:
+        return []
+    out = []
+    for r in ss.values_get(f"'{LOG_TAB}'!A2:F").get("values", []):
+        r = list(r) + [""] * (6 - len(r))
+        if r[0]:
+            out.append({"waktu": r[0], "mode": r[1], "week": r[2], "file": r[3],
+                        "sekolah": int(r[4]) if str(r[4]).isdigit() else 0, "oleh": r[5]})
+    return out
+
+
+def _kunci(r: dict[str, Any]) -> tuple:
+    return (r["mode"], str(r["week"]), r["waktu"][:16])
+
+
+def susulkan_riwayat() -> int:
+    """Sekali per laptop: kirim riwayat tarik lokal (dari sebelum ada log bersama) ke 'Log Tarik Data',
+    supaya tarikan lama dari laptop ini ikut terlihat di aplikasi admin lain."""
+    if db.get_setting("cutoff_log_disusulkan"):
+        return 0
+    try:
+        lokal = riwayat()
+        if lokal:
+            ss = gspread_client().open_by_key(config.LK_SHEET_ID)
+            ada = {_kunci(r) for r in _baca_log(ss)}
+            petugas = db.get_setting("nama_petugas") or ""
+            baru = [[r["waktu"], r["mode"], r["week"], r["file"], r["sekolah"], petugas]
+                    for r in lokal if _kunci(r) not in ada]
+            if baru:
+                _tambah_log(ss, baru)
+        else:
+            baru = []
+        db.set_setting("cutoff_log_disusulkan", schedule.now().isoformat(timespec="seconds"))
+        return len(baru)
+    except Exception:
+        log.exception("Gagal menyusulkan riwayat tarik ke LK")
+        return 0
 
 
 _RE_CATATAN = re.compile(r"Update terakhir \((.+?)\): (\d{1,2} \w{3} \d{4} \d{1,2}:\d{2})(?:\nsumber: (.*))?(?:\noleh: (.*))?")
@@ -488,13 +532,7 @@ def dari_catatan(note: str, week: str) -> dict[str, Any] | None:
 def _baca_bersama() -> list[dict[str, Any]]:
     ss = gspread_client().open_by_key(config.LK_SHEET_ID)
     judul = [w.title for w in ss.worksheets()]
-    out: list[dict[str, Any]] = []
-    if LOG_TAB in judul:
-        for r in ss.values_get(f"'{LOG_TAB}'!A2:F").get("values", []):
-            r = list(r) + [""] * (6 - len(r))
-            if r[0]:
-                out.append({"waktu": r[0], "mode": r[1], "week": r[2], "file": r[3],
-                            "sekolah": int(r[4]) if str(r[4]).isdigit() else 0, "oleh": r[5]})
+    out = _baca_log(ss)
     # Catatan di judul kolom: tarikan terakhir per jenis, juga dari versi aplikasi yang belum mencatat log
     weeks = [t for t in judul if t.upper().startswith(config.LK_WEEK_PREFIX.upper())]
     ranges = [f"'{t}'!A{WEEK_FIRST_ROW - 1}:BZ{WEEK_FIRST_ROW - 1}" for t in weeks]
@@ -525,7 +563,7 @@ def riwayat_semua() -> list[dict[str, Any]]:
     petugas = db.get_setting("nama_petugas") or ""
     lokal = [{**r, "oleh": petugas} for r in riwayat()]
     for r in bersama + lokal:  # tarikan yang sama (menit yang sama) digabung, isian kosong dilengkapi
-        k = (r["mode"], str(r["week"]), r["waktu"][:16])
+        k = _kunci(r)
         gabung[k] = {**gabung.get(k, {}), **{a: b for a, b in r.items() if b not in ("", 0, None)}}
     return sorted(({"file": "", "sekolah": 0, "oleh": "", "week": "", **v} for v in gabung.values()),
                   key=lambda r: r["waktu"])

@@ -140,6 +140,22 @@ def test_riwayat_dari_catatan_dan_log(monkeypatch):
     assert len(r) == 2 and r[1]["sekolah"] == 9000 and r[1]["oleh"] == "Kalica"  # catatan + log digabung
 
 
+def test_susulkan_riwayat_lokal_sekali(monkeypatch):
+    from app import db
+    ditambah = []
+    lokal = [{"waktu": "2026-10-27T09:00:10+07:00", "mode": "harian", "week": "1", "file": "a.csv", "sekolah": 10},
+             {"waktu": "2026-10-28T09:00:10+07:00", "mode": "harian", "week": "1", "file": "b.csv", "sekolah": 11}]
+    monkeypatch.setattr(cutoff, "riwayat", lambda: lokal)
+    monkeypatch.setattr(cutoff, "gspread_client", lambda: type("GC", (), {"open_by_key": lambda self, _: None})())
+    monkeypatch.setattr(cutoff, "_baca_log", lambda ss: [{**lokal[0], "waktu": "2026-10-27T09:00:55+07:00"}])
+    monkeypatch.setattr(cutoff, "_tambah_log", lambda ss, baris: ditambah.extend(baris))
+    db.set_setting("nama_petugas", "Petugas Uji")
+    db.set_setting("cutoff_log_disusulkan", "")
+    assert cutoff.susulkan_riwayat() == 1  # yang 27 Okt sudah ada di log (menit sama)
+    assert ditambah[0][3] == "b.csv" and ditambah[0][5] == "Petugas Uji"
+    assert cutoff.susulkan_riwayat() == 0  # hanya sekali
+
+
 def test_kolom_cutoff_dari_judul(monkeypatch):
     from app import sheets
     from tests import lk_uji
