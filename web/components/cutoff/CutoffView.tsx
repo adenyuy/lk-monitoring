@@ -92,7 +92,7 @@ function StatusTarik({ info }: { info: CutoffInfo }) {
   );
 }
 
-/** Kotak hijau: kiri = tarik mingguan (baseline) per WEEK, kanan = tarik harian per hari. */
+/** Kiri = tarik mingguan (baseline) per WEEK; kanan per hari: kotak hijau = harian, garis biru di bawahnya = waktu tunggu. */
 function Kalender({ info, onUbah }: { info: CutoffInfo; onUbah: (i: CutoffInfo) => void }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [ubah, setUbah] = useState(false);
@@ -134,13 +134,22 @@ function Kalender({ info, onUbah }: { info: CutoffInfo; onUbah: (i: CutoffInfo) 
               <span className={s.calDays}>
                 {HARI.map((h, i) => {
                   const d = tambahHari(senin, i);
-                  const runs = info.riwayat.filter((r) => r.mode === "harian" && r.week === w && r.waktu.startsWith(d));
+                  const pada = (mode: CutoffMode) => info.riwayat.filter((r) => r.mode === mode && r.week === w && r.waktu.startsWith(d));
+                  const runs = pada("harian");
+                  const tunggu = pada("waktu_tunggu");
                   const judul = `${h}, ${tgl(d)}: tarik harian WEEK ${w}`;
+                  const judulTunggu = `${h}, ${tgl(d)}: tarik waktu tunggu WEEK ${w}`;
                   return (
-                    <button key={d} type="button"
-                      className={`${s.day} ${runs.length ? s.on : ""} ${i >= 5 ? s.weekend : ""} ${d === info.hari_ini ? s.today : ""}`}
-                      aria-label={`${judul}: ${runs.length ? "sudah ditarik" : "belum"}`}
-                      onMouseEnter={() => setDetail({ judul, runs })} onFocus={() => setDetail({ judul, runs })} />
+                    <span key={d} className={`${s.dayCol} ${i >= 5 ? s.weekend : ""}`}>
+                      <button type="button"
+                        className={`${s.day} ${runs.length ? s.on : ""} ${d === info.hari_ini ? s.today : ""}`}
+                        aria-label={`${judul}: ${runs.length ? "sudah ditarik" : "belum"}`}
+                        onMouseEnter={() => setDetail({ judul, runs })} onFocus={() => setDetail({ judul, runs })} />
+                      <button type="button" className={`${s.tunggu} ${tunggu.length ? s.tungguOn : ""}`}
+                        aria-label={`${judulTunggu}: ${tunggu.length ? "sudah ditarik" : "belum"}`}
+                        onMouseEnter={() => setDetail({ judul: judulTunggu, runs: tunggu })}
+                        onFocus={() => setDetail({ judul: judulTunggu, runs: tunggu })} />
+                    </span>
                   );
                 })}
               </span>
@@ -165,7 +174,8 @@ function Kalender({ info, onUbah }: { info: CutoffInfo; onUbah: (i: CutoffInfo) 
       </div>
 
       <div className={s.legend}>
-        <span><i className={`${s.swatch} ${s.on}`} /> Sudah ditarik</span>
+        <span><i className={`${s.swatch} ${s.on}`} /> Harian / mingguan sudah ditarik</span>
+        <span><i className={`${s.swatchTunggu} ${s.tungguOn}`} /> Waktu tunggu sudah ditarik</span>
         <span><i className={s.swatch} /> Belum</span>
         <span><i className={`${s.swatch} ${s.today}`} /> Hari ini</span>
       </div>
