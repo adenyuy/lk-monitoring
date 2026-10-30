@@ -228,7 +228,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
   const [yakin, setYakin] = useState(false);
   // File yang mencakup kurang dari separuh sekolah di sheet hampir pasti salah pilih
   const curiga = !!cek && (cek.mode === "waktu_tunggu"
-    ? cek.baris_valid < cek.baris_lama * 0.5
+    ? cek.menunggu_ada < cek.menunggu_lk * 0.5
     : cek.sekolah_mingguan < cek.sekolah_sheet * 0.5);
 
   function reset() {
@@ -261,7 +261,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
     setError(null);
     try {
       const r = await post<{ sekolah: number; tab: string; kolom: string; waktu: string }>("/api/cutoff/tulis", { token: cek.token });
-      setHasil(`${angka(r.sekolah)} ${tunggu ? "baris" : "sekolah"} ditulis ke ${r.tab} kolom ${r.kolom}, pukul ${r.waktu}.`);
+      setHasil(`${angka(r.sekolah)} sekolah ditulis ke ${r.tab} kolom ${r.kolom}, pukul ${r.waktu}.`);
       setCek(null);
       setFile(null);
       onSelesai();
@@ -282,7 +282,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
           {([
             ["harian", "Harian", `Progres, submit, dan reviu terbaru ke kolom ${rentang(info.kolom.harian)}, lalu hitung ulang Prioritas${info.kolom.harian ? ` (${info.kolom.harian.prioritas})` : ""}.`],
             ["mingguan", "Mingguan (baseline)", `Data awal pekan ke kolom ${rentang(info.kolom.mingguan)}. Biasanya tiap Senin.`],
-            ["waktu_tunggu", "Waktu tunggu", "Isi ulang tab Raw Reviu 50% (tanggal kirim laporan 50%). Kolom Waktu Tunggu di LK menghitung sendiri."],
+            ["waktu_tunggu", "Waktu tunggu", "Hari sejak laporan 50% dikirim, untuk sekolah yang sudah submit tapi belum direviu. Ditulis ke kolom Waktu Tunggu. Tarik tiap hari."],
           ] as const).map(([k, judul, isi]) => (
             <label key={k} className={`${s.mode} ${mode === k ? s.modeOn : ""}`}>
               <input type="radio" name="mode" value={k} checked={mode === k} onChange={() => { setMode(k); reset(); }} />
@@ -295,17 +295,15 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
 
       <KolomLk kolom={info.kolom} />
 
-      {!tunggu && (
-        <label className={s.field}>
-          <span className={s.legend}>Sheet tujuan</span>
-          <select value={week} onChange={(e) => { setWeek(e.target.value); reset(); }}>
-            {(info.weeks.length ? info.weeks : ["1"]).map((w) => <option key={w} value={w}>WEEK {w}</option>)}
-          </select>
-        </label>
-      )}
+      <label className={s.field}>
+        <span className={s.legend}>Sheet tujuan</span>
+        <select value={week} onChange={(e) => { setWeek(e.target.value); reset(); }}>
+          {(info.weeks.length ? info.weeks : ["1"]).map((w) => <option key={w} value={w}>WEEK {w}</option>)}
+        </select>
+      </label>
 
       <div className={s.field} data-tour="file">
-        <span className={s.legend}>{tunggu ? "File Raw Reviu 50%" : "File cutoff"}</span>
+        <span className={s.legend}>{tunggu ? "File tanggal kirim laporan 50%" : "File cutoff"}</span>
         <label className={`${s.drop} ${seret ? s.dropOn : ""} ${file ? s.dropFile : ""}`}
           onDragOver={(e) => { e.preventDefault(); setSeret(true); }}
           onDragLeave={() => setSeret(false)}
@@ -320,7 +318,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
             <><b>{file.name}</b><span>{(file.size / 1024 / 1024).toFixed(1).replace(".", ",")} MB. Klik untuk ganti file.</span></>
           ) : (
             <><b>Pilih atau seret file CSV/Excel ke sini</b><span>{tunggu
-              ? "Berisi kolom NPSN, Tanggal Kirim, dan Kiriman Ke-, seperti tab Raw Reviu 50%."
+              ? "Berisi kolom NPSN dan Tanggal Kirim (seperti tab Raw Reviu 50%)."
               : "File cutoff dari aplikasi, kolom A–G: NPSN sampai Sudah Review."}</span></>
           )}
         </label>
@@ -343,12 +341,12 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
           {cek.mode === "waktu_tunggu" ? (
             <dl className={s.stats}>
               <div><dt>Baris di file</dt><dd>{angka(cek.baris_file)}</dd></div>
-              <div><dt>Baris terbaca</dt><dd>{angka(cek.baris_valid)}</dd></div>
+              <div><dt>Sekolah di file</dt><dd>{angka(cek.sekolah_file)}</dd></div>
               <div><dt>Tanpa tanggal kirim (dilewati)</dt><dd>{angka(cek.tanpa_tanggal)}</dd></div>
-              <div><dt>Baris di tab sekarang</dt><dd>{angka(cek.baris_lama)}</dd></div>
-              <div><dt>Sekolah baru / hilang</dt><dd>{angka(cek.sekolah_baru)} / {angka(cek.sekolah_hilang)}</dd></div>
+              <div><dt>Sekolah di {cek.tab}</dt><dd>{angka(cek.sekolah_sheet)}</dd></div>
+              <div><dt>Ada di file dan di {cek.tab}</dt><dd>{angka(cek.sekolah_cocok)}</dd></div>
               <div className={s.statKey}>
-                <dt>Menunggu reviu di LK yang ada tanggal kirimnya</dt>
+                <dt>Menunggu reviu yang dapat angka waktu tunggu</dt>
                 <dd>{angka(cek.menunggu_ada)} / {angka(cek.menunggu_lk)}</dd>
               </div>
             </dl>
@@ -384,8 +382,8 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
             <div className={s.guard}>
               <Notice tone="bad" title="File ini kemungkinan salah atau terpotong">
                 {cek.mode === "waktu_tunggu" ? (
-                  <>File ini hanya berisi {angka(cek.baris_valid)} baris, sedangkan tab {cek.tab} sekarang {angka(cek.baris_lama)} baris.
-                    Bila ditulis, isi tab diganti dan waktu tunggu sekolah yang hilang jadi kosong.</>
+                  <>Hanya {angka(cek.menunggu_ada)} dari {angka(cek.menunggu_lk)} sekolah yang menunggu reviu punya tanggal kirim
+                    di file ini. Bila ditulis, waktu tunggu sekolah lainnya jadi kosong.</>
                 ) : (
                   <>Hanya {angka(cek.sekolah_mingguan)} dari {angka(cek.sekolah_sheet)} sekolah di {cek.tab} punya laporan mingguan/bulanan
                     di file ini. Bila ditulis, sekolah lain akan kehilangan progresnya dan banyak yang berubah jadi Prioritas 1.</>
@@ -402,7 +400,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
               {busy === "tulis" ? "Menulis…" : `Tulis ke ${cek.tab}`}
             </Button>
             <span className={s.hint}>{cek.mode === "waktu_tunggu"
-              ? `Isi kolom ${cek.kolom} di ${cek.tab} diganti dengan ${angka(cek.baris_valid)} baris dari file ini.`
+              ? `Kolom ${cek.kolom} (Waktu Tunggu) di ${cek.tab} akan ditimpa untuk ${angka(cek.sekolah_sheet)} sekolah, dihitung per hari ini.`
               : `Kolom ${cek.kolom} di ${cek.tab} akan ditimpa untuk ${angka(cek.sekolah_sheet)} sekolah.`}</span>
           </div>
         </div>

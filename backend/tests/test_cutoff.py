@@ -102,29 +102,60 @@ def test_olah_raw_reviu():
     assert tanpa == 1
 
 
+def test_hari_tunggu_sama_dengan_rumus_lk():
+    # Rumus LK: IF(AND(P="Ya",Q="Tidak"), TODAY()-INT(tanggal kirim), "")
+    from datetime import date
+    hari_ini = date(2026, 10, 30)
+    malam = cutoff.ke_serial("2026-08-01 23:55:57")
+    assert cutoff.hari_tunggu("Ya", "Tidak", malam, hari_ini) == 90  # jam diabaikan, seperti INT()
+    assert cutoff.hari_tunggu("Ya", "Tidak", cutoff.ke_serial("2026-10-30 08:00"), hari_ini) == 0
+    assert cutoff.hari_tunggu("Ya", "Ya", malam, hari_ini) == ""  # sudah direviu
+    assert cutoff.hari_tunggu("Tidak", "Tidak", malam, hari_ini) == ""  # belum submit
+    assert cutoff.hari_tunggu("Ya", "Tidak", None, hari_ini) == ""  # tidak ada di file
+    # sama persis dengan TODAY()-INT(serial) di Sheets
+    hari_ini_serial = (hari_ini - cutoff.EXCEL_NOL.date()).days
+    assert cutoff.hari_tunggu("Ya", "Tidak", malam, hari_ini) == hari_ini_serial - int(malam)
+
+
 def test_tulis_waktu_tunggu(monkeypatch):
+    from app import sheets
+    from tests import lk_uji
+    judul = lk_uji.JUDUL_LAMA[:9] + ["Status Komunikasi (bantuan)", "Waktu Tunggu"] + lk_uji.JUDUL_LAMA[9:]
     tulisan = {"req": []}
 
     class SS:
+        def worksheet(self, tab):
+            return type("WS", (), {"id": 7})()
+
+        def values_get(self, rng, params=None):
+            return {"values": [judul]}
+
+        def values_batch_get(self, rng, params=None):  # NPSN, submit (P), reviu (Q) mulai baris 3
+            isi = [["111", "222", "333", "444"], ["Ya", "Ya", "Tidak", "Ya"], ["Tidak", "Ya", "Tidak", "Tidak"]]
+            return {"valueRanges": [{"values": [[v] for v in kol]} for kol in isi]}
+
+        def values_batch_update(self, body):
+            tulisan["values"] = body
+
         def batch_update(self, body):
             tulisan["req"] += body["requests"]
 
-        def values_clear(self, rng):
-            tulisan["clear"] = rng
-
-        def values_batch_update(self, body):
-            tulisan["values"] = body["data"]
-
     monkeypatch.setattr(cutoff, "gspread_client", lambda: type("GC", (), {"open_by_key": lambda self, _: SS()})())
+    monkeypatch.setattr(cutoff, "kolom_lk", lambda week, refresh=False: sheets.parse_kolom(judul))
     monkeypatch.setattr(cutoff, "catat_bersama", lambda baris: tulisan.setdefault("log", baris))
-    cutoff._rencana["w"] = cutoff.Rencana(token="w", mode="waktu_tunggu", week="", tab=cutoff.RAW_TAB, nama_file="raw.csv",
-                                          n=3, blok=[[1, 46000.5, 1], [2, 46001.0, 1], [3, 46002.0, 2]], prio=[],
-                                          ringkasan={"sheet_id": 5, "baris_grid": 3, "kolom": "A–C"})
-    hasil = cutoff.tulis("w")
-    assert tulisan["clear"] == "'Raw Reviu 50%'!A2:C"
-    assert tulisan["values"][1] == {"range": "'Raw Reviu 50%'!A2:C4", "values": [[1, 46000.5, 1], [2, 46001.0, 1], [3, 46002.0, 2]]}
-    assert tulisan["req"][0]["appendDimension"]["length"] == 1  # grid 3 baris, butuh 4
-    assert hasil["sekolah"] == 3 and tulisan["log"][1] == "waktu_tunggu"
+    from datetime import datetime
+    monkeypatch.setattr(cutoff.schedule, "now", lambda: datetime(2026, 10, 30, 9, 0))
+    csv = ("NPSN,Tanggal Kirim,Kiriman Ke-\n111,2026-08-01 11:55:57,1\n444,2026-09-10 08:00:00,1\n"
+           "111,2026-10-01,2\n").encode()
+    r = cutoff.siapkan(csv, "raw.csv", "waktu_tunggu", "1")
+    assert (r.ringkasan["kolom"], r.ringkasan["menunggu_lk"], r.ringkasan["menunggu_ada"]) == ("K", 2, 2)
+    hasil = cutoff.tulis(r.token)
+    data = tulisan["values"]
+    assert data["valueInputOption"] == "RAW"
+    assert data["data"][0]["range"] == "'WEEK 1'!K3:K6"
+    # 111: kiriman pertama (1 Agu) yang dipakai; 222 sudah direviu; 333 belum submit; 444: 10 Sep
+    assert data["data"][0]["values"] == [[90], [""], [""], [50]]
+    assert hasil["kolom"] == "K" and tulisan["log"][1] == "waktu_tunggu"
 
 
 def test_riwayat_dari_catatan_dan_log(monkeypatch):

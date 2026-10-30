@@ -2,7 +2,7 @@
 
   Mingguan (Baseline) : progres, submit, reviu baseline di sheet WEEK n
   Harian              : progres, submit, reviu terbaru + Prioritas di sheet WEEK n
-  Waktu tunggu        : isi ulang tab 'Raw Reviu 50%' (NPSN, Tanggal Kirim, Kiriman Ke-), dipakai rumus Waktu Tunggu
+  Waktu tunggu        : kolom Waktu Tunggu di sheet WEEK n, dari file tanggal kirim laporan 50% (NPSN, Tanggal Kirim)
 Huruf kolom WEEK dibaca dari judul baris 2 (lihat _kolom).
 
 Kolom file cutoff (urutan tetap):
@@ -20,7 +20,7 @@ import threading
 import time
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -31,8 +31,6 @@ from .sheets import cache, col_number, gspread_client, kolom_lk, lk_tab
 log = logging.getLogger(__name__)
 WEEK_FIRST_ROW = config.LK_FIRST_ROW
 MODE_LABEL = {"mingguan": "Mingguan (Baseline)", "harian": "Harian", "waktu_tunggu": "Waktu Tunggu"}
-RAW_TAB = "Raw Reviu 50%"
-RAW_JUDUL = ["NPSN", "Tanggal Kirim", "Kiriman Ke-"]
 LOG_TAB = "Log Tarik Data"
 LOG_JUDUL = ["Waktu", "Jenis", "Week", "File", "Sekolah", "Oleh"]
 CUT_NPSN, CUT_JENIS, CUT_CAPAIAN, CUT_SUBMIT, CUT_REVIU = 0, 2, 4, 5, 6
@@ -192,72 +190,115 @@ def olah_raw(df: pd.DataFrame) -> tuple[list[list], int]:
     return baris, tanpa_tgl
 
 
-def siapkan_waktu_tunggu(data: bytes, nama_file: str) -> "Rencana":
+def _kolom_tunggu(ss, tab: str) -> str:
+    """Huruf kolom 'Waktu Tunggu' dari judul baris 2."""
+    from .sheets import col_letter
+
+    judul = (ss.values_get(f"'{tab}'!A{WEEK_FIRST_ROW - 1}:BZ{WEEK_FIRST_ROW - 1}").get("values") or [[]])[0]
+    for i, j in enumerate(judul):
+        if " ".join(str(j).lower().split()) == "waktu tunggu":
+            return col_letter(i)
+    raise CutoffError(f'Kolom berjudul "Waktu Tunggu" tidak ada di baris {WEEK_FIRST_ROW - 1} sheet "{tab}".')
+
+
+def hari_tunggu(submit: Any, reviu: Any, serial: float | None, hari_ini: date) -> int | str:
+    """Sama dengan rumus LK =IF(AND(P="Ya",Q="Tidak"),IFERROR(TODAY()-INT(tanggal kirim),""),""):
+    selisih hari kalender (jam diabaikan) bila sudah submit dan belum direviu, selain itu kosong."""
+    if str(submit).strip().lower() != "ya" or str(reviu).strip().lower() != "tidak" or serial is None:
+        return ""
+    return (hari_ini - (EXCEL_NOL + timedelta(days=int(serial))).date()).days
+
+
+def siapkan_waktu_tunggu(data: bytes, nama_file: str, week: str) -> "Rencana":
     df = baca(data, nama_file, min_kolom=2)
     baris, tanpa_tgl = olah_raw(df)
     if not baris:
         raise CutoffError("Tidak ada baris dengan NPSN dan Tanggal Kirim yang terbaca di file ini.")
+    tgl: dict[str, float] = {}
+    for npsn, serial, _ in baris:  # seperti XLOOKUP: baris pertama per NPSN yang dipakai
+        tgl.setdefault(key_npsn(npsn), serial)
+    tab = lk_tab(week)
     ss = gspread_client().open_by_key(config.LK_SHEET_ID)
     try:
-        ws = ss.worksheet(RAW_TAB)
+        ws = ss.worksheet(tab)
     except Exception as e:
-        raise CutoffError(f'Tab "{RAW_TAB}" tidak ditemukan di LK.') from e
-    lama = ss.values_get(f"'{RAW_TAB}'!A2:C", params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
-    lama_npsn = {key_npsn(r[0]) for r in lama if r}
-    baru_npsn = {key_npsn(r[0]) for r in baris}
-    # Sekolah yang sudah submit tapi belum direviu di LK: yang bisa dihitung waktu tunggunya
-    from .sheets import read_lk, week_aktif
+        raise CutoffError(f'Sheet "{tab}" tidak ditemukan di LK.') from e
+    try:
+        lk = kolom_lk(week, refresh=True)
+    except Exception as e:
+        raise CutoffError(f"Judul kolom LK tidak terbaca: {e}") from e
+    kol = {"tunggu": _kolom_tunggu(ss, tab), "npsn": lk.npsn, "submit": lk.submit, "reviu": lk.reviu}
+    got = ss.values_batch_get([f"'{tab}'!{kol[k]}{WEEK_FIRST_ROW}:{kol[k]}" for k in ("npsn", "submit", "reviu")],
+                              params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("valueRanges", [])
+    kolom_isi = [[(r[0] if r else "") for r in g.get("values", [])] for g in got]
+    npsn_list = [key_npsn(v) for v in kolom_isi[0]]
+    while npsn_list and not npsn_list[-1]:
+        npsn_list.pop()
+    if not npsn_list:
+        raise CutoffError(f'Tidak ada NPSN di kolom {kol["npsn"]} sheet "{tab}".')
 
-    menunggu = {s.npsn for s in read_lk(week_aktif()) if s.submit == "Ya" and s.reviu != "Ya"}
+    def sel(i: int, j: int) -> str:
+        return str(kolom_isi[i][j]).strip() if j < len(kolom_isi[i]) else ""
+
+    hari_ini = schedule.now().date()
+    nilai, menunggu, menunggu_ada = [], 0, 0
+    for j, npsn in enumerate(npsn_list):
+        nilai.append([hari_tunggu(sel(1, j), sel(2, j), tgl.get(npsn), hari_ini)])
+        if hari_tunggu(sel(1, j), sel(2, j), 0, hari_ini) != "":
+            menunggu += 1
+            menunggu_ada += npsn in tgl
     r = Rencana(
-        token=secrets.token_urlsafe(16), mode="waktu_tunggu", week="", tab=RAW_TAB, nama_file=nama_file,
-        n=len(baris), blok=baris, prio=[],
+        token=secrets.token_urlsafe(16), mode="waktu_tunggu", week=str(week), tab=tab, nama_file=nama_file,
+        n=len(npsn_list), blok=nilai, prio=[], kol=kol,
         ringkasan={
             "baris_file": int(len(df)),
             "baris_valid": len(baris),
             "tanpa_tanggal": tanpa_tgl,
-            "sekolah_file": len(baru_npsn),
-            "baris_lama": len(lama),
-            "sekolah_baru": len(baru_npsn - lama_npsn),
-            "sekolah_hilang": len(lama_npsn - baru_npsn),
-            "menunggu_lk": len(menunggu),
-            "menunggu_ada": len(menunggu & baru_npsn),
-            "kolom": "A–C",
+            "sekolah_file": len(tgl),
+            "sekolah_sheet": len(npsn_list),
+            "sekolah_cocok": sum(1 for k in npsn_list if k in tgl),
+            "menunggu_lk": menunggu,
+            "menunggu_ada": menunggu_ada,
+            "kolom": kol["tunggu"],
             "peringatan": "" if "npsn" in str(df.columns[0]).lower() else
             "Judul kolom pertama bukan NPSN. Pastikan file berisi NPSN, Tanggal Kirim, Kiriman Ke-.",
         },
     )
     r.ringkasan["sheet_id"] = ws.id
-    r.ringkasan["baris_grid"] = ws.row_count
     _simpan_rencana(r)
     return r
 
 
 def _tulis_waktu_tunggu(r: "Rencana") -> datetime:
     ss = gspread_client().open_by_key(config.LK_SHEET_ID)
-    sid = r.ringkasan["sheet_id"]
-    akhir = r.n + 1
-    req: list[dict] = []
-    if akhir > r.ringkasan.get("baris_grid", 0):
-        req.append({"appendDimension": {"sheetId": sid, "dimension": "ROWS",
-                                        "length": akhir - r.ringkasan.get("baris_grid", 0)}})
-    if req:
-        ss.batch_update({"requests": req})
-    ss.values_clear(f"'{RAW_TAB}'!A2:C")
+    try:
+        lk = kolom_lk(r.week, refresh=True)
+        kol = {"tunggu": _kolom_tunggu(ss, r.tab), "npsn": lk.npsn, "submit": lk.submit, "reviu": lk.reviu}
+    except CutoffError:
+        raise
+    except Exception as e:
+        raise CutoffError(f"Judul kolom LK tidak terbaca: {e}") from e
+    if kol != r.kol:
+        raise CutoffError("Kolom LK berubah sejak file dicek (ada kolom disisipkan/dipindah). Cek file lagi.")
+    akhir = WEEK_FIRST_ROW + r.n - 1
+    k = kol["tunggu"]
     ss.values_batch_update({"valueInputOption": "RAW", "data": [
-        {"range": f"'{RAW_TAB}'!A1:C1", "values": [RAW_JUDUL]},
-        {"range": f"'{RAW_TAB}'!A2:C{akhir}", "values": r.blok},
+        {"range": f"'{r.tab}'!{k}{WEEK_FIRST_ROW}:{k}{akhir}", "values": r.blok},
     ]})
     now = schedule.now()
+    sid = r.ringkasan["sheet_id"]
+    ci = col_index(k)
     ss.batch_update({"requests": [{
         "repeatCell": {
-            "range": {"sheetId": sid, "startRowIndex": 1, "endRowIndex": akhir, "startColumnIndex": 1, "endColumnIndex": 2},
-            "cell": {"userEnteredFormat": {"numberFormat": {"type": "DATE_TIME", "pattern": "dd/mm/yyyy hh:mm"}}},
+            "range": {"sheetId": sid, "startRowIndex": WEEK_FIRST_ROW - 1, "endRowIndex": akhir,
+                      "startColumnIndex": ci, "endColumnIndex": ci + 1},
+            "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "0"}}},
             "fields": "userEnteredFormat.numberFormat",
         }
     }, {
         "updateCells": {
-            "range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 1},
+            "range": {"sheetId": sid, "startRowIndex": WEEK_FIRST_ROW - 2, "endRowIndex": WEEK_FIRST_ROW - 1,
+                      "startColumnIndex": ci, "endColumnIndex": ci + 1},
             "rows": [{"values": [{"note": _catatan("Waktu Tunggu", now, r.nama_file)}]}],
             "fields": "note",
         }
@@ -330,7 +371,7 @@ def _bandingkan(lama: list[list], baru: list[list]) -> int:
 
 def siapkan(data: bytes, nama_file: str, mode: str, week: str) -> Rencana:
     if mode == "waktu_tunggu":
-        return siapkan_waktu_tunggu(data, nama_file)
+        return siapkan_waktu_tunggu(data, nama_file, week)
     if mode not in MODE_LABEL:
         raise CutoffError("Mode harus harian, mingguan, atau waktu_tunggu.")
     df = baca(data, nama_file)
@@ -400,7 +441,7 @@ def tulis(token: str) -> dict[str, Any]:
     if r is None or time.time() - r.dibuat > RENCANA_DETIK:
         raise CutoffError("Hasil cek sudah kedaluwarsa. Cek file lagi.")
     if r.mode == "waktu_tunggu":
-        return _selesai(r, "A–C", _tulis_waktu_tunggu(r))
+        return _selesai(r, r.ringkasan["kolom"], _tulis_waktu_tunggu(r))
     kol = _kolom(r.week, r.mode)
     if kol != r.kol:
         raise CutoffError("Kolom LK berubah sejak file dicek (ada kolom disisipkan/dipindah). Cek file lagi.")
@@ -435,7 +476,7 @@ def tulis(token: str) -> dict[str, Any]:
 def _selesai(r: Rencana, kolom: str, now: datetime) -> dict[str, Any]:
     cache.clear()  # LK berubah: baca ulang di layar lain
     waktu = now.isoformat(timespec="seconds")
-    ringkas = {k: v for k, v in r.ringkasan.items() if k not in ("sheet_id", "baris_grid")}
+    ringkas = {k: v for k, v in r.ringkasan.items() if k != "sheet_id"}
     with db.tx() as c:
         c.execute(
             "INSERT INTO cutoff_runs(waktu, file, mode, week, sekolah, ringkasan) VALUES(?,?,?,?,?,?)",
@@ -536,8 +577,6 @@ def _baca_bersama() -> list[dict[str, Any]]:
     # Catatan di judul kolom: tarikan terakhir per jenis, juga dari versi aplikasi yang belum mencatat log
     weeks = [t for t in judul if t.upper().startswith(config.LK_WEEK_PREFIX.upper())]
     ranges = [f"'{t}'!A{WEEK_FIRST_ROW - 1}:BZ{WEEK_FIRST_ROW - 1}" for t in weeks]
-    if RAW_TAB in judul:
-        ranges.append(f"'{RAW_TAB}'!A1")
     if ranges:
         meta = ss.fetch_sheet_metadata(params={"ranges": ranges, "fields": "sheets(properties.title,data.rowData.values.note)"})
         for sh in meta.get("sheets", []):

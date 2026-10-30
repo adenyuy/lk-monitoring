@@ -264,13 +264,11 @@ export type CutoffCek = {
   berubah: number;
   prioritas_berubah: number;
   prioritas: { label: string; sebelum: number; sesudah: number }[];
-  // waktu tunggu (tab Raw Reviu 50%)
+  // waktu tunggu (kolom Waktu Tunggu di sheet WEEK)
   baris_valid: number;
   tanpa_tanggal: number;
   sekolah_file: number;
-  baris_lama: number;
-  sekolah_baru: number;
-  sekolah_hilang: number;
+  sekolah_cocok: number;
   menunggu_lk: number;
   menunggu_ada: number;
 };
