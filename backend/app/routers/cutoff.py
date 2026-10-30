@@ -39,7 +39,7 @@ def info(_=Depends(admin)) -> dict[str, Any]:
         weeks = cutoff.daftar_week()
     except Exception as e:
         raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
-    riw = cutoff.riwayat()
+    riw = cutoff.riwayat_semua()
     # Kolom tujuan hasil deteksi judul LK (admin bisa menyisipkan kolom); ditampilkan supaya bisa dicek sebelum menarik
     kolom: dict[str, Any] = {}
     try:

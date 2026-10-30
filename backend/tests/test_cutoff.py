@@ -87,6 +87,59 @@ def test_tulis_ditolak_bila_kolom_berubah_sejak_dicek(monkeypatch):
         cutoff.tulis("u")
 
 
+def test_tanggal_kirim_jadi_serial():
+    assert cutoff.ke_serial("46235.4971875") == 46235.4971875
+    assert int(cutoff.ke_serial("2026-07-31 11:56:00")) == 46234
+    assert int(cutoff.ke_serial("31/07/2026 11:56")) == 46234
+    assert cutoff.ke_serial("") is None and cutoff.ke_serial("bukan tanggal") is None
+
+
+def test_olah_raw_reviu():
+    csv = ("NPSN,Tanggal Kirim,Kiriman Ke-\n10803808,2026-07-31 11:56:00,1\n,2026-08-01,1\n"
+           "10803485,,2\n40306401,46250.75,2\n").encode()
+    baris, tanpa = cutoff.olah_raw(cutoff.baca(csv, "raw.csv", min_kolom=2))
+    assert [b[0] for b in baris] == [10803808, 40306401] and baris[1][1:] == [46250.75, 2]
+    assert tanpa == 1
+
+
+def test_tulis_waktu_tunggu(monkeypatch):
+    tulisan = {"req": []}
+
+    class SS:
+        def batch_update(self, body):
+            tulisan["req"] += body["requests"]
+
+        def values_clear(self, rng):
+            tulisan["clear"] = rng
+
+        def values_batch_update(self, body):
+            tulisan["values"] = body["data"]
+
+    monkeypatch.setattr(cutoff, "gspread_client", lambda: type("GC", (), {"open_by_key": lambda self, _: SS()})())
+    monkeypatch.setattr(cutoff, "catat_bersama", lambda baris: tulisan.setdefault("log", baris))
+    cutoff._rencana["w"] = cutoff.Rencana(token="w", mode="waktu_tunggu", week="", tab=cutoff.RAW_TAB, nama_file="raw.csv",
+                                          n=3, blok=[[1, 46000.5, 1], [2, 46001.0, 1], [3, 46002.0, 2]], prio=[],
+                                          ringkasan={"sheet_id": 5, "baris_grid": 3, "kolom": "A–C"})
+    hasil = cutoff.tulis("w")
+    assert tulisan["clear"] == "'Raw Reviu 50%'!A2:C"
+    assert tulisan["values"][1] == {"range": "'Raw Reviu 50%'!A2:C4", "values": [[1, 46000.5, 1], [2, 46001.0, 1], [3, 46002.0, 2]]}
+    assert tulisan["req"][0]["appendDimension"]["length"] == 1  # grid 3 baris, butuh 4
+    assert hasil["sekolah"] == 3 and tulisan["log"][1] == "waktu_tunggu"
+
+
+def test_riwayat_dari_catatan_dan_log(monkeypatch):
+    x = cutoff.dari_catatan("Update terakhir (Mingguan (Baseline)): 26 Oct 2026 08:34\nsumber: a.csv", "1")
+    assert (x["mode"], x["week"], x["waktu"][:16], x["file"], x["oleh"]) == ("mingguan", "1", "2026-10-26T08:34", "a.csv", "")
+    h = cutoff.dari_catatan("Update terakhir (Harian): 29 Oct 2026 10:18\nsumber: b.csv\noleh: Kalica", "1")
+    assert h["oleh"] == "Kalica" and cutoff.dari_catatan("P1 sekolah belum submit", "1") is None
+    log = {"waktu": "2026-10-29T10:18:40+07:00", "mode": "harian", "week": "1", "file": "b.csv", "sekolah": 9000, "oleh": "Kalica"}
+    monkeypatch.setattr(cutoff, "_baca_bersama", lambda: [x, h, log])
+    monkeypatch.setattr(cutoff, "riwayat", lambda: [])
+    cutoff.cache.clear()
+    r = cutoff.riwayat_semua()
+    assert len(r) == 2 and r[1]["sekolah"] == 9000 and r[1]["oleh"] == "Kalica"  # catatan + log digabung
+
+
 def test_kolom_cutoff_dari_judul(monkeypatch):
     from app import sheets
     from tests import lk_uji

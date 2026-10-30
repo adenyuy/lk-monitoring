@@ -226,7 +226,10 @@ export type Rekap = {
 
 export type BimtekInfo = { ada: boolean; file?: string; per_tanggal?: string; diunggah?: string; sekolah?: number };
 
-export type CutoffRun = { waktu: string; file: string; mode: "harian" | "mingguan"; week: string; sekolah: number };
+export type CutoffMode = "harian" | "mingguan" | "waktu_tunggu";
+
+/** Satu tarikan, dari admin mana pun (log bersama di LK). `oleh` kosong untuk tarikan versi lama. */
+export type CutoffRun = { waktu: string; file: string; mode: CutoffMode; week: string; sekolah: number; oleh: string };
 
 export type CutoffInfo = {
   weeks: string[];
@@ -248,9 +251,12 @@ export type CutoffKolom = { mulai: string; akhir: string; label: string; npsn: s
 export type CutoffCek = {
   token: string;
   tab: string;
-  mode: "harian" | "mingguan";
+  mode: CutoffMode;
   file: string;
   baris_file: number;
+  kolom: string;
+  peringatan: string;
+  // harian / mingguan
   sekolah_mingguan: number;
   sekolah_lap50: number;
   sekolah_sheet: number;
@@ -258,8 +264,15 @@ export type CutoffCek = {
   berubah: number;
   prioritas_berubah: number;
   prioritas: { label: string; sebelum: number; sesudah: number }[];
-  kolom: string;
-  peringatan: string;
+  // waktu tunggu (tab Raw Reviu 50%)
+  baris_valid: number;
+  tanpa_tanggal: number;
+  sekolah_file: number;
+  baris_lama: number;
+  sekolah_baru: number;
+  sekolah_hilang: number;
+  menunggu_lk: number;
+  menunggu_ada: number;
 };
 
 export type Perubahan = {
