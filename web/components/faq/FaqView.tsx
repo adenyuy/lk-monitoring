@@ -214,8 +214,10 @@ const GRUP: { judul: string; isi: T[] }[] = [
         q: "Isian LK masuk ke kolom sesi yang mana?",
         a: (
           <p>Senin dan Selasa otomatis ke sesi <b>Senin–Rabu</b>, Rabu sampai Jumat ke sesi <b>Rabu–Jumat</b>. Anda bisa
-            menggantinya di panel LK. Status komunikasi diisi sekali per fasil untuk semua sekolahnya, dan otomatis
-            jadi <b>Terhubung</b> begitu fasil membalas chat. Posisi kolom dibaca dari judul di baris 2, jadi kalau admin
+            menggantinya di panel LK. Status komunikasi diisi sekali per fasil untuk semua sekolahnya, dan terisi
+            otomatis dari chat minggu ini: <b>Terhubung</b> bila fasil membalas, <b>Chat hanya di Read</b> bila pesan
+            hanya dibaca, dan <b>Nomor Tidak Terhubung Whatsapp</b> bila nomornya tidak terdaftar. Pilihan yang Anda isi
+            sendiri (mis. Respon Lambat) tidak ditimpa. Posisi kolom dibaca dari judul di baris 2, jadi kalau admin
             menyisipkan atau memindah kolom, aplikasi ikut menyesuaikan.</p>
         ),
       },

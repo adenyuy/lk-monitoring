@@ -16,6 +16,10 @@ def record_send(
             "VALUES(?,?,?,?,?,?,?,?,?)",
             (tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, int(coba)),
         )
+    if status == "gagal" and not coba and "nomor_tidak_terdaftar" in keterangan:
+        from . import lk_otomatis
+
+        lk_otomatis.picu()  # status komunikasi di LK: Nomor Tidak Terhubung Whatsapp
 
 
 def sends_real() -> list[dict[str, Any]]:
@@ -83,11 +87,12 @@ def save_chat_status(nomor: str, status: str, balasan: str, dicek: str, perlu_ba
     if status == "dibalas" and balasan and balasan != lama_bls:
         ringkas = " ".join(balasan.split())
         aktivitas.catat(nomor, "dibalas", "Balasan: " + (ringkas if len(ringkas) <= 90 else ringkas[:89] + "…"))
-        from . import lk_otomatis
-
-        lk_otomatis.terhubung(nomor)  # fasil membalas -> status komunikasi di LK jadi Terhubung
     elif status == "dibaca" and lama_st in ("", "terkirim"):
         aktivitas.catat(nomor, "dibaca", "Pesan sudah dibaca fasil")
+    if status in ("dibaca", "dibalas") and (status != lama_st or balasan != lama_bls):
+        from . import lk_otomatis
+
+        lk_otomatis.picu()  # status komunikasi di LK: Terhubung / Chat hanya di Read
 
 
 def chat_status_all() -> dict[str, dict[str, Any]]:
