@@ -10,7 +10,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from . import chat_refresh, config, cutoff, db, lk_otomatis, paths
+from . import chat_refresh, config, db, lk_otomatis, paths
+from .cutoff import susulkan_riwayat  # bukan `cutoff`: nama itu dipakai router di bawah
 from .routers import bimtek, chat, core, cutoff, lk, log, rekap, send, today, wa
 from .wa.browser import worker
 
@@ -31,7 +32,7 @@ db.connect()
 async def lifespan(_: FastAPI):
     chat_refresh.start_background()
     lk_otomatis.picu()  # susulkan status komunikasi LK untuk chat minggu ini yang sudah dibaca / dibalas
-    threading.Thread(target=cutoff.susulkan_riwayat, name="riwayat-tarik", daemon=True).start()
+    threading.Thread(target=susulkan_riwayat, name="riwayat-tarik", daemon=True).start()
     yield
     worker.shutdown()  # tutup Chrome WhatsApp dengan rapi
 

@@ -13,6 +13,19 @@ def test_health():
     assert r.status_code == 200 and r.json()["ok"] is True
 
 
+def test_startup_jalan(monkeypatch):
+    """Lifespan aplikasi (startup/shutdown) harus jalan; kerja latarnya diganti tiruan."""
+    from app import main
+    dipanggil = []
+    monkeypatch.setattr(main.chat_refresh, "start_background", lambda: dipanggil.append("chat"))
+    monkeypatch.setattr(main.lk_otomatis, "picu", lambda: dipanggil.append("lk"))
+    monkeypatch.setattr(main, "susulkan_riwayat", lambda: dipanggil.append("riwayat"))
+    monkeypatch.setattr(main.worker, "shutdown", lambda: None)
+    with TestClient(app) as c:
+        assert c.get("/api/health").status_code == 200
+    assert sorted(dipanggil) == ["chat", "lk", "riwayat"]
+
+
 def test_me_belum_login():
     body = client.get("/api/me").json()
     assert body["logged_in"] is False
