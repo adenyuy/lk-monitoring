@@ -1,0 +1,122 @@
+"""Server lokal: API di /api, tampilan Next.js (static export) di /."""
+
+import logging
+import threading
+from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+
+from . import chat_refresh, config, db, lk_otomatis, paths
+from .cutoff import susulkan_riwayat  # bukan `cutoff`: nama itu dipakai router di bawah
+from .routers import bimtek, chat, core, cutoff, eskalasi, lk, log, rekap, send, today, wa
+from .wa.browser import worker
+
+
+def _setup_logging() -> None:
+    paths.ensure_dirs()
+    handler = RotatingFileHandler(paths.LOG_DIR / "app.log", maxBytes=1_000_000, backupCount=5, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(handler)
+
+
+_setup_logging()
+db.connect()
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    chat_refresh.start_background()
+    lk_otomatis.picu()  # susulkan status komunikasi LK untuk chat minggu ini yang sudah dibaca / dibalas
+    threading.Thread(target=susulkan_riwayat, name="riwayat-tarik", daemon=True).start()
+    yield
+    worker.shutdown()  # tutup Chrome WhatsApp dengan rapi
+
+
+app = FastAPI(
+    title="LK Monitoring",
+    version=config.VERSION,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
+
+# Hanya untuk `next dev` di port 3000. Di produksi web & API satu origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.DEV_WEB_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+HOST_BOLEH = {"127.0.0.1", "localhost", "testserver"}
+ORIGIN_BOLEH = {f"http://127.0.0.1:{config.PORT}", f"http://localhost:{config.PORT}", *config.DEV_WEB_ORIGINS}
+
+
+@app.middleware("http")
+async def jaga_asal(request: Request, call_next):
+    """Tolak permintaan dari website lain yang dibuka di browser yang sama.
+
+    - Host harus 127.0.0.1/localhost (mencegah DNS rebinding).
+    - Permintaan yang mengubah data harus berasal dari tampilan aplikasi ini (Origin sama) atau tanpa Origin
+      (alat lokal / tes). Form atau fetch dari situs lain selalu membawa Origin situs itu, jadi ditolak.
+    """
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]")
+    if host not in HOST_BOLEH:
+        return JSONResponse({"detail": "Host tidak diizinkan."}, status_code=403)
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        origin = request.headers.get("origin")
+        if origin is not None and origin not in ORIGIN_BOLEH:
+            return JSONResponse({"detail": "Permintaan dari luar aplikasi ditolak."}, status_code=403)
+    return await call_next(request)
+
+
+app.include_router(core.router)
+app.include_router(wa.router)
+app.include_router(send.router)
+app.include_router(today.router)
+app.include_router(lk.router)
+app.include_router(chat.router)
+app.include_router(rekap.router)
+app.include_router(log.router)
+app.include_router(cutoff.router)
+app.include_router(bimtek.router)
+app.include_router(eskalasi.router)
+
+
+@app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
+def api_not_found(rest: str) -> None:
+    raise HTTPException(404, f"Endpoint /api/{rest} tidak ada.")
+
+
+# ---------- tampilan (web/out) ----------
+
+def _resolve_static(path: str) -> Path | None:
+    """'/today/' -> out/today/index.html; '/_next/x.js' -> out/_next/x.js. Cegah keluar folder."""
+    out = paths.WEB_OUT_DIR.resolve()
+    target = (out / path.lstrip("/")).resolve()
+    if out not in target.parents and target != out:
+        return None
+    for candidate in (target, target / "index.html", target.with_suffix(".html")):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+@app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def web(path: str):
+    if not paths.WEB_OUT_DIR.exists():
+        return HTMLResponse(
+            "<h1>Tampilan belum dibangun</h1><p>Jalankan <code>npm run build</code> di folder web, "
+            "atau pakai scripts/dev.bat saat develop.</p>",
+            status_code=503,
+        )
+    found = _resolve_static(path)
+    if found:
+        return FileResponse(found)
+    not_found = paths.WEB_OUT_DIR / "404.html"
+    return FileResponse(not_found, status_code=404) if not_found.exists() else HTMLResponse("Tidak ditemukan", 404)
