@@ -73,6 +73,9 @@ SESI = (
 
 JEDA_MIN_DETIK = 45
 JEDA_MAX_DETIK = 120
+# Undangan WAG: jeda lebih pendek; paling pendek ke fasil yang pernah membalas (kontak dua arah, risiko blokir rendah)
+JEDA_UNDANGAN_KENAL = (15, 30)
+JEDA_UNDANGAN_BARU = (25, 50)
 
 BATAS_HARIAN_DEFAULT = 40
 BATAS_HARIAN_MIN = 10

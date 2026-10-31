@@ -234,7 +234,7 @@ class Sender:
                 cukup = (st.dicoba >= st.target) if st.coba else (self._sisa_kuota(sesi) or 0) <= 0
                 if not masih_ada or cukup or st.stop_diminta:
                     continue
-                self._jeda(todo[idx + 1].nama_fasil, st.coba)
+                self._jeda(todo[idx + 1].nama_fasil, st.coba, todo[idx + 1].nomor)
         except (actions.NotLoggedIn, BrowserClosed) as e:
             self._halt(f"WhatsApp terputus: {e} Scan ulang QR lalu mulai lagi.")
         except Exception as e:  # jangan biarkan thread mati diam-diam
@@ -294,8 +294,14 @@ class Sender:
             tagging.tandai(item.nomor, tagging.warna_kirim(getattr(r, "centang", "")))
         return r.status, r.keterangan
 
-    def _jeda(self, nama_berikutnya: str, coba: bool) -> None:
-        detik = 3 if coba else self.rng.uniform(config.JEDA_MIN_DETIK, config.JEDA_MAX_DETIK)
+    def _jeda(self, nama_berikutnya: str, coba: bool, nomor_berikutnya: str = "") -> None:
+        if coba:
+            detik = 3
+        elif self.state.undangan:
+            kenal = store.chat_status_all().get(nomor_berikutnya, {}).get("status") == "dibalas"
+            detik = self.rng.uniform(*(config.JEDA_UNDANGAN_KENAL if kenal else config.JEDA_UNDANGAN_BARU))
+        else:
+            detik = self.rng.uniform(config.JEDA_MIN_DETIK, config.JEDA_MAX_DETIK)
         st = self.state
         st.berikutnya, st.berikutnya_pada = nama_berikutnya, time.time() + detik
         events.publish("kirim_jeda", berikutnya=nama_berikutnya, detik=round(detik))

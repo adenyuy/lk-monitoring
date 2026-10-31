@@ -176,3 +176,20 @@ def test_semua_fasil_binaan_dari_lk_ikut_diundang():
     assert items[-1].status == "dilewati"
     assert jalan(s).terkirim == 3
     assert "6281299990001" in wa.sent and "rekan fasilitator Fasil LK Satu" in wa.teks[-1]
+
+
+def test_jeda_undangan_lebih_pendek_untuk_fasil_yang_pernah_membalas():
+    undangan_wag.simpan(aktif=True, link=LINK, tim="", teks="")
+    store.save_chat_status("6281100000001", "dibalas", "siap", "2026-10-30T10:00:00")
+    s, clock = make(CatatWA(), start="2026-10-31 09:00", n=3)
+    jeda = []
+    s._jeda = (lambda asli: lambda nama, coba, nomor="": (jeda.append(nomor), asli(nama, coba, nomor)))(s._jeda)
+    mulai = clock.t
+    st = jalan(s)
+    assert st.terkirim == 3 and jeda == ["6281100000001", "6281100000002"]
+    total = (clock.t - mulai).total_seconds()
+    assert 15 + 25 <= total <= 30 + 50 + 5
+    from app import db as _db
+    with _db.tx() as c:
+        c.execute("DELETE FROM chat_status")
+        c.execute("DELETE FROM aktivitas")

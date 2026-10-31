@@ -85,7 +85,7 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
 
   const undangan = today.undangan_wag;
   if (undangan && !kirim.running && k.bisa_kirim) {
-    sub = `Sekitar ${durasi(Math.max(1, Math.round(k.kuota * 82 / 60)))} sampai selesai. Biarkan aplikasi dan WhatsApp tetap terbuka.`;
+    sub = `Sekitar ${durasi(Math.max(1, Math.round(k.kuota * 32 / 60)))} sampai selesai. Biarkan aplikasi dan WhatsApp tetap terbuka.`;
   }
 
   const hariPersen = Math.min(100, (today.terkirim_hari_ini / Math.max(1, today.batas_harian)) * 100);
@@ -146,7 +146,8 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
           )}
         </div>
         {!kirim.running && k.bisa_kirim && (
-          <p className={s.hint}>Dikirim satu per satu dengan jeda acak 45–120 detik, lalu berhenti sendiri.</p>
+          <p className={s.hint}>Dikirim satu per satu dengan jeda acak {undangan
+            ? "15–30 detik (fasil yang pernah membalas) atau 25–50 detik" : "45–120 detik"}, lalu berhenti sendiri.</p>
         )}
         {today.bypass && (
           <div className={s.bpAktif} role="status">
