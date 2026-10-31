@@ -23,8 +23,6 @@ function salam() {
   return h < 11 ? "Selamat pagi" : h < 15 ? "Selamat siang" : h < 18 ? "Selamat sore" : "Selamat malam";
 }
 
-const persen = (x: SekolahLk) => (x.progres === null ? "" : ` (${x.progres.toFixed(1).replace(".", ",")}%)`);
-
 type Template = { kode: string; label: string; teks: string; tanya: boolean };
 
 /** Template pesan untuk menanyakan isian LK, hanya yang relevan dengan sekolah fasil ini.
@@ -32,10 +30,20 @@ type Template = { kode: string; label: string; teks: string; tanya: boolean };
 function templates(nama: string, sekolah: SekolahLk[]): Template[] {
   const aktif = sekolah.filter((x) => x.prioritas.trim().toLowerCase() !== "selesai");
   const pembuka = `${salam()} Bapak/Ibu ${nama}, izin menindaklanjuti informasi sebelumnya.`;
-  const minta = "Mohon dibantu dijawab *per sekolah* sesuai nomor di atas (cukup ganti titik-titiknya), supaya kendalanya mudah kami rekap.";
+  const minta = "Mohon dibantu dijawab *per sekolah* sesuai nomor di atas (cukup isi titik-titiknya), supaya kendalanya mudah kami rekap.";
   const tutup = "Terima kasih 🙏";
-  const isian = (xs: SekolahLk[], label: string, pakaiPersen = false) =>
-    xs.map((x, i) => `${i + 1}. ${x.nama}${pakaiPersen ? persen(x) : ""}\n   ${label}: ...`).join("\n");
+  const status = (x: SekolahLk) => {
+    const p = x.progres === null ? "progres belum ada" : `${x.progres.toFixed(1).replace(".", ",")}%`;
+    const tahap = x.submit !== "Ya" ? "belum submit" : x.reviu !== "Ya" ? "belum direviu" : "sudah direviu";
+    return ` (${p}, ${tahap})`;
+  };
+  // Satu poin per sekolah: nama (progres, tahap), lalu tiap hal yang ditanyakan di baris sendiri
+  const poin = (xs: SekolahLk[], tanya: (x: SekolahLk) => string[]) =>
+    xs.map((x, i) => `${i + 1}. ${x.nama}${status(x)}\n${tanya(x).map((q) => `   ${q}: ...`).join("\n")}`)
+      .join("\n\n");
+  const T_PROGRES = ["Kendala progres fisik", "Rencana tindak lanjut"];
+  const T_SUBMIT = ["Kendala submit laporan 50%", "Rencana unggah"];
+  const T_REVIU = ["Kendala reviu", "Perkiraan selesai reviu"];
   const progres = aktif.filter((x) => x.progres === null || x.progres < 50);
   const submit = aktif.filter((x) => x.submit !== "Ya");
   const reviu = aktif.filter((x) => x.submit === "Ya" && x.reviu !== "Ya");
@@ -43,15 +51,10 @@ function templates(nama: string, sekolah: SekolahLk[]): Template[] {
   // Alasan yang sudah pasti (belum submit karena < 50%, belum reviu karena belum submit) tidak ditanyakan lagi.
   const pertanyaan = (x: SekolahLk) => {
     const q: string[] = [];
-    if (x.progres === null || x.progres < 50) q.push("Kendala progres fisik & rencana tindak lanjut");
-    else if (x.submit !== "Ya") q.push("Kendala submit laporan 50% & rencana unggah");
-    if (x.submit === "Ya" && x.reviu !== "Ya") q.push("Kendala reviu & perkiraan selesai");
+    if (x.progres === null || x.progres < 50) q.push(...T_PROGRES);
+    else if (x.submit !== "Ya") q.push(...T_SUBMIT);
+    if (x.submit === "Ya" && x.reviu !== "Ya") q.push(...T_REVIU);
     return q;
-  };
-  const status = (x: SekolahLk) => {
-    const p = x.progres === null ? "progres belum ada" : `${x.progres.toFixed(1).replace(".", ",")}%`;
-    const tahap = x.submit !== "Ya" ? "belum submit" : x.reviu !== "Ya" ? "belum direviu" : "sudah direviu";
-    return ` (${p}, ${tahap})`;
   };
   const semua = aktif.filter((x) => pertanyaan(x).length);
   const bimtek = aktif.filter((x) => x.bimtek);
@@ -63,31 +66,31 @@ function templates(nama: string, sekolah: SekolahLk[]): Template[] {
   if (bimtek.length) out.push({ kode: "bimtek", label: `Bimtek: belum direviu (${bimtek.length})`, tanya: true,
     teks: `${pembuka} Laporan kemajuan 50% sekolah binaan Bapak/Ibu berikut (peserta bimtek percepatan pelaporan) sudah disubmit, tetapi sampai saat ini belum direviu:
 
-${bimtek.map((x, i) => `${i + 1}. ${x.nama}${tgl(x.bimtek?.submit ?? "")}\n   Kendala reviu & perkiraan selesai: ...`).join("\n")}
+${bimtek.map((x, i) => `${i + 1}. ${x.nama}${tgl(x.bimtek?.submit ?? "")}\n${T_REVIU.map((q) => `   ${q}: ...`).join("\n")}`).join("\n\n")}
 
 Mohon dibantu segera direviu. ${minta} ${tutup}` });
   if (semua.length) out.push({ kode: "semua", label: `Tanya semua sekaligus (${semua.length})`, tanya: true,
     teks: `${pembuka} Berikut sekolah dampingan Bapak/Ibu yang laporan kemajuan 50%-nya belum tuntas:
 
-${semua.map((x, i) => `${i + 1}. ${x.nama}${status(x)}\n${pertanyaan(x).map((q) => `   ${q}: ...`).join("\n")}`).join("\n")}
+${poin(semua, pertanyaan)}
 
 ${minta} ${tutup}` });
   if (submit.length) out.push({ kode: "submit", label: `Tanya belum submit (${submit.length})`, tanya: true,
     teks: `${pembuka} Laporan kemajuan pekerjaan 50% sekolah berikut belum disubmit di aplikasi:
 
-${isian(submit, "Kendala & rencana unggah", true)}
+${poin(submit, (x) => (x.progres === null || x.progres < 50 ? T_PROGRES : T_SUBMIT))}
 
 ${minta} ${tutup}` });
   if (progres.length) out.push({ kode: "progres", label: `Tanya progres < 50% (${progres.length})`, tanya: true,
     teks: `${pembuka} Progres fisik sekolah berikut masih di bawah 50%:
 
-${isian(progres, "Kendala di lapangan & rencana tindak lanjut", true)}
+${poin(progres, () => T_PROGRES)}
 
 ${minta} ${tutup}` });
   if (reviu.length) out.push({ kode: "reviu", label: `Tanya belum reviu (${reviu.length})`, tanya: true,
     teks: `${pembuka} Laporan kemajuan 50% sekolah berikut sudah diajukan, tetapi belum direviu:
 
-${isian(reviu, "Kendala reviu & perkiraan selesai")}
+${poin(reviu, () => T_REVIU)}
 
 ${minta} ${tutup}` });
   // Pengingat sesuai sekolah yang dipegang: percepatan (progres < 50%), submit laporan 50%, reviu
