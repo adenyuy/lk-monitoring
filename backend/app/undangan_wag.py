@@ -25,6 +25,17 @@ POLA_LINK = re.compile(r"^https://chat\.whatsapp\.com/[A-Za-z0-9_-]{10,}$")
 TANDA_SALAM = "{salam}"
 
 TEKS_AWAL = (
+    "Selamat {salam} rekan fasilitator {nama} 🙏\n\n"
+    "Mohon dapat segera bergabung ke WAG Tim Monitoring {tim} melalui link berikut:\n\n"
+    "🔗 {link}\n\n"
+    "Tujuan:\n"
+    "✅ Seluruh tim monitoring, fasilitator, dan operator berada dalam satu ekosistem komunikasi yang sama\n"
+    "✅ Informasi tersampaikan secara serentak\n\n"
+    "Jika link tidak bisa dibuka, mohon balas pesan ini dan saya akan bantu tambahkan secara manual.\n\n"
+    "Terima kasih 🙏"
+)
+# Teks awal versi sebelumnya: bila tersimpan tanpa diedit, otomatis diganti teks awal terbaru
+_TEKS_AWAL_LAMA = (
     "Selamat {salam} Bapak/Ibu {nama} 🙏\n\n"
     "Mengingatkan kembali, mohon Bapak/Ibu dapat segera bergabung ke WAG Tim Monitoring {tim} melalui link berikut:\n\n"
     "🔗 {link}\n\n"
@@ -33,8 +44,12 @@ TEKS_AWAL = (
     "✅ Informasi tersampaikan secara serentak\n"
     "✅ Meminimalisir risiko nomor terblokir WhatsApp akibat pengiriman pesan massal/japri dalam jumlah besar\n\n"
     "Jika link tidak bisa dibuka, mohon balas pesan ini dan saya akan bantu tambahkan secara manual.\n\n"
-    "Terima kasih 🙏"
+    "Terima kasih 🙏",
 )
+
+
+def _terkini(teks: str) -> str:
+    return TEKS_AWAL if teks in _TEKS_AWAL_LAMA else teks
 
 
 class UndanganError(ValueError):
@@ -55,7 +70,7 @@ class Pengaturan:
 def pengaturan() -> Pengaturan:
     d = db.get_setting(KUNCI) or {}
     return Pengaturan(aktif=bool(d.get("aktif")) and bool(d.get("link")), link=d.get("link", ""),
-                      tim=d.get("tim", ""), teks=d.get("teks") or TEKS_AWAL)
+                      tim=d.get("tim", ""), teks=_terkini(d.get("teks") or TEKS_AWAL))
 
 
 def rapikan_link(link: str) -> str:
@@ -71,7 +86,7 @@ def simpan(*, aktif: bool, link: str, tim: str, teks: str) -> Pengaturan:
         raise UndanganError("Link grup harus berupa link undangan WhatsApp, contoh https://chat.whatsapp.com/AbCdEf123456.")
     if aktif and not link:
         raise UndanganError("Tempel link grup WhatsApp dulu sebelum menyalakan Undangan WAG.")
-    teks = (teks or "").strip() or TEKS_AWAL
+    teks = _terkini((teks or "").strip() or TEKS_AWAL)
     if "{link}" not in teks:
         raise UndanganError("Teks undangan harus memuat {link} supaya link grup ikut terkirim.")
     p = Pengaturan(aktif=aktif, link=link, tim=" ".join((tim or "").split()), teks=teks)

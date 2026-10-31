@@ -56,12 +56,16 @@ def test_validasi_pengaturan():
         undangan_wag.simpan(aktif=False, link=LINK, tim="", teks="Halo tanpa tautan")
     p = undangan_wag.simpan(aktif=True, link="chat.whatsapp.com/AbCdEfGhIj12345?mode=r_c", tim=" 7 ", teks="")
     assert p.link == LINK and p.tim == "7" and p.teks == undangan_wag.TEKS_AWAL
+    # teks awal lama yang tersimpan tanpa diedit ikut diganti teks awal terbaru
+    db.set_setting(undangan_wag.KUNCI, {"aktif": True, "link": LINK, "tim": "7",
+                                        "teks": undangan_wag._TEKS_AWAL_LAMA[0]})
+    assert undangan_wag.pengaturan().teks == undangan_wag.TEKS_AWAL
 
 
 def test_salam_dan_isi_pesan():
     p = undangan_wag.Pengaturan(aktif=True, link=LINK, tim="", teks=undangan_wag.TEKS_AWAL)
     teks = undangan_wag.susun(p, "Budi")
-    assert "Bapak/Ibu Budi" in teks and LINK in teks and "Tim Monitoring melalui" in teks
+    assert "rekan fasilitator Budi" in teks and LINK in teks and "Tim Monitoring melalui" in teks
     assert undangan_wag.salam(datetime(2026, 10, 26, 10, 0)) == "pagi"
     assert undangan_wag.salam(datetime(2026, 10, 26, 14, 0)) == "siang"
     assert undangan_wag.salam(datetime(2026, 10, 26, 16, 0)) == "sore"
@@ -73,7 +77,7 @@ def test_blast_undangan_sekali_per_fasil_dan_broadcast_tetap_jalan():
     wa = CatatWA()
     s, clock = make(wa)
     assert jalan(s).terkirim == 4
-    assert all(t.startswith("Selamat siang Bapak/Ibu Fasil") and LINK in t and "Tim Monitoring 7" in t
+    assert all(t.startswith("Selamat siang rekan fasilitator Fasil") and LINK in t and "Tim Monitoring 7" in t
                for t in wa.teks)
 
     # Masih mode undangan: semua sudah diundang, minggu depan pun tidak diundang lagi
