@@ -78,6 +78,11 @@
   box-shadow: 0 20px 48px rgba(23, 32, 51, 0.24);
 }
 
+.modalKecil {
+  width: min(460px, 100%);
+  border-top-color: var(--primary);
+}
+
 .kepala h2 {
   font-size: 18px;
   font-weight: 600;

@@ -97,6 +97,13 @@ export function TodayView() {
   });
   usePolling(loadToday, 60000, true);
 
+  // Nama / nomor fasil diubah dari panel: daftar sesi ikut diperbarui
+  useEffect(() => {
+    const ubah = () => { void refresh(); };
+    window.addEventListener("lkm-fasil-diubah", ubah);
+    return () => window.removeEventListener("lkm-fasil-diubah", ubah);
+  }, [refresh]);
+
   if (error && !today) {
     return <Notice tone="bad" title="Data hari ini tidak bisa dimuat">{error}</Notice>;
   }

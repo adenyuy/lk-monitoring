@@ -457,3 +457,24 @@ def jadwal(_=Depends(require_login)) -> dict[str, Any]:
     out["berikutnya"] = {"no": sesi.no, "mulai": jam(sesi.mulai), "hari_ini": mulai.date() == now.date(),
                          "dalam_detik": max(0, int((mulai - now).total_seconds()))}
     return out
+
+
+class UbahFasilReq(BaseModel):
+    nama: str
+    nomor_baru: str = ""
+
+
+@router.post("/fasil/{nomor}/ubah")
+def fasil_ubah(nomor: str, req: UbahFasilReq, _=Depends(wa_blast)) -> dict[str, Any]:
+    """Ganti nama / nomor WhatsApp fasil di Broadcast, LK WEEK aktif, dan riwayat lokal."""
+    from .. import ubah_fasil
+
+    if sender.state.running:
+        raise HTTPException(409, "Tunggu pengiriman yang sedang berjalan selesai, atau hentikan dulu.")
+    try:
+        h = ubah_fasil.ubah(nomor, req.nama, req.nomor_baru)
+    except ubah_fasil.UbahFasilError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(502, f"Sheet tidak bisa ditulis: {e}") from e
+    return {"nomor": h.nomor, "broadcast": h.broadcast, "lk": h.lk}

@@ -7,6 +7,7 @@ import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { BantuanDialog } from "./BantuanDialog";
 import { LkPanel } from "./LkPanel";
 import { TemanPanel, type Teman } from "./TemanPanel";
+import { UbahFasilDialog } from "./UbahFasil";
 import { WaPanel } from "./WaPanel";
 import { inisial } from "./FasilList";
 import s from "./today.module.css";
@@ -20,7 +21,14 @@ function toneStatus(st: string) {
 
 
 /** Panel geser: LK sekolah binaan di kiri, chat WhatsApp di kanan. */
-export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: number; onClose: () => void }) {
+export function FasilDrawer({ nomor: nomorAwal, versi, onClose }: { nomor: string; versi: number;
+  onClose: () => void }) {
+  // Nomor bisa berganti dari dalam panel (Ubah data fasil)
+  const [nomor, setNomor] = useState(nomorAwal);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setNomor(nomorAwal); }, [nomorAwal]);
+  const [ubah, setUbah] = useState(false);
+  const [versiLokal, setVersiLokal] = useState(0);
   const [data, setData] = useState<Fasil | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
@@ -37,7 +45,7 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
       .then((d) => { if (!batal) { setData(d); setError(null); } })
       .catch((e) => { if (!batal) setError(e.message); });
     return () => { batal = true; };
-  }, [nomor, versi]);
+  }, [nomor, versi, versiLokal]);
 
   const muatUlang = useCallback(async () => {
     try {
@@ -76,7 +84,18 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
         <header className={s.drawerHead}>
           <span className={`${s.avatar} ${s.avatarLg}`} aria-hidden="true">{data ? inisial(data.nama_fasil) : ""}</span>
           <div className={s.drawerWho}>
-            <h2>{data?.nama_fasil ?? "Memuat…"}</h2>
+            <h2>
+              {data?.nama_fasil ?? "Memuat…"}
+              {data && (
+                <button type="button" className={s.ubahBtn} onClick={() => setUbah(true)}
+                  title="Ubah nama atau nomor WhatsApp fasil" aria-label="Ubah nama atau nomor WhatsApp fasil">
+                  <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" />
+                  </svg>
+                </button>
+              )}
+            </h2>
             {data && <span>{data.nomor_tersamar} <Chip tone={toneStatus(data.status)}>{data.status}</Chip></span>}
           </div>
           {data && (
@@ -118,6 +137,15 @@ export function FasilDrawer({ nomor, versi, onClose }: { nomor: string; versi: n
           </div>
         )}
       </aside>
+      {ubah && data && (
+        <UbahFasilDialog nomor={nomor} nama={data.nama_fasil} nomorTersamar={data.nomor_tersamar}
+          onClose={() => setUbah(false)}
+          onSaved={(baru) => {
+            setUbah(false);
+            if (baru !== nomor) { setData(null); setNomor(baru); } else setVersiLokal((v) => v + 1);
+            window.dispatchEvent(new CustomEvent("lkm-fasil-diubah"));
+          }} />
+      )}
       {bantuan && data && (
         <BantuanDialog namaFasil={data.nama_fasil} sekolah={data.sekolah} terusan={bantuan.terusan}
           onClose={() => setBantuan(null)}
