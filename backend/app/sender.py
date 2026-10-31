@@ -74,6 +74,17 @@ class State:
     undangan: bool = False  # Undangan WAG: langsung ke semua fasil (tanpa sesi, kuota, batas harian)
 
 
+def _baca_lk() -> list:
+    """LK WEEK aktif (untuk daftar fasil binaan Undangan WAG). Kosong bila tidak terbaca."""
+    try:
+        from .sheets import read_lk, week_aktif
+
+        return read_lk(week_aktif())
+    except Exception:
+        log.exception("LK tidak terbaca untuk daftar Undangan WAG")
+        return []
+
+
 class Sender:
     def __init__(
         self,
@@ -82,11 +93,13 @@ class Sender:
         clock: Callable[[], object] = schedule.now,
         load_rows: Callable[[], list[BroadcastRow]] | None = None,
         rng: random.Random | None = None,
+        load_lk: Callable[[], list] | None = None,
     ) -> None:
         self.wa = wa or WorkerWA()
         self.sleep = sleep
         self.clock = clock
         self.load_rows = load_rows or (lambda: read_broadcast(refresh=True))
+        self.load_lk = load_lk or _baca_lk
         self.rng = rng or random.Random()
         self.state = State()
         self._lock = threading.Lock()
@@ -114,8 +127,8 @@ class Sender:
         rows = filter_petugas(self.load_rows(), petugas)
         sends = store.sends_real()
         wag = undangan_wag.pengaturan()
-        if wag.aktif:  # mode Undangan WAG: pesan undangan grup, bukan pesan Broadcast
-            return undangan_wag.build(rows, sends, wag)
+        if wag.aktif:  # mode Undangan WAG: pesan undangan grup ke SEMUA fasil binaan (Broadcast + LK)
+            return undangan_wag.build(undangan_wag.penerima(rows, petugas, self.load_lk()), sends, wag)
         bc = [x for x in sends if not x["hash_pesan"].startswith(undangan_wag.AWALAN)]
         return send_queue.build(rows, bc, self.clock().date(), store.ulang_all())
 

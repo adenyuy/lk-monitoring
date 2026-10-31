@@ -36,9 +36,10 @@ def bersih():
     db.delete_setting(undangan_wag.KUNCI)
 
 
-def make(wa, start="2026-10-26 14:00", n=4):
+def make(wa, start="2026-10-26 14:00", n=4, lk=()):
     clock = Clock(datetime.strptime(start, "%Y-%m-%d %H:%M").replace(tzinfo=TZ))
-    return Sender(wa=wa, sleep=clock.sleep, clock=clock, load_rows=lambda: rows(n), rng=random.Random(7)), clock
+    return Sender(wa=wa, sleep=clock.sleep, clock=clock, load_rows=lambda: rows(n), rng=random.Random(7),
+                  load_lk=lambda: list(lk)), clock
 
 
 def jalan(s):
@@ -108,6 +109,7 @@ def client(monkeypatch):
     from app.sender import sender
 
     monkeypatch.setattr(sender, "load_rows", lambda: rows(3))
+    monkeypatch.setattr(sender, "load_lk", lambda: [])
     app.dependency_overrides[send.wa_blast] = lambda: Access(email="uji@contoh.id", nama_petugas="Sari Petugas",
                                                              fitur=("wa_blast",))
     yield TestClient(app)
@@ -150,3 +152,27 @@ def test_undangan_mode_coba_tiga_pesan():
     s.start(coba=True)
     s.wait(10)
     assert s.state.dicoba == 3 and not wa.sent
+
+
+def sekolah(baris, fasil, nomor, petugas="Sari Petugas"):
+    from app.sheets import Sekolah
+
+    return Sekolah(baris, petugas, "1", "SD", "", fasil, nomor, "", None, "", "")
+
+
+def test_semua_fasil_binaan_dari_lk_ikut_diundang():
+    undangan_wag.simpan(aktif=True, link=LINK, tim="", teks="")
+    lk = [
+        sekolah(5, "Fasil 0", "0811-0000-0000"),      # sudah ada di Broadcast (nomor sama)
+        sekolah(6, "Fasil LK Satu", "081299990001"),  # hanya di LK
+        sekolah(7, "Fasil LK Satu", "081299990001"),  # sekolah kedua fasil yang sama
+        sekolah(8, "Fasil Tanpa Nomor", ""),          # tanpa nomor: dicantumkan, dilewati
+        sekolah(9, "Fasil Lain", "081299990009", petugas="Petugas Lain"),
+    ]
+    wa = CatatWA()
+    s, clock = make(wa, start="2026-10-31 09:00", n=2, lk=lk)
+    items = s.antrean()
+    assert [i.nama_fasil for i in items] == ["Fasil 0", "Fasil 1", "Fasil LK Satu", "Fasil Tanpa Nomor"]
+    assert items[-1].status == "dilewati"
+    assert jalan(s).terkirim == 3
+    assert "6281299990001" in wa.sent and "rekan fasilitator Fasil LK Satu" in wa.teks[-1]

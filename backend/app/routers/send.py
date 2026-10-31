@@ -133,7 +133,7 @@ def _undangan() -> dict[str, Any]:
     except Exception:  # nama petugas belum dipilih / Broadcast tak terbaca: pengaturan tetap bisa diubah
         return out
     if p.link:
-        items = undangan_wag.build(rows, store.sends_real(), p)
+        items = undangan_wag.build(undangan_wag.penerima(rows, petugas, sender.load_lk()), store.sends_real(), p)
         out["ringkasan"] = undangan_wag.ringkasan(items)
     nama = next((r.nama_fasil for r in rows if r.nomor), "Nama Fasilitator")
     out["nama_contoh"] = nama

@@ -18,7 +18,7 @@ from typing import Any, Iterable
 
 from . import db
 from .send_queue import GAGAL_PERMANEN, Item
-from .sheets import BroadcastRow
+from .sheets import BroadcastRow, nomor_key, nomor_lk, normalize_petugas
 
 KUNCI = "undangan_wag"
 AWALAN = "wag:"
@@ -113,6 +113,30 @@ def susun(p: Pengaturan, nama: str) -> str:
 
 def isi_salam(teks: str, t: datetime) -> str:
     return teks.replace(TANDA_SALAM, salam(t))
+
+
+def penerima(rows: list[BroadcastRow], petugas: str, lk: list | None) -> list[BroadcastRow]:
+    """Semua fasil binaan: baris Broadcast milik petugas + fasil di LK (WEEK aktif) yang tidak ada di Broadcast.
+    Fasil LK tanpa nomor tetap dicantumkan (tampil sebagai Dilewati) supaya jumlahnya sesuai binaan."""
+    out = list(rows)
+    kunci = {nomor_key(r.nomor) for r in rows if r.nomor}
+    nama_ada = {" ".join(r.nama_fasil.casefold().split()) for r in rows}
+    target = normalize_petugas(petugas)
+    for sk in lk or []:
+        if normalize_petugas(sk.petugas) != target or not (sk.fasil or "").strip():
+            continue
+        nomor = next(iter(nomor_lk(sk)), "")
+        nama = " ".join(sk.fasil.split())
+        if nomor:
+            if nomor_key(nomor) in kunci:
+                continue
+            kunci.add(nomor_key(nomor))
+        else:
+            if nama.casefold() in nama_ada:
+                continue
+        nama_ada.add(nama.casefold())
+        out.append(BroadcastRow(100000 + sk.baris, sk.petugas, nama, nomor, sk.nomor_fasil, "", ""))
+    return out
 
 
 def build(rows: Iterable[BroadcastRow], sends: Iterable[dict], p: Pengaturan) -> list[Item]:
