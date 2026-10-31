@@ -11,6 +11,7 @@ import threading
 from dataclasses import dataclass
 
 import gspread
+from gspread.http_client import BackOffHTTPClient
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import AuthorizedSession, Request
 from google.oauth2.credentials import Credentials
@@ -191,5 +192,6 @@ def gspread_client() -> gspread.Client:
     key = id(creds)
     if key not in _gc_cache:
         _gc_cache.clear()
-        _gc_cache[key] = gspread.authorize(creds)
+        # Batas baca Google Sheets (60/menit/akun): coba ulang otomatis dengan jeda bertahap, bukan langsung gagal
+        _gc_cache[key] = gspread.authorize(creds, http_client=BackOffHTTPClient)
     return _gc_cache[key]

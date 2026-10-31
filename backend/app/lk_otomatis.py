@@ -94,18 +94,18 @@ def alasan_pasti(s, opsi: dict[str, list[str]]) -> dict[str, str]:
     return {k: v for k, v in out.items() if v}
 
 
-def isi_alasan() -> int:
+def isi_alasan(week: str | None = None, data=None, kol=None) -> int:
     """Isi alasan yang sudah pasti di kolom sesi hari ini untuk sekolah binaan petugas ini."""
     petugas = normalize_petugas(db.get_setting("nama_petugas") or "")
     if not petugas:
         return 0
-    week = week_aktif()
+    week = week or week_aktif()
     opsi = read_validasi()
     otomatis = {"b1": _cari(opsi["alasan_submit"], "belum mencapai 50"), "c1": _cari(opsi["alasan_reviu"], "belum submit")}
     blok = tahap.blok_hari_ini()
-    kol = kolom_lk(week, refresh=True)
+    kol = kol or kolom_lk(week, refresh=True)
     ubah, per_fasil = [], {}
-    for s in read_lk(week, refresh=True):
+    for s in data if data is not None else read_lk(week, refresh=True):
         if normalize_petugas(s.petugas) != petugas or not tahap.perlu_isian(s):
             continue
         isi = s.isian.get(blok, {})
@@ -132,55 +132,66 @@ def isi_alasan() -> int:
 
 
 def sinkron() -> int:
-    """Tulis isian otomatis (status komunikasi + alasan pasti) ke LK. Mengembalikan jumlah sekolah yang diubah."""
-    n = 0
-    try:
-        with _lock:
-            n = isi_alasan()
-    except Exception:
-        log.exception("Gagal mengisi alasan otomatis")
-    return n + _sinkron_komunikasi()
-
-
-def _sinkron_komunikasi() -> int:
-    try:
-        with _lock:
-            status = status_minggu()
-            petugas = db.get_setting("nama_petugas") or ""
-            if not status or not petugas:
-                return 0
+    """Tulis isian otomatis (status komunikasi + alasan pasti) ke LK. Mengembalikan jumlah sekolah yang diubah.
+    LK dibaca SEKALI per putaran untuk keduanya (hemat kuota baca Google Sheets)."""
+    with _lock:
+        try:
             week = week_aktif()
-            per_fasil = sekolah_per_fasil(read_lk(week, refresh=True), petugas)
-            opsi = read_validasi()["komunikasi"]
-            ubah, catatan = [], []
-            for nomor, jenis in status.items():
-                target = pilihan(opsi, jenis)
-                sekolah = [s for s in per_fasil.get(nomor_key(nomor), [])
-                           if tahap.perlu_isian(s) and s.komunikasi != target and _boleh_ditimpa(s.komunikasi, jenis)]
-                if target and sekolah:
-                    ubah += [(s, target) for s in sekolah]
-                    catatan.append((nomor, target, sekolah))
-            if not ubah:
-                return 0
+            data = read_lk(week, refresh=True)
             kol = kolom_lk(week, refresh=True)
-            write_isian(week, [(s, {kol.komunikasi: t}) for s, t in ubah], kol)
-            for s, t in ubah:
-                s.komunikasi = t
-            for nomor, t, sekolah in catatan:
-                aktivitas.catat(nomor, "lk", f"Status komunikasi otomatis “{t}” untuk {len(sekolah)} sekolah",
-                                sekolah[0].fasil)
-            return len(ubah)
+        except Exception:
+            log.exception("LK tidak terbaca untuk isian otomatis")
+            return 0
+        n = 0
+        try:
+            n = isi_alasan(week, data, kol)
+        except Exception:
+            log.exception("Gagal mengisi alasan otomatis")
+        return n + _sinkron_komunikasi(week, data, kol)
+
+
+def _sinkron_komunikasi(week: str, data, kol) -> int:
+    try:
+        status = status_minggu()
+        petugas = db.get_setting("nama_petugas") or ""
+        if not status or not petugas:
+            return 0
+        per_fasil = sekolah_per_fasil(data, petugas)
+        opsi = read_validasi()["komunikasi"]
+        ubah, catatan = [], []
+        for nomor, jenis in status.items():
+            target = pilihan(opsi, jenis)
+            sekolah = [s for s in per_fasil.get(nomor_key(nomor), [])
+                       if tahap.perlu_isian(s) and s.komunikasi != target and _boleh_ditimpa(s.komunikasi, jenis)]
+            if target and sekolah:
+                ubah += [(s, target) for s in sekolah]
+                catatan.append((nomor, target, sekolah))
+        if not ubah:
+            return 0
+        write_isian(week, [(s, {kol.komunikasi: t}) for s, t in ubah], kol)
+        for s, t in ubah:
+            s.komunikasi = t
+        for nomor, t, sekolah in catatan:
+            aktivitas.catat(nomor, "lk", f"Status komunikasi otomatis “{t}” untuk {len(sekolah)} sekolah",
+                            sekolah[0].fasil)
+        return len(ubah)
     except Exception:
         log.exception("Gagal mengisi status komunikasi otomatis")
         return 0
 
 
+JEDA_MIN = 3 * 60  # paling sering sekali per 3 menit: tiap putaran membaca seluruh LK
+
+
 def _loop() -> None:
+    terakhir = 0.0
     while True:
         _bangun.wait(timeout=30 * 60)  # juga tiap 30 menit: progres/submit bisa berubah karena tarik cutoff
-        time.sleep(5)  # kumpulkan beberapa pemicu (satu putaran cek chat) jadi sekali tulis
+        # kumpulkan pemicu (mis. pindai chat banyak fasil) jadi sekali tulis
+        time.sleep(max(5.0, JEDA_MIN - (time.monotonic() - terakhir)))
         _bangun.clear()
         sinkron()
+        terakhir = time.monotonic()
 
 
 def picu() -> None:
