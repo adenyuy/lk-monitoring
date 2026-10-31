@@ -71,6 +71,7 @@ class State:
     selesai: float | None = None
     hasil: list[dict] = field(default_factory=list)
     bypass: bool = False  # dikirim lewat bypass sesi (tanpa jam & kuota sesi)
+    undangan: bool = False  # Undangan WAG: langsung ke semua fasil (tanpa sesi, kuota, batas harian)
 
 
 class Sender:
@@ -122,6 +123,8 @@ class Sender:
         _, batas, akhir_pekan = self._settings()
         items = items if items is not None else self.antrean()
         t = self.clock()
+        if undangan_wag.pengaturan().aktif:
+            return schedule.kondisi_undangan(t, akhir_pekan, len(send_queue.eligible(items)))
         total, per = store.counts(schedule.tanggal_str(t.date()))
         return schedule.kondisi(t, batas, akhir_pekan, total, per, len(send_queue.eligible(items)),
                                 bypass=self.bypass_aktif())
@@ -142,9 +145,11 @@ class Sender:
             if not k.bisa_kirim:
                 raise NotAllowed(k.judul)
             todo = send_queue.eligible(items)
-            bypass = k.kode == "bypass"
-            self.state = State(running=True, coba=coba, sesi=0 if bypass else k.sesi.no, target=k.kuota,
-                               mulai=time.time(), bypass=bypass)
+            undangan = k.kode == "undangan"
+            bypass = k.kode == "bypass" or undangan
+            target = min(k.kuota, 3) if (undangan and coba) else k.kuota
+            self.state = State(running=True, coba=coba, sesi=0 if bypass else k.sesi.no, target=target,
+                               mulai=time.time(), bypass=bypass, undangan=undangan)
             self._thread = threading.Thread(target=self._run, args=(todo, k.sesi), name="sender", daemon=True)
             self._thread.start()
         events.publish("kirim_mulai", **self.snapshot())
@@ -179,7 +184,8 @@ class Sender:
                     break
                 sisa = self._sisa_kuota(sesi)
                 if sisa is None:
-                    self._halt("Bypass sesi sudah tidak berlaku." if st.bypass else f"Sesi {sesi.no} sudah berakhir.")
+                    self._halt("Undangan WAG hanya dikirim pukul 07.00–22.00." if st.undangan
+                               else "Bypass sesi sudah tidak berlaku." if st.bypass else f"Sesi {sesi.no} sudah berakhir.")
                     break
                 if sisa <= 0:
                     break
@@ -236,6 +242,10 @@ class Sender:
     def _sisa_kuota(self, sesi: config.Sesi | None) -> int | None:
         """Sisa kuota sekarang; None bila sesi (atau bypass) sudah berakhir."""
         t = self.clock()
+        if self.state.undangan:
+            if not (schedule.BYPASS_MULAI <= t.time() <= schedule.BYPASS_SAMPAI):
+                return None
+            return self.state.target - self.state.dicoba
         if self.state.bypass:
             if not self.bypass_aktif() or not (schedule.BYPASS_MULAI <= t.time() <= schedule.BYPASS_SAMPAI):
                 return None

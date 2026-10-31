@@ -122,3 +122,31 @@ def test_api_undangan(client):
     d = r.json()
     assert d["aktif"] and d["link"] == LINK and "Tim Monitoring 3" in d["contoh"] and "{salam}" not in d["contoh"]
     assert client.get("/api/undangan-wag").json()["aktif"]
+
+
+def test_undangan_langsung_semua_fasil_tanpa_sesi_akhir_pekan_dan_batas_harian():
+    undangan_wag.simpan(aktif=True, link=LINK, tim="", teks="")
+    db.set_setting("batas_harian", 10)
+    wa = CatatWA()
+    s, clock = make(wa, start="2026-10-31 08:30", n=25)  # Sabtu, sebelum sesi 1
+    k = s.kondisi()
+    assert k.bisa_kirim and k.kode == "undangan" and k.kuota == 25
+    st = jalan(s)
+    assert st.terkirim == 25 and len(set(wa.sent)) == 25 and st.berhenti_karena == ""
+    assert wa.teks[0].startswith("Selamat pagi")
+    assert s.kondisi().kode == "antrean_habis"
+
+
+def test_undangan_berhenti_di_luar_jam():
+    undangan_wag.simpan(aktif=True, link=LINK, tim="", teks="")
+    s, clock = make(CatatWA(), start="2026-10-31 22:30", n=3)
+    assert s.kondisi().kode == "undangan_jam" and not s.kondisi().bisa_kirim
+
+
+def test_undangan_mode_coba_tiga_pesan():
+    undangan_wag.simpan(aktif=True, link=LINK, tim="", teks="")
+    wa = CatatWA()
+    s, clock = make(wa, start="2026-10-31 09:00", n=10)
+    s.start(coba=True)
+    s.wait(10)
+    assert s.state.dicoba == 3 and not wa.sent

@@ -130,8 +130,8 @@ function UndanganDialog({ data, onClose, onSaved }: { data: UndanganWag; onClose
       <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="wag-judul">
         <div className={s.kepala}>
           <h2 id="wag-judul">Undangan WAG</h2>
-          <p>Blast mengirim undangan ini ke tiap fasil binaan Anda, sekali per fasil, dengan jam sesi, kuota, dan jeda
-            yang sama seperti pesan Broadcast.</p>
+          <p>Blast mengirim undangan ini langsung ke semua fasil binaan Anda hari ini, sekali per fasil, tanpa menunggu
+            jam sesi, kuota, atau batas harian. Jeda acak 45–120 detik antarpesan tetap berlaku, pukul 07.00–22.00.</p>
         </div>
 
         <div className={s.isi}>

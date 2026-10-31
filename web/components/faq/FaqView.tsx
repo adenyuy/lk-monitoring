@@ -191,8 +191,9 @@ const GRUP: { judul: string; isi: T[] }[] = [
             <p>Buat grup WhatsApp tim Anda, salin link undangannya (Info grup › Undang lewat link), lalu di Blast tekan
               <b> Atur undangan</b>. Tempel link, isi nomor tim bila ada, cek contoh pesannya, lalu <b>Simpan dan pakai
               untuk blast</b>.</p>
-            <p>Selama mode ini menyala, sesi blast mengirim undangan, bukan pesan Broadcast, dengan jam sesi, kuota,
-              batas harian, dan jeda yang sama. Tiap fasil diundang sekali per link. Setelah semua diundang, tekan
+            <p>Selama mode ini menyala, blast mengirim undangan, bukan pesan Broadcast, langsung ke semua fasil tanpa
+              menunggu jam sesi, kuota, batas harian, atau hari kerja. Jeda acak 45–120 detik tetap berlaku, hanya pukul
+              07.00–22.00. Tiap fasil diundang sekali per link. Setelah semua diundang, tekan
               <b> Kembali ke pesan Broadcast</b>; undangan tidak dihitung sebagai pesan Broadcast minggu itu.</p>
           </>
         ),

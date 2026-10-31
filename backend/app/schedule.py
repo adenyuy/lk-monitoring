@@ -86,7 +86,7 @@ def kuota_efektif(sesi: Sesi, terkirim_sesi: int, batas_harian: int, terkirim_ha
 
 @dataclass
 class Kondisi:
-    kode: str  # berjalan | bypass | bypass_jam | kuota_sesi_habis | batas_harian | sebelum_sesi | selesai_hari | akhir_pekan | antrean_habis
+    kode: str  # berjalan | bypass | undangan | undangan_jam | bypass_jam | kuota_sesi_habis | batas_harian | sebelum_sesi | selesai_hari | akhir_pekan | antrean_habis
     judul: str
     bisa_kirim: bool
     sesi: Sesi | None  # sesi aktif (bila ada)
@@ -153,3 +153,16 @@ def kondisi(
 
     kuota = kuota_efektif(s, terkirim_per_sesi.get(s.no, 0), batas_harian, terkirim_hari, sisa_antrean)
     return k("berjalan", f"Sesi {s.no} sedang berjalan, sampai {jam(s.sampai)}", sesi=s, kuota=kuota)
+
+
+def kondisi_undangan(t: datetime, kirim_akhir_pekan: bool, sisa_antrean: int) -> Kondisi:
+    """Mode Undangan WAG: langsung ke semua fasil hari ini. Jam sesi, kuota sesi, batas harian, dan libur akhir pekan
+    diabaikan; hanya pukul 07.00–22.00 (jeda acak antarpesan tetap)."""
+    nxt, nxt_at = next_sesi(t, kirim_akhir_pekan)
+    if not (BYPASS_MULAI <= t.time() <= BYPASS_SAMPAI):
+        return Kondisi("undangan_jam", f"Undangan WAG dikirim pukul {BYPASS_MULAI:%H.%M}–{BYPASS_SAMPAI:%H.%M}.",
+                       False, None, 0, nxt, nxt_at)
+    if sisa_antrean <= 0:
+        return Kondisi("antrean_habis", "Semua fasil sudah diundang ke WAG", False, sesi_at(t), 0, nxt, nxt_at)
+    return Kondisi("undangan", f"Undangan WAG: {sisa_antrean} fasil belum diundang, dikirim langsung tanpa menunggu sesi",
+                   True, sesi_at(t), sisa_antrean, nxt, nxt_at)

@@ -1,7 +1,8 @@
 """Undangan WAG: blast ajakan bergabung ke grup WhatsApp tim monitoring milik petugas.
 
-Saat mode ini dinyalakan, Blast mengirim pesan undangan (bukan pesan Broadcast minggu ini) ke fasil binaan petugas,
-dengan jam sesi, kuota, batas harian, dan jeda yang sama. Link grup ditempel sendiri oleh tiap petugas.
+Saat mode ini dinyalakan, Blast mengirim pesan undangan (bukan pesan Broadcast minggu ini) LANGSUNG ke semua fasil
+binaan petugas: jam sesi, kuota sesi, batas harian, dan libur akhir pekan diabaikan; jeda acak antarpesan tetap,
+hanya pukul 07.00–22.00. Link grup ditempel sendiri oleh tiap petugas.
 
 - Tiap fasil diundang SEKALI per link (bukan per minggu). Ganti link grup = semua fasil diundang lagi.
 - Kiriman undangan dicatat di tabel sends dengan hash_pesan berawalan "wag:", sehingga tidak dihitung sebagai

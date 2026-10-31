@@ -83,6 +83,11 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
   else if (today.sisa_menit_sesi !== null && k.bisa_kirim) sub = `Sisa waktu sesi ${durasi(today.sisa_menit_sesi)}.`;
   else if (today.menit_ke_berikutnya !== null) sub = `Dimulai dalam ${durasi(today.menit_ke_berikutnya)}.`;
 
+  const undangan = today.undangan_wag;
+  if (undangan && !kirim.running && k.bisa_kirim) {
+    sub = `Sekitar ${durasi(Math.max(1, Math.round(k.kuota * 82 / 60)))} sampai selesai. Biarkan aplikasi dan WhatsApp tetap terbuka.`;
+  }
+
   const hariPersen = Math.min(100, (today.terkirim_hari_ini / Math.max(1, today.batas_harian)) * 100);
 
   return (
@@ -99,7 +104,7 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
         </h1>
         {sub && <p className={s.nowSub}>{sub}</p>}
 
-        {fokus && !today.bypass && (
+        {fokus && !today.bypass && !undangan && (
           <div className={s.dotsWrap}>
             <div className={s.dots} role="img"
               aria-label={`Sesi ${fokus.no}: ${fokus.terkirim} dari ${fokus.kuota} terkirim`}>
@@ -125,7 +130,8 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
           {!kirim.running && k.bisa_kirim && (
             <>
               <Button loading={busy} onClick={start} className={s.cta}>
-                {coba ? `Coba ${k.kuota} pesan` : `Kirim ${k.kuota} pesan`}
+                {coba ? `Coba ${undangan ? Math.min(3, k.kuota) : k.kuota} pesan`
+                  : undangan ? `Kirim undangan ke ${k.kuota} fasil` : `Kirim ${k.kuota} pesan`}
               </Button>
               <button type="button" className={s.toggle} aria-pressed={coba} onClick={() => setCoba(!coba)}>
                 <span className={s.knob} aria-hidden="true" />
