@@ -166,26 +166,70 @@ def _angka(v: Any) -> Any:
     return int(s) if s.isdigit() else s
 
 
+def baca_berjudul(data: bytes, nama_file: str, wajib: tuple[str, ...], cari_baris: int = 30) -> pd.DataFrame:
+    """Baca file yang judul kolomnya tidak selalu di baris 1 (ekspor aplikasi diawali baris keterangan seperti
+    Indikator / Angkatan / Data per). Baris judul = baris pertama yang memuat semua kata di `wajib`."""
+    import csv
+
+    ext = nama_file.lower().rsplit(".", 1)[-1] if "." in nama_file else ""
+    if ext == "csv":
+        teks = None
+        for enc in ("utf-8-sig", "latin-1"):
+            try:
+                teks = data.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        contoh = "\n".join(teks.splitlines()[:50])
+        try:
+            sep = csv.Sniffer().sniff(contoh, delimiters=",;\t").delimiter
+        except csv.Error:
+            sep = ","
+        rows = [list(r) for r in csv.reader(io.StringIO(teks), delimiter=sep)]
+        # Ekspor aplikasi membungkus tiap baris CSV utuh jadi satu sel ("1,10803808,""SD …"""): urai sekali lagi
+        rows = [next(csv.reader([r[0]], delimiter=sep)) if len(r) == 1 and sep in r[0] else r for r in rows]
+    elif ext in ("xlsx", "xls"):
+        rows = pd.read_excel(io.BytesIO(data), dtype=str, keep_default_na=False, header=None).values.tolist()
+    else:
+        raise CutoffError("File harus CSV atau Excel (.csv, .xlsx, .xls).")
+    for i, r in enumerate(rows[:cari_baris]):
+        judul = [" ".join(str(c).lower().split()) for c in r]
+        if all(any(w in j for j in judul) for w in wajib):
+            lebar = len(r)
+            isi = [(list(x) + [""] * lebar)[:lebar] for x in rows[i + 1:]]
+            return pd.DataFrame(isi, columns=[str(c).strip() for c in r]).astype(str)
+    raise CutoffError(f"Judul kolom {', '.join(w.title() for w in wajib)} tidak ketemu di {cari_baris} baris pertama "
+                      "file. Pastikan ini file tanggal kirim laporan 50%.")
+
+
 def olah_raw(df: pd.DataFrame) -> tuple[list[list], int]:
-    """File Raw Reviu 50% -> baris [NPSN, serial tanggal kirim, kiriman ke-], dan jumlah baris tanpa tanggal.
-    Kolom dicari dari judulnya; bila tidak ketemu dipakai urutan A, B, C."""
-    judul = [str(c).strip().lower() for c in df.columns]
+    """File tanggal kirim laporan 50% -> baris [NPSN, serial tanggal kirim, kiriman ke-], dan jumlah baris tanpa
+    tanggal. Kolom dicari dari judulnya (NPSN, Tanggal Kirim, Kiriman Ke), bukan dari urutannya."""
+    judul = [" ".join(str(c).lower().split()) for c in df.columns]
 
-    def cari(*kata: str, cadangan: int) -> int:
-        return next((i for i, j in enumerate(judul) if any(k in j for k in kata)), cadangan)
+    def cari(*kata: str) -> int:
+        for k in kata:  # urutan = prioritas: judul yang paling persis dulu
+            i = next((i for i, j in enumerate(judul) if j == k), None)
+            if i is None:
+                i = next((i for i, j in enumerate(judul) if k in j), None)
+            if i is not None:
+                return i
+        return -1
 
-    i_npsn, i_tgl, i_ke = cari("npsn", cadangan=0), cari("tanggal", "kirim", cadangan=1), cari("kiriman ke", cadangan=2)
+    i_npsn, i_tgl, i_ke = cari("npsn"), cari("tanggal kirim", "tanggal"), cari("kiriman ke")
+    if i_npsn < 0 or i_tgl < 0:
+        raise CutoffError("Kolom NPSN dan Tanggal Kirim tidak ketemu di file ini.")
     cols = df.columns
     baris, tanpa_tgl = [], 0
-    for _, r in df.iterrows():
-        npsn = key_npsn(r[cols[i_npsn]])
-        if not npsn:
+    for r in df.itertuples(index=False):
+        npsn = key_npsn(r[i_npsn])
+        if not npsn or not npsn.isdigit():
             continue
-        tgl = ke_serial(r[cols[i_tgl]])
+        tgl = ke_serial(r[i_tgl])
         if tgl is None:
             tanpa_tgl += 1
             continue
-        ke = _angka(r[cols[i_ke]]) if i_ke < len(cols) else ""
+        ke = _angka(r[i_ke]) if 0 <= i_ke < len(cols) else ""
         baris.append([_angka(npsn), tgl, ke])
     return baris, tanpa_tgl
 
@@ -210,7 +254,7 @@ def hari_tunggu(submit: Any, reviu: Any, serial: float | None, hari_ini: date) -
 
 
 def siapkan_waktu_tunggu(data: bytes, nama_file: str, week: str) -> "Rencana":
-    df = baca(data, nama_file, min_kolom=2)
+    df = baca_berjudul(data, nama_file, ("npsn", "tanggal"))
     baris, tanpa_tgl = olah_raw(df)
     if not baris:
         raise CutoffError("Tidak ada baris dengan NPSN dan Tanggal Kirim yang terbaca di file ini.")
@@ -260,8 +304,7 @@ def siapkan_waktu_tunggu(data: bytes, nama_file: str, week: str) -> "Rencana":
             "menunggu_lk": menunggu,
             "menunggu_ada": menunggu_ada,
             "kolom": kol["tunggu"],
-            "peringatan": "" if "npsn" in str(df.columns[0]).lower() else
-            "Judul kolom pertama bukan NPSN. Pastikan file berisi NPSN, Tanggal Kirim, Kiriman Ke-.",
+            "peringatan": "",
         },
     )
     r.ringkasan["sheet_id"] = ws.id

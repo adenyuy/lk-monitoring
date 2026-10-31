@@ -205,3 +205,32 @@ def test_judul_fasilitator_hilang_karena_table():
     assert sheets.parse_kolom(judul[:i] + ["Column 6"] + judul[i + 1:]).fasil == sheets.col_letter(i)
     with pytest.raises(sheets.LkKolomError):  # judul lain yang bukan nama bawaan Table tetap ditolak
         sheets.parse_kolom(judul[:i] + ["Catatan"] + judul[i + 1:])
+
+
+def test_file_ekspor_dengan_baris_keterangan():
+    # Ekspor aplikasi: 4 baris keterangan, judul di baris 5, kolom pertama "No" (bukan NPSN)
+    csv = ('Indikator,"Laporan 50% - Jumlah sekolah yang belum direviu oleh fasilitator"\n'
+           'Angkatan,"Semua angkatan"\nData per,"2026-10-31 09:58:41"\n\n'
+           "No,NPSN,Nama Sekolah,Angkatan,Tahap,Provinsi,Kab/Kota,Tanggal Kirim,Kiriman Ke,Lama Menunggu\n"
+           "1,10803808,SD A,Angkatan 2,Tahap 2,Prov. X,Kab. Y,01/08/2026 11:55,1,91\n"
+           "2,10803485,SD B,Angkatan 2,Tahap 2,Prov. X,Kab. Y,2026-08-04 21:04:00,2,88\n").encode()
+    df = cutoff.baca_berjudul(csv, "todo.csv", ("npsn", "tanggal"))
+    baris, tanpa = cutoff.olah_raw(df)
+    assert [b[0] for b in baris] == [10803808, 10803485] and tanpa == 0
+    assert int(baris[0][1]) == int(cutoff.ke_serial("2026-08-01")) and baris[1][2] == 2
+
+
+def test_file_tanpa_judul_ditolak():
+    import pytest
+    with pytest.raises(cutoff.CutoffError, match="tidak ketemu"):
+        cutoff.baca_berjudul(b"No,Nama\n1,SD A\n", "x.csv", ("npsn", "tanggal"))
+
+
+def test_file_ekspor_baris_dibungkus_kutip():
+    # Tiap baris CSV utuh dibungkus jadi satu sel, seperti file To Do List dari aplikasi
+    csv = ('﻿"Indikator,""Laporan 50%"""\r\n"Data per,""2026-10-31 09:58:41"""\r\n\r\n'
+           '"No,NPSN,""Nama Sekolah"",""Tanggal Kirim"",""Kiriman Ke-"",""Lama Menunggu (Hari)"""\r\n'
+           '"1,10803808,""SD NEGERI 7 KRUI"",""2026-08-01 11:55:57"",1,91"\r\n').encode("utf-8")
+    baris, _ = cutoff.olah_raw(cutoff.baca_berjudul(csv, "todo.csv", ("npsn", "tanggal")))
+    from datetime import date
+    assert baris[0][0] == 10803808 and cutoff.hari_tunggu("Ya", "Tidak", baris[0][1], date(2026, 10, 31)) == 91

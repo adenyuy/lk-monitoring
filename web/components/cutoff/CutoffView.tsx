@@ -328,7 +328,7 @@ function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => voi
             <><b>{file.name}</b><span>{(file.size / 1024 / 1024).toFixed(1).replace(".", ",")} MB. Klik untuk ganti file.</span></>
           ) : (
             <><b>Pilih atau seret file CSV/Excel ke sini</b><span>{tunggu
-              ? "Berisi kolom NPSN dan Tanggal Kirim (seperti tab Raw Reviu 50%)."
+              ? "File To Do List laporan 50% belum direviu dari aplikasi (CSV/Excel). Kolom NPSN dan Tanggal Kirim dicari dari judulnya."
               : "File cutoff dari aplikasi, kolom A–G: NPSN sampai Sudah Review."}</span></>
           )}
         </label>
