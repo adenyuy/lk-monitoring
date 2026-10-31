@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .. import aktivitas, bimtek, config, db, schedule, send_queue, store, tahap
+from .. import aktivitas, bimtek, config, db, schedule, send_queue, store, tahap, undangan_wag
 from ..schedule import jam
 from ..sender import NotAllowed, sender
 from ..sheets import filter_petugas, nomor_key, nomor_lk, read_broadcast, read_lk, sekolah_per_fasil
@@ -299,6 +299,7 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
         ],
         "pengiriman": sender.snapshot(),
         "bypass": sender.bypass_aktif(),
+        "undangan_wag": undangan_wag.pengaturan().aktif,
     }
 
 

@@ -12,7 +12,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Protocol
 
-from . import config, db, events, schedule, send_queue, store, tagging
+from . import config, db, events, schedule, send_queue, store, tagging, undangan_wag
 from .sheets import BroadcastRow, filter_petugas, read_broadcast
 from .wa import actions
 from .wa.browser import BrowserClosed, worker
@@ -111,7 +111,12 @@ class Sender:
     def antrean(self) -> list[send_queue.Item]:
         petugas, _, _ = self._settings()
         rows = filter_petugas(self.load_rows(), petugas)
-        return send_queue.build(rows, store.sends_real(), self.clock().date(), store.ulang_all())
+        sends = store.sends_real()
+        wag = undangan_wag.pengaturan()
+        if wag.aktif:  # mode Undangan WAG: pesan undangan grup, bukan pesan Broadcast
+            return undangan_wag.build(rows, sends, wag)
+        bc = [x for x in sends if not x["hash_pesan"].startswith(undangan_wag.AWALAN)]
+        return send_queue.build(rows, bc, self.clock().date(), store.ulang_all())
 
     def kondisi(self, items: list[send_queue.Item] | None = None) -> schedule.Kondisi:
         _, batas, akhir_pekan = self._settings()
@@ -249,7 +254,10 @@ class Sender:
         return schedule.kuota_efektif(sesi, per.get(sesi.no, 0), batas, total, 10**6)
 
     def _proses(self, item: send_queue.Item, coba: bool) -> tuple[str, str]:
-        res = self.wa.open_chat(item.nomor, item.pesan)
+        teks = item.pesan
+        if item.hash_pesan.startswith(undangan_wag.AWALAN):
+            teks = undangan_wag.isi_salam(teks, self.clock())
+        res = self.wa.open_chat(item.nomor, teks)
         if not res.ok:
             if res.alasan == "nomor_tidak_terdaftar" and not coba:
                 tagging.tandai(item.nomor, "merah")

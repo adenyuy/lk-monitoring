@@ -85,6 +85,7 @@ export type Today = {
   sesi: SesiRingkas[];
   pengiriman: Pengiriman;
   bypass: boolean;
+  undangan_wag: boolean;
 };
 
 export type FasilTindakLanjut = {
@@ -165,7 +166,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 20;
+export const API_REV = 21;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -308,4 +309,15 @@ export type EskalasiInfo = {
   perlu_link: boolean;
   opsi: { permasalahan: string[]; status: string[]; tim: string[] } | null;
   eskalasi: Eskalasi[];
+};
+
+export type UndanganWag = {
+  aktif: boolean;
+  link: string;
+  tim: string;
+  teks: string;
+  teks_awal: string;
+  contoh: string;
+  nama_contoh: string;
+  ringkasan: { total: number; terkirim: number; gagal_permanen: number; belum: number } | null;
 };

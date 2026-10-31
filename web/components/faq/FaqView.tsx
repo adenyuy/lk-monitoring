@@ -184,6 +184,20 @@ const GRUP: { judul: string; isi: T[] }[] = [
         ),
       },
       {
+        id: "undangan-wag",
+        q: "Bagaimana mengundang fasil ke WAG tim lewat blast?",
+        a: (
+          <>
+            <p>Buat grup WhatsApp tim Anda, salin link undangannya (Info grup › Undang lewat link), lalu di Blast tekan
+              <b> Atur undangan</b>. Tempel link, isi nomor tim bila ada, cek contoh pesannya, lalu <b>Simpan dan pakai
+              untuk blast</b>.</p>
+            <p>Selama mode ini menyala, sesi blast mengirim undangan, bukan pesan Broadcast, dengan jam sesi, kuota,
+              batas harian, dan jeda yang sama. Tiap fasil diundang sekali per link. Setelah semua diundang, tekan
+              <b> Kembali ke pesan Broadcast</b>; undangan tidak dihitung sebagai pesan Broadcast minggu itu.</p>
+          </>
+        ),
+      },
+      {
         id: "mati",
         q: "Laptop mati atau aplikasi tertutup di tengah sesi. Bagaimana?",
         a: (

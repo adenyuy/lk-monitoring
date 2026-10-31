@@ -9,6 +9,7 @@ import { NowCard } from "./NowCard";
 import { SessionTabs } from "./SessionTabs";
 import { FasilList } from "./FasilList";
 import { FasilDrawer } from "./FasilDrawer";
+import { UndanganWagBar } from "./UndanganWag";
 import s from "./today.module.css";
 
 export function TodayView() {
@@ -90,7 +91,7 @@ export function TodayView() {
     if (type === "kirim_hasil" || type === "kirim_selesai" || type === "kirim_mulai" || type === "chat_diperbarui") {
       void refresh();
     } else if (type === "kirim_jeda" || type === "kirim_proses" || type === "kirim_stop_diminta"
-      || type === "bypass_berubah") {
+      || type === "bypass_berubah" || type === "undangan_berubah") {
       void loadToday();
     }
   });
@@ -116,6 +117,7 @@ export function TodayView() {
         <span className={s.date}>{today.tanggal_panjang}</span>
         <span className={s.blokLk}>Isi LK: sesi {today.blok_lk}</span>
       </div>
+      <UndanganWagBar aktif={today.undangan_wag} berjalan={today.pengiriman.running} onChanged={refresh} />
       <NowCard today={today} onChanged={refresh} />
       <SessionTabs sesi={today.sesi} dipilih={sesi} onPilih={pilihSesi} />
       <FasilList detail={detail} loading={loadingDetail} selected={nomor} onPick={setNomor} />
