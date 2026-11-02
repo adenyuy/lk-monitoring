@@ -206,7 +206,7 @@ function TahapBar({ nomor, data, onChange }: {
           </li>
         ))}
       </ol>
-      {!diBroadcast && <span className={s.luarBc}>Tidak masuk Broadcast</span>}
+      {!diBroadcast && <span className={s.luarBc}>Tidak ada di antrean progres mingguan</span>}
       {ulang.diminta ? (
         <span className={s.ulang}>
           Dikirim ulang di sesi berikutnya
@@ -214,7 +214,7 @@ function TahapBar({ nomor, data, onChange }: {
         </span>
       ) : ulang.bisa ? (
         <button type="button" className={s.ulangBtn} disabled={busy !== null} onClick={() => void kirimUlang(true)}
-          title="Pesan Broadcast sudah terkirim minggu ini. Tekan untuk mengirim sekali lagi di sesi berikutnya.">
+          title="Progres mingguan sudah terkirim minggu ini. Tekan untuk mengirim sekali lagi di sesi berikutnya.">
           Kirim ulang broadcast
         </button>
       ) : null}

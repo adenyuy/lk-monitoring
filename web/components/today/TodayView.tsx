@@ -110,7 +110,7 @@ export function TodayView() {
   if (!today || sesi === null) {
     return (
       <div className={s.loading}>
-        <Spinner label="Memuat" /> Membaca sheet Broadcast…
+        <Spinner label="Memuat" /> Membaca LK…
       </div>
     );
   }

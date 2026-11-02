@@ -5,7 +5,7 @@ import type { FasilRekap, TahapKini } from "@/lib/types";
 import s from "./rekap.module.css";
 
 const KOLOM: { k: TahapKini[]; label: string; lanjut: string }[] = [
-  { k: ["belum", "gagal"], label: "Belum dihubungi", lanjut: "Kirim Broadcast atau chat" },
+  { k: ["belum", "gagal"], label: "Belum dihubungi", lanjut: "Kirim progres mingguan atau chat" },
   { k: ["terkirim"], label: "Sudah dihubungi", lanjut: "Tunggu dibaca" },
   { k: ["dibaca"], label: "Dibaca, belum membalas", lanjut: "Sapa lagi" },
   { k: ["dibalas"], label: "Membalas", lanjut: "Tanyakan isian LK" },
@@ -20,7 +20,7 @@ const SARING: { k: Saring; label: string; cocok: (r: FasilRekap) => boolean }[] 
   { k: "p1", label: "P1", cocok: (r) => r.p1 > 0 },
   { k: "p2", label: "P2", cocok: (r) => r.p2 > 0 },
   { k: "p3", label: "P3", cocok: (r) => r.p3 > 0 },
-  { k: "luar", label: "Di luar Broadcast", cocok: (r) => !r.di_broadcast },
+  { k: "luar", label: "Nomor WA kosong", cocok: (r) => !r.nomor },
 ];
 
 const HARI = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -80,7 +80,7 @@ export function TahapBoard({ fasil, onBuka }: { fasil: FasilRekap[]; onBuka: (no
                 <li key={r.nomor || r.nama}>
                   <button type="button" className={`${s.tCard} ${r.perlu_balas ? s.tCardBalas : ""}`}
                     disabled={!r.nomor} onClick={() => onBuka(r.nomor)}
-                    title={r.nomor ? undefined : "Nomor WhatsApp fasil ini kosong di sheet Broadcast dan di kolom No Fasil LK. Isi nomornya dulu supaya bisa dibuka."}>
+                    title={r.nomor ? undefined : "Nomor WhatsApp fasil ini kosong di kolom No Fasil LK. Isi nomornya dulu supaya bisa dibuka."}>
                     <b>{r.nama}</b>
                     {r.isian_perlu > 0 && (
                       <span className={s.tLk} title={`Isian LK lengkap ${r.isian_lengkap} dari ${r.isian_perlu} sekolah yang perlu diisi`}>
@@ -99,7 +99,6 @@ export function TahapBoard({ fasil, onBuka }: { fasil: FasilRekap[]; onBuka: (no
                       {r.p2 > 0 && <em className={s.tP2}>P2 {r.p2}</em>}
                       {r.p3 > 0 && <em className={s.tP3}>P3 {r.p3}</em>}
                       {r.tahap_kini === "gagal" && <em className={s.tGagal}>Gagal kirim</em>}
-                      {!r.di_broadcast && <em className={s.tLuar}>Luar Broadcast</em>}
                     </span>
                     <small>
                       {r.terakhir ? `${kapan(r.terakhir)}, ${r.terakhir_label.toLowerCase()}` : "Belum ada kontak minggu ini"}

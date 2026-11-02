@@ -12,8 +12,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Protocol
 
-from . import config, db, events, schedule, send_queue, store, tagging, undangan_wag
-from .sheets import BroadcastRow, filter_petugas, read_broadcast
+from . import config, db, events, progres_mingguan, schedule, send_queue, store, tagging, undangan_wag
+from .sheets import BroadcastRow, filter_petugas
 from .wa import actions
 from .wa.browser import BrowserClosed, worker
 
@@ -74,6 +74,14 @@ class State:
     undangan: bool = False  # Undangan WAG: langsung ke semua fasil (tanpa sesi, kuota, batas harian)
 
 
+def _baris_lk() -> list[BroadcastRow]:
+    """Antrean blast: satu baris per fasil binaan dari LK WEEK aktif, pesan progres mingguan."""
+    from .sheets import read_lk, week_aktif
+
+    week = week_aktif()
+    return progres_mingguan.baris(read_lk(week), db.get_setting("nama_petugas") or "", week, schedule.now().date())
+
+
 def _baca_lk() -> list:
     """LK WEEK aktif (untuk daftar fasil binaan Undangan WAG). Kosong bila tidak terbaca."""
     try:
@@ -98,7 +106,7 @@ class Sender:
         self.wa = wa or WorkerWA()
         self.sleep = sleep
         self.clock = clock
-        self.load_rows = load_rows or (lambda: read_broadcast(refresh=True))
+        self.load_rows = load_rows or _baris_lk
         self.load_lk = load_lk or _baca_lk
         self.rng = rng or random.Random()
         self.state = State()
@@ -130,7 +138,11 @@ class Sender:
         if wag.aktif:  # mode Undangan WAG: pesan undangan grup ke SEMUA fasil binaan (Broadcast + LK)
             return undangan_wag.build(undangan_wag.penerima(rows, petugas, self.load_lk()), sends, wag)
         bc = [x for x in sends if not x["hash_pesan"].startswith(undangan_wag.AWALAN)]
-        return send_queue.build(rows, bc, self.clock().date(), store.ulang_all())
+        items = send_queue.build(rows, bc, self.clock().date(), store.ulang_all())
+        for i in items:
+            if i.status == "dilewati" and i.keterangan == "Pesan kosong":
+                i.keterangan = progres_mingguan.SEMUA_SELESAI
+        return items
 
     def kondisi(self, items: list[send_queue.Item] | None = None) -> schedule.Kondisi:
         _, batas, akhir_pekan = self._settings()
@@ -153,6 +165,9 @@ class Sender:
         with self._lock:
             if self.state.running:
                 raise NotAllowed("Pengiriman sedang berjalan.")
+            from .sheets import cache
+
+            cache.clear()  # mulai kirim selalu dengan data LK terbaru
             items = self.antrean()
             k = self.kondisi(items)
             if not k.bisa_kirim:
@@ -220,6 +235,8 @@ class Sender:
 
                 if status == "terkirim":
                     st.terkirim += 1
+                    if item.hash_pesan.startswith(progres_mingguan.AWALAN):  # pesan berisi pertanyaan isian LK
+                        store.set_tahap(item.nomor, "ditanya", True, "template", t.isoformat(timespec="seconds"))
                     gagal_beruntun = 0
                 elif status == "dicoba":
                     gagal_beruntun = 0
@@ -277,9 +294,7 @@ class Sender:
         return schedule.kuota_efektif(sesi, per.get(sesi.no, 0), batas, total, 10**6)
 
     def _proses(self, item: send_queue.Item, coba: bool) -> tuple[str, str]:
-        teks = item.pesan
-        if item.hash_pesan.startswith(undangan_wag.AWALAN):
-            teks = undangan_wag.isi_salam(teks, self.clock())
+        teks = undangan_wag.isi_salam(item.pesan, self.clock())  # {salam}: pagi/siang/sore/malam
         res = self.wa.open_chat(item.nomor, teks)
         if not res.ok:
             if res.alasan == "nomor_tidak_terdaftar" and not coba:

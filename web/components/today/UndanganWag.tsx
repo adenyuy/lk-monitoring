@@ -64,14 +64,14 @@ export function UndanganWagBar({ aktif, berjalan, onChanged }: { aktif: boolean;
             <b>Blast sedang mengirim Undangan WAG</b>
             <span>
               {r ? `${r.terkirim} dari ${r.total} fasil sudah diundang` : "Memuat…"}
-              {r && r.belum === 0 ? ". Semua sudah diundang, kembali ke pesan Broadcast." : ". Pesan Broadcast minggu ini menunggu sampai mode ini dimatikan."}
+              {r && r.belum === 0 ? ". Semua sudah diundang, kembali ke progres mingguan." : ". Progres mingguan menunggu sampai mode ini dimatikan."}
             </span>
           </div>
           <div className={s.barAksi}>
             <Button variant="secondary" size="sm" disabled={berjalan} onClick={() => setBuka(true)}>Ubah undangan</Button>
             <Button variant={r && r.belum === 0 ? "primary" : "secondary"} size="sm" disabled={berjalan}
               title={berjalan ? "Tunggu pengiriman selesai" : undefined} onClick={() => void matikan()}>
-              Kembali ke pesan Broadcast
+              Kembali ke progres mingguan
             </Button>
           </div>
         </div>

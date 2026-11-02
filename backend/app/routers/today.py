@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from .. import aktivitas, bimtek, config, db, schedule, send_queue, store, tahap, undangan_wag
 from ..schedule import jam
 from ..sender import NotAllowed, sender
-from ..sheets import filter_petugas, nomor_key, nomor_lk, read_broadcast, read_lk, sekolah_per_fasil
+from ..sheets import filter_petugas, nomor_key, nomor_lk, read_lk, sekolah_per_fasil
 from ..wa.status import mask
 from .deps import require_feature, require_login
 
@@ -62,7 +62,7 @@ def _context() -> dict[str, Any]:
     except NotAllowed as e:
         raise HTTPException(400, str(e)) from e
     except Exception as e:
-        raise HTTPException(502, f"Sheet Broadcast tidak bisa dibaca: {e}") from e
+        raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
     now = schedule.now()
     tanggal = schedule.tanggal_str(now.date())
     total, per = store.counts(tanggal)
@@ -139,13 +139,13 @@ def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
                                    "lagi sampai Senin, kecuali Anda menekan Kirim ulang."})
             elif now.weekday() == 0:
                 out.append({"jenis": "minggu_baru", "judul": "Minggu baru dimulai",
-                            "isi": f"Semua {belum} fasil di Broadcast masuk antrean lagi. Isian LK minggu ini "
+                            "isi": f"Semua {belum} fasil binaan masuk antrean progres mingguan lagi. Isian LK minggu ini "
                                    f"mulai di sesi Senin–Rabu" + (f" (kolom {tahap.blok_kolom_label(1)})." if tahap.blok_kolom_label(1) else ".")})
 
     if not libur and not belum and items and any(i.status == "terkirim" for i in items):
-        out.append({"jenis": "broadcast_selesai", "judul": "Broadcast minggu ini sudah terkirim ke semua fasil",
+        out.append({"jenis": "broadcast_selesai", "judul": "Progres mingguan sudah terkirim ke semua fasil",
                      "isi": "Sisa minggu ini untuk tindak lanjut: chat fasil yang belum membalas dan lengkapi isian "
-                            "LK. Senin depan Broadcast dikirim lagi dengan data progres terbaru."})
+                            "LK. Senin depan progres mingguan dikirim lagi dengan data terbaru."})
 
     # Fasil yang membalas dan belum kita balas (paling atas: paling ditunggu)
     perlu = store.perlu_dibalas(tahap.senin_iso())
@@ -192,9 +192,9 @@ def _pengingat(ctx: dict[str, Any], libur: bool) -> list[dict[str, Any]]:
             elif nyala("terkirim"):
                 kat, alasan = "menunggu", "Sudah dihubungi, belum membalas"
             elif it is None:
-                kat, alasan = "manual", "Tidak masuk Broadcast, belum dihubungi minggu ini"
+                kat, alasan = "manual", "Nomor WA kosong, belum dihubungi minggu ini"
             else:
-                continue  # masih di antrean Broadcast: akan dikirimi otomatis
+                continue  # masih di antrean blast: akan dikirimi otomatis
             prio = Counter((s.prioritas or "").strip().lower() for s in perlu)
             fasil[key] = {
                 "nomor": nomor, "nama": it.nama_fasil if it else sekolah[0].fasil, "kategori": kat, "alasan": alasan,
@@ -362,9 +362,9 @@ def session_detail(no: int, _=Depends(wa_blast)) -> dict[str, Any]:
 def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
     petugas = db.get_setting("nama_petugas") or ""
     try:
-        rows = [r for r in filter_petugas(read_broadcast(), petugas) if r.nomor == nomor]
+        rows = [r for r in filter_petugas(sender.load_rows(), petugas) if r.nomor == nomor]
     except Exception as e:
-        raise HTTPException(502, f"Sheet Broadcast tidak bisa dibaca: {e}") from e
+        raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
     row = rows[0] if rows else None
 
     sends = [s for s in store.sends_real() if s["nomor"] == nomor]
@@ -396,7 +396,7 @@ def fasil_detail(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
         "tahap": tahap.hitung(nomor, sekolah, tahap.kontak_minggu().get(nomor), store.tahap_all().get(nomor, {}), blok),
         "nomor_tersamar": mask(nomor),
         "status": status,
-        "pesan": row.pesan if row else "",
+        "pesan": undangan_wag.isi_salam(row.pesan, schedule.now()) if row else "",
         "waktu_kirim": datetime.fromisoformat(last["waktu"]).strftime("%d/%m %H.%M") if last else "",
         "status_kirim": last["status"] if last else "",
         "balasan": (chat or {}).get("balasan_terakhir", ""),

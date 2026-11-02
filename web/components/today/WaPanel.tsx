@@ -215,12 +215,12 @@ export function WaPanel({ nomor, data, onChanged, onTeruskan, isi, tersembunyi }
               <div className={`${s.msg} ${s.msgOut} ${gagal ? s.msgFail : ""}`}>
                 <div className={s.bubble}>{formatWa(data.pesan)}</div>
                 <div className={s.msgMeta}>
-                  {!data.waktu_kirim ? "Belum dikirim, pratinjau dari sheet Broadcast"
+                  {!data.waktu_kirim ? "Belum dikirim, pratinjau progres mingguan"
                     : gagal ? `Gagal dikirim ${data.waktu_kirim}, akan dicoba ulang` : `Dikirim ${data.waktu_kirim}`}
                 </div>
               </div>
             ) : (
-              <p className={s.muted}>Pesan untuk fasil ini tidak ada di sheet Broadcast.</p>
+              <p className={s.muted}>Tidak ada pesan progres mingguan: semua sekolah fasil ini sudah selesai.</p>
             )}
             {data.balasan ? (
               <div className={s.msg}>

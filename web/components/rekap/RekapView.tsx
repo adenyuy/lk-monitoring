@@ -28,7 +28,7 @@ const TAHAP_LABEL: Record<FasilRekap["tahap_kini"], string> = {
   belum: "Belum dihubungi", gagal: "Gagal kirim", terkirim: "Dihubungi", dibaca: "Dibaca", dibalas: "Membalas",
   ditanya: "Isian ditanyakan", lk_lengkap: "LK lengkap", selesai: "Selesai",
 };
-const TAHAP = ["Broadcast terkirim", "Dibaca", "Fasil membalas", "Isian LK ditanyakan", "Isian LK lengkap"];
+const TAHAP = ["Progres mingguan terkirim", "Dibaca", "Fasil membalas", "Isian LK ditanyakan", "Isian LK lengkap"];
 
 type Filter = "semua" | "p1_belum" | "membalas" | "isian" | "luar" | "bimtek";
 const FILTER: { k: Filter; label: string; cocok: (r: FasilRekap) => boolean }[] = [
@@ -36,7 +36,7 @@ const FILTER: { k: Filter; label: string; cocok: (r: FasilRekap) => boolean }[] 
   { k: "p1_belum", label: "Belum dihubungi", cocok: (r) => r.isian_perlu > 0 && (r.chat === "belum" || r.chat === "gagal") },
   { k: "membalas", label: "Sudah membalas", cocok: (r) => r.chat === "dibalas" },
   { k: "isian", label: "Isian LK belum lengkap", cocok: (r) => r.isian_lengkap < r.isian_perlu },
-  { k: "luar", label: "Tidak masuk Broadcast", cocok: (r) => !r.di_broadcast },
+  { k: "luar", label: "Nomor WA kosong", cocok: (r) => !r.nomor },
   { k: "bimtek", label: "Bimtek belum direviu", cocok: (r) => r.bimtek > 0 },
 ];
 
@@ -98,7 +98,7 @@ export function RekapView() {
 
   if (error && !data) return <Notice tone="bad" title="Rekap tidak bisa dimuat">{error}</Notice>;
   if (!data) {
-    return <div className={s.loading}><Spinner label="Memuat" /> Membaca LK dan sheet Broadcast…</div>;
+    return <div className={s.loading}><Spinner label="Memuat" /> Membaca LK…</div>;
   }
 
   const sk = data.sekolah;
@@ -166,7 +166,7 @@ export function RekapView() {
         <ol className={s.funnel}>
           {[
             { label: "Fasil", n: al.fasil, ket: tabAlur === "semua" ? "punya sekolah belum selesai" : `punya sekolah ${tabAlur.toUpperCase()}` },
-            { label: "Dihubungi", n: al.dihubungi, ket: "Broadcast atau chat terkirim" },
+            { label: "Dihubungi", n: al.dihubungi, ket: "Progres mingguan atau chat terkirim" },
             { label: "Membalas", n: al.membalas, ket: "fasil sudah membalas" },
             { label: "LK lengkap", n: al.lk_lengkap, ket: `isian sesi ${data.blok.label}` },
           ].map((x, i) => (
@@ -186,12 +186,12 @@ export function RekapView() {
 
       {lb.fasil > 0 && (
         <button type="button" className={s.luar} onClick={() => { setFilter("luar"); setHal(0); }}>
-          <b>{lb.fasil} fasil tidak masuk Broadcast</b>
+          <b>{lb.fasil} fasil tidak bisa diblast karena nomor WA kosong</b>
           <span>
             Mereka membina {lb.sekolah} sekolah, {lb.perlu} di antaranya belum selesai
             {lb.p1_sekolah ? ` (${lb.p1_sekolah} sekolah P1${lb.p1_progres_50 ? `, ${lb.p1_progres_50} di antaranya progresnya sudah 50% atau lebih tapi belum submit` : ""})` : ""}.
-            Mereka tidak dikirimi Broadcast otomatis, jadi perlu dichat manual. Minggu ini {lb.dihubungi} dari {lb.fasil} sudah
-            dihubungi. Lihat daftarnya
+            Isi nomornya di kolom No Fasil LK supaya ikut blast progres mingguan. Minggu ini {lb.dihubungi} dari {lb.fasil}
+            sudah dihubungi. Lihat daftarnya
           </span>
         </button>
       )}
@@ -239,7 +239,6 @@ export function RekapView() {
                     </button>
                     <span className={s.sub}>
                       {r.nomor_tersamar || "Nomor tidak ada"}
-                      {!r.di_broadcast && <span className={s.luarTag}>Tidak masuk Broadcast</span>}
                       {r.bimtek > 0 && <span className={s.bimtekTag}>Bimtek: {r.bimtek} sekolah belum direviu</span>}
                     </span>
                   </td>

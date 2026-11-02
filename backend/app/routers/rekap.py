@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from .. import bimtek, db, schedule, store, tahap
-from ..sheets import filter_petugas, nomor_key, nomor_lk, normalize_petugas, read_broadcast, read_lk
+from ..sheets import filter_petugas, nomor_key, nomor_lk, normalize_petugas, read_lk
 from ..wa.status import mask
 from .deps import require_feature
 
@@ -60,10 +60,13 @@ def rekap(_=Depends(wa_blast)) -> dict[str, Any]:
     petugas = db.get_setting("nama_petugas") or ""
     week = week_aktif()
     try:
-        bc = filter_petugas(read_broadcast(), petugas)
+        from ..sender import sender
+
+        bc = filter_petugas(sender.load_rows(), petugas)  # antrean blast (LK): fasil bernomor WA
+        bc = [r for r in bc if r.nomor]
         lk = [s for s in read_lk(week) if normalize_petugas(s.petugas) == normalize_petugas(petugas)]
     except Exception as e:
-        raise HTTPException(502, f"Sheet Broadcast/LK tidak bisa dibaca: {e}") from e
+        raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
 
     blok = tahap.blok_hari_ini()
     bc_by_key = {nomor_key(r.nomor): r for r in bc if r.nomor}
