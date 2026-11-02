@@ -107,9 +107,17 @@ _ROWS_JS = """
   const teks = (el) => {
     if (!el.querySelector('ol, ul')) return el.innerText;
     const c = el.cloneNode(true);
+    let lanjut = 1;  // tiap butir bisa berupa <ol> sendiri: lanjutkan nomor bila tidak ada atribut start
     c.querySelectorAll('ol').forEach(ol => {
-      const mulai = Number(ol.getAttribute('start') || 1);
-      [...ol.children].forEach((li, i) => li.prepend(document.createTextNode((mulai + i) + '. ')));
+      const st = ol.getAttribute('start');
+      let n = st ? Number(st) : lanjut;
+      [...ol.children].forEach(li => {
+        const v = li.getAttribute('value');
+        if (v) n = Number(v);
+        li.prepend(document.createTextNode(n + '. '));
+        n += 1;
+      });
+      lanjut = n;
     });
     c.querySelectorAll('ul > li').forEach(li => li.prepend(document.createTextNode('• ')));
     const wadah = document.createElement('div');
@@ -143,7 +151,19 @@ _ROWS_JS = """
     const titles = [...r.querySelectorAll('svg title')].map(t => t.textContent || '');
     const icons = [...r.querySelectorAll('[data-icon]')].map(e => e.getAttribute('data-icon') || '');
     const pre = r.querySelector('[data-pre-plain-text]');
+    // Lampiran (di luar kotak kutipan): foto, video, pesan suara, dokumen
+    const luarKutipan = (el) => !el.closest(quoteSel);
+    const ikon = icons.join(' ').toLowerCase();
+    const foto = [...r.querySelectorAll('img')].some(im => luarKutipan(im) && !im.closest('a[href^="http"]')
+      && !im.classList.contains('emoji') && im.getBoundingClientRect().width >= 100
+      && im.getBoundingClientRect().height >= 70);
+    let media = '';
+    if (/video|media-play|media-gif/.test(ikon)) media = 'VIDEO';
+    else if (/audio|ptt|voice/.test(ikon) || r.querySelector('audio')) media = 'PESAN SUARA';
+    else if (/document|doc-/.test(ikon)) media = 'DOKUMEN';
+    else if (foto) media = 'FOTO';
     return {
+      media,
       id: r.getAttribute('data-id') || '',
       pre: pre ? pre.getAttribute('data-pre-plain-text') || '' : '',
       text: text || '',
@@ -167,10 +187,44 @@ class Row:
     kutipan: str = ""  # teks pesan yang dikutip (bila pesan ini membalas pesan lain)
 
 
+_NOMOR = re.compile(r"^(\d{1,3})\.\s+\S")
+_LABEL = re.compile(r"^[^:\n]{2,40}:(\s|$)")  # "Kendala progres fisik: ..."
+
+
 def rapikan(teks: str) -> str:
-    """Buang spasi di ujung baris dan baris kosong berlebih (daftar WhatsApp menambah jarak)."""
+    """Rapikan teks yang dibaca dari WhatsApp Web:
+    - buang spasi di ujung baris dan baris kosong berlebih (daftar WhatsApp menambah jarak);
+    - daftar yang semua nomornya terbaca "1." dinomori ulang 1, 2, 3, ...;
+    - di dalam satu butir bernomor, baris "Label: isi" tidak dipisah baris kosong dan diberi inden,
+      dan antar-butir yang berbaris banyak dipisah satu baris kosong."""
     baris = [b.rstrip() for b in teks.replace("\r", "").split("\n")]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(baris)).strip()
+    nomor = [i for i, b in enumerate(baris) if _NOMOR.match(b.strip())]
+    if len(nomor) > 1 and all(_NOMOR.match(baris[i].strip()).group(1) == "1" for i in nomor):
+        for n, i in enumerate(nomor, 1):
+            baris[i] = f"{n}." + baris[i].strip()[2:]
+
+    out: list[str] = []
+    dalam_butir = False  # sedang di dalam butir bernomor
+    butir_panjang = False  # butir saat ini punya baris lanjutan
+    for b in baris:
+        s = b.strip()
+        if _NOMOR.match(s):
+            if dalam_butir and butir_panjang:
+                while out and out[-1] == "":
+                    out.pop()
+                out.append("")
+            dalam_butir, butir_panjang = True, False
+            out.append(s)
+        elif dalam_butir and s and _LABEL.match(s):
+            while out and out[-1] == "":
+                out.pop()
+            out.append("   " + s)
+            butir_panjang = True
+        else:
+            if s and (not out or out[-1] == ""):
+                dalam_butir = False  # teks biasa setelah baris kosong: daftar sudah selesai
+            out.append(b)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
 
 
 def _waktu(pre: str) -> str:
@@ -206,9 +260,39 @@ def rows(page: Page) -> list[Row]:
     for r in raw:
         st = _status_of(r)
         is_out = _is_out(r, st)
-        out.append(Row(r["id"], is_out, st if is_out else "", rapikan(r["text"]), _waktu(r.get("pre", "")),
-                       rapikan(r.get("kutipan", ""))))
+        out.append(Row(r["id"], is_out, st if is_out else "", teks_pesan(r.get("media", ""), r["text"]),
+                       _waktu(r.get("pre", "")), rapikan(r.get("kutipan", ""))))
     return out
+
+
+def teks_pesan(media: str, teks: str) -> str:
+    """Teks pesan; lampiran ditandai, mis. "[FOTO]" atau "[FOTO] keterangan foto"."""
+    teks = rapikan(teks)
+    if not media:
+        return teks
+    return f"[{media}]" + (("\n" if "\n" in teks else " ") + teks if teks else "")
+
+
+# Pesan panjang dipotong WhatsApp dengan tombol "Baca selengkapnya": buka dulu supaya terbaca utuh
+_BACA_SELENGKAPNYA_JS = """
+() => {
+  const kata = ['baca selengkapnya', 'read more', 'selengkapnya'];
+  const el = [...document.querySelectorAll('#main [role="button"], #main .read-more-button')]
+    .filter(e => kata.includes((e.innerText || '').trim().toLowerCase()));
+  el.forEach(e => e.click());
+  return el.length;
+}
+"""
+
+
+def buka_pesan_panjang(page: Page) -> None:
+    for _ in range(3):  # pesan sangat panjang bisa perlu dibuka beberapa kali
+        try:
+            if not page.evaluate(_BACA_SELENGKAPNYA_JS):
+                return
+        except Exception:
+            return
+        page.wait_for_timeout(300)
 
 
 def send(b: Browser, timeout: float = 30) -> SendResult:
@@ -265,6 +349,7 @@ def read_thread(b: Browser, nomor: str) -> tuple[ChatInfo, list[Row]]:
     if not res.ok:
         return ChatInfo("belum_ada"), []
     b.page.wait_for_timeout(1500)  # beri waktu riwayat chat dimuat
+    buka_pesan_panjang(b.page)
     all_rows = rows(b.page)
     return chat_info(all_rows), all_rows
 

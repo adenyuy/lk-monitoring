@@ -65,6 +65,24 @@ def test_rapikan_teks_daftar():
     assert actions.rapikan(teks) == "Untuk sekolah berikut:\n\n1. SD A (39,6%)\n2. SD B\n\nTerima kasih"
 
 
+def test_rapikan_progres_mingguan_dari_whatsapp():
+    # Bentuk yang terbaca dari WhatsApp Web: tiap butir jadi daftar sendiri ("1." semua) dan berjarak
+    teks = ("berikut update progres:\n\n1. SD A (4,8%, belum submit)\nKendala progres fisik: ...\n\n"
+            "Rencana tindak lanjut: ...\n\n1. SD B (62,4%, belum submit)\nKendala submit laporan 50%: ...\n\n"
+            "Rencana unggah: ...\n\nMohon dibantu dijawab *per sekolah*. Terima kasih")
+    assert actions.rapikan(teks) == (
+        "berikut update progres:\n\n"
+        "1. SD A (4,8%, belum submit)\n   Kendala progres fisik: ...\n   Rencana tindak lanjut: ...\n\n"
+        "2. SD B (62,4%, belum submit)\n   Kendala submit laporan 50%: ...\n   Rencana unggah: ...\n\n"
+        "Mohon dibantu dijawab *per sekolah*. Terima kasih")
+
+
+def test_lampiran_ditandai():
+    assert actions.teks_pesan("FOTO", "") == "[FOTO]"
+    assert actions.teks_pesan("FOTO", "progres atap") == "[FOTO] progres atap"
+    assert actions.teks_pesan("", "Siap pak") == "Siap pak"
+
+
 
 def test_terakhir_masuk_artinya_perlu_dibalas():
     keluar, masuk = _row(True, "Broadcast", "read"), _row(False, "Siap pak")
