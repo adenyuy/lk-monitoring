@@ -71,7 +71,7 @@ class State:
     selesai: float | None = None
     hasil: list[dict] = field(default_factory=list)
     bypass: bool = False  # dikirim lewat bypass sesi (tanpa jam & kuota sesi)
-    undangan: bool = False  # Undangan WAG: langsung ke semua fasil (tanpa sesi, kuota, batas harian)
+    undangan: bool = False  # kirim langsung (Undangan WAG / Kirim ke semua): tanpa sesi, kuota, batas harian
 
 
 def _baris_lk() -> list[BroadcastRow]:
@@ -150,9 +150,16 @@ class Sender:
         t = self.clock()
         if undangan_wag.pengaturan().aktif:
             return schedule.kondisi_undangan(t, akhir_pekan, len(send_queue.eligible(items)))
+        if self.semua_aktif():
+            return schedule.kondisi_semua(t, akhir_pekan, len(send_queue.eligible(items)))
         total, per = store.counts(schedule.tanggal_str(t.date()))
         return schedule.kondisi(t, batas, akhir_pekan, total, per, len(send_queue.eligible(items)),
                                 bypass=self.bypass_aktif())
+
+    def semua_aktif(self) -> bool:
+        """Mode "Kirim ke semua" hanya berlaku di hari dinyalakan."""
+        b = db.get_setting("kirim_semua") or {}
+        return b.get("tanggal") == schedule.tanggal_str(self.clock().date())
 
     def bypass_aktif(self) -> bool:
         """Bypass sesi hanya berlaku di hari dinyalakan."""
@@ -173,7 +180,7 @@ class Sender:
             if not k.bisa_kirim:
                 raise NotAllowed(k.judul)
             todo = send_queue.eligible(items)
-            undangan = k.kode == "undangan"
+            undangan = k.kode in ("undangan", "semua")  # kirim langsung
             bypass = k.kode == "bypass" or undangan
             target = min(k.kuota, 3) if (undangan and coba) else k.kuota
             self.state = State(running=True, coba=coba, sesi=0 if bypass else k.sesi.no, target=target,
@@ -212,7 +219,7 @@ class Sender:
                     break
                 sisa = self._sisa_kuota(sesi)
                 if sisa is None:
-                    self._halt("Undangan WAG hanya dikirim pukul 07.00–22.00." if st.undangan
+                    self._halt("Kirim langsung hanya pukul 07.00–22.00." if st.undangan
                                else "Bypass sesi sudah tidak berlaku." if st.bypass else f"Sesi {sesi.no} sudah berakhir.")
                     break
                 if sisa <= 0:

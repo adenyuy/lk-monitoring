@@ -155,6 +155,19 @@ def kondisi(
     return k("berjalan", f"Sesi {s.no} sedang berjalan, sampai {jam(s.sampai)}", sesi=s, kuota=kuota)
 
 
+def kondisi_semua(t: datetime, kirim_akhir_pekan: bool, sisa_antrean: int) -> Kondisi:
+    """Mode "Kirim ke semua hari ini" untuk progres mingguan: aturan sama dengan Undangan WAG (tanpa jam sesi,
+    kuota sesi, batas harian; hanya 07.00-22.00; jeda pendek)."""
+    nxt, nxt_at = next_sesi(t, kirim_akhir_pekan)
+    if not (BYPASS_MULAI <= t.time() <= BYPASS_SAMPAI):
+        return Kondisi("semua_jam", f"Kirim ke semua hanya pukul {BYPASS_MULAI:%H.%M}–{BYPASS_SAMPAI:%H.%M}.",
+                       False, None, 0, nxt, nxt_at)
+    if sisa_antrean <= 0:
+        return Kondisi("antrean_habis", "Semua fasil sudah dikirimi progres mingguan", False, sesi_at(t), 0, nxt, nxt_at)
+    return Kondisi("semua", f"Kirim ke semua: {sisa_antrean} fasil belum dikirimi, dikirim langsung tanpa menunggu sesi",
+                   True, sesi_at(t), sisa_antrean, nxt, nxt_at)
+
+
 def kondisi_undangan(t: datetime, kirim_akhir_pekan: bool, sisa_antrean: int) -> Kondisi:
     """Mode Undangan WAG: langsung ke semua fasil hari ini. Jam sesi, kuota sesi, batas harian, dan libur akhir pekan
     diabaikan; hanya pukul 07.00–22.00 (jeda acak antarpesan tetap)."""

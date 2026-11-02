@@ -300,6 +300,7 @@ def today(_=Depends(wa_blast)) -> dict[str, Any]:
         "pengiriman": sender.snapshot(),
         "bypass": sender.bypass_aktif(),
         "undangan_wag": undangan_wag.pengaturan().aktif,
+        "kirim_semua": sender.semua_aktif(),
     }
 
 

@@ -81,3 +81,24 @@ def test_kirim_progres_mingguan_menandai_isian_ditanyakan():
     assert s.state.terkirim == 1 and wa.sent == ["6281200000001"]
     assert teks[0].startswith("Selamat pagi Bapak/Ibu Budi")
     assert store.tahap_all()["6281200000001"]["ditanya"]["nilai"] is True
+
+
+def test_kirim_ke_semua_hari_ini_tanpa_sesi_dan_batas_harian():
+    from test_sender import rows
+
+    db.set_setting("batas_harian", 10)
+    clock = Clock(datetime(2026, 11, 2, 8, 0, tzinfo=TZ))  # sebelum sesi 1
+    wa = FakeWA()
+    s = Sender(wa=wa, sleep=clock.sleep, clock=clock, rng=random.Random(1), load_rows=lambda: rows(25))
+    assert s.kondisi().kode == "sebelum_sesi"
+    db.set_setting("kirim_semua", {"tanggal": "2026-11-02"})
+    try:
+        k = s.kondisi()
+        assert k.bisa_kirim and k.kode == "semua" and k.kuota == 25
+        s.start()
+        s.wait(10)
+        assert s.state.terkirim == 25 and len(set(wa.sent)) == 25 and s.state.berhenti_karena == ""
+        clock.t = datetime(2026, 11, 3, 10, 30, tzinfo=TZ)  # besok kembali ke sesi biasa
+        assert s.kondisi().kode != "semua"
+    finally:
+        db.delete_setting("kirim_semua")

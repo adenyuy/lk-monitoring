@@ -66,6 +66,26 @@ def send_bypass(body: BypassIn, _=Depends(wa_blast)) -> dict[str, Any]:
     return {"bypass": sender.bypass_aktif(), "kondisi": _kondisi()}
 
 
+class SemuaIn(BaseModel):
+    aktif: bool
+
+
+@router.post("/send/kirim-semua")
+def send_kirim_semua(body: SemuaIn, _=Depends(wa_blast)) -> dict[str, Any]:
+    """Nyalakan/matikan "Kirim ke semua" untuk hari ini (progres mingguan tanpa sesi dan batas harian)."""
+    from .. import db, schedule
+
+    if body.aktif:
+        now = schedule.now()
+        db.set_setting("kirim_semua", {"tanggal": schedule.tanggal_str(now.date()), "waktu": now.isoformat(timespec="seconds")})
+    else:
+        if sender.state.running and sender.state.undangan:
+            sender.stop()
+        db.delete_setting("kirim_semua")
+    events.publish("bypass_berubah", aktif=sender.bypass_aktif())
+    return {"kirim_semua": sender.semua_aktif(), "kondisi": _kondisi()}
+
+
 @router.post("/send/stop")
 def send_stop(_=Depends(wa_blast)) -> dict[str, Any]:
     return sender.stop()

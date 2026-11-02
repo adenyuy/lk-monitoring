@@ -45,6 +45,16 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
     }
   }
 
+  async function kirimSemua(aktif: boolean) {
+    setError(null);
+    try {
+      await post("/api/send/kirim-semua", { aktif });
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function matikanBypass() {
     try {
       await post("/api/send/bypass", { aktif: false });
@@ -83,7 +93,9 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
   else if (today.sisa_menit_sesi !== null && k.bisa_kirim) sub = `Sisa waktu sesi ${durasi(today.sisa_menit_sesi)}.`;
   else if (today.menit_ke_berikutnya !== null) sub = `Dimulai dalam ${durasi(today.menit_ke_berikutnya)}.`;
 
-  const undangan = today.undangan_wag;
+  const undangan = today.undangan_wag || today.kirim_semua; // kirim langsung ke semua fasil
+  // Tawarkan "Kirim ke semua" bila masih ada fasil yang belum dikirimi progres mingguan
+  const bisaSemua = !today.undangan_wag && !today.kirim_semua && !kirim.running && today.belum_dikirim > 0;
   if (undangan && !kirim.running && k.bisa_kirim) {
     sub = `Sekitar ${durasi(Math.max(1, Math.round(k.kuota * 32 / 60)))} sampai selesai. Biarkan aplikasi dan WhatsApp tetap terbuka.`;
   }
@@ -131,7 +143,8 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
             <>
               <Button loading={busy} onClick={start} className={s.cta}>
                 {coba ? `Coba ${undangan ? Math.min(3, k.kuota) : k.kuota} pesan`
-                  : undangan ? `Kirim undangan ke ${k.kuota} fasil` : `Kirim ${k.kuota} pesan`}
+                  : today.undangan_wag ? `Kirim undangan ke ${k.kuota} fasil`
+                  : today.kirim_semua ? `Kirim ke ${k.kuota} fasil sekarang` : `Kirim ${k.kuota} pesan`}
               </Button>
               <button type="button" className={s.toggle} aria-pressed={coba} onClick={() => setCoba(!coba)}>
                 <span className={s.knob} aria-hidden="true" />
@@ -148,6 +161,18 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
         {!kirim.running && k.bisa_kirim && (
           <p className={s.hint}>Dikirim satu per satu dengan jeda acak {undangan
             ? "15–30 detik (fasil yang pernah membalas) atau 25–50 detik" : "45–120 detik"}, lalu berhenti sendiri.</p>
+        )}
+        {today.kirim_semua && (
+          <div className={s.semuaAktif} role="status">
+            <span><b>Kirim ke semua aktif hari ini.</b> Semua fasil dikirimi dalam satu putaran tanpa menunggu sesi
+              dan batas harian, pukul 07.00–22.00.</span>
+            <button type="button" disabled={kirim.running} onClick={() => void kirimSemua(false)}>Kembali ke sesi</button>
+          </div>
+        )}
+        {bisaSemua && (
+          <button type="button" className={s.semuaLink} onClick={() => void kirimSemua(true)}>
+            Kirim ke semua {today.belum_dikirim} fasil hari ini, tanpa menunggu sesi
+          </button>
         )}
         {today.bypass && (
           <div className={s.bpAktif} role="status">

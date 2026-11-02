@@ -86,6 +86,7 @@ export type Today = {
   pengiriman: Pengiriman;
   bypass: boolean;
   undangan_wag: boolean;
+  kirim_semua: boolean;
 };
 
 export type FasilTindakLanjut = {
