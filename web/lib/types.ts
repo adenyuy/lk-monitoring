@@ -347,6 +347,7 @@ export type SurveiProgres = {
   link: string;
   teks: string;
   teks_awal: string;
+  dari_tim: boolean;
   contoh: string;
   galat: string;
   contoh_fasil: { nama: string; nomor: string; sekolah: string[] };

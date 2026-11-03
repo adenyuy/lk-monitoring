@@ -42,8 +42,8 @@ export function SurveiProgresBar({ aktif, berjalan, onChanged }: { aktif: boolea
     if (!data) return;
     setError(null);
     try {
-      setData(await post<SurveiProgres>("/api/survei-progres", { aktif: false, sheet: data.sheet, link: data.link,
-        teks: data.teks }));
+      setData(await post<SurveiProgres>("/api/survei-progres", { aktif: false, sheet: data.dari_tim ? "" : data.sheet,
+        link: data.dari_tim ? "" : data.link, teks: data.teks }));
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -87,7 +87,7 @@ export function SurveiDialog({ data, onClose, onSaved }: { data: SurveiProgres; 
   const sheetSalah = sheet.trim() !== "" && !POLA_SHEET.test(sheet) && !/^[A-Za-z0-9_-]{20,}$/.test(sheet.trim());
   const linkSalah = link.trim() !== "" && !/^(https?:\/\/)?[A-Za-z0-9.-]+\.[A-Za-z]{2,}(\/\S*)?$/.test(link.trim());
   const tanpaLink = !teks.includes("{link}");
-  const siap = sheet.trim() && link.trim() && !sheetSalah && !linkSalah && !tanpaLink;
+  const siap = (data.dari_tim || (sheet.trim() && link.trim() && !sheetSalah && !linkSalah)) && !tanpaLink;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -101,7 +101,8 @@ export function SurveiDialog({ data, onClose, onSaved }: { data: SurveiProgres; 
     setBusy(aktif ? "pakai" : "simpan");
     setError(null);
     try {
-      onSaved(await post<SurveiProgres>("/api/survei-progres", { aktif, sheet: sheet.trim(), link: link.trim(), teks }));
+      onSaved(await post<SurveiProgres>("/api/survei-progres", data.dari_tim ? { aktif, sheet: "", link: "", teks }
+        : { aktif, sheet: sheet.trim(), link: link.trim(), teks }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy("");
@@ -113,7 +114,7 @@ export function SurveiDialog({ data, onClose, onSaved }: { data: SurveiProgres; 
     <div className={s.scrim} onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
       <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="svy-judul">
         <div className={s.kepala}>
-          <h2 id="svy-judul">Survei Progres</h2>
+          <h2 id="svy-judul">{data.dari_tim ? "Teks pesan survei" : "Survei Progres"}</h2>
           <p>Blast mengirim link survei ke fasil binaan Anda di LK Survey (kolom PETUGAS PIC sesuai nama petugas di
             aplikasi), satu pesan per fasil berisi daftar sekolahnya. Dikirim langsung tanpa menunggu sesi, kuota, atau
             batas harian, dengan jeda acak 15–50 detik, pukul 07.00–22.00. Tiap fasil dikirimi sekali per link.</p>
@@ -121,6 +122,10 @@ export function SurveiDialog({ data, onClose, onSaved }: { data: SurveiProgres; 
 
         <div className={s.isi}>
           <div className={s.form}>
+            {data.dari_tim ? (
+              <p className={s.catatan}>Sheet LK Survey dan link pengisian sudah diatur untuk seluruh tim.
+                {data.galat ? ` ${data.galat}` : ` ${data.fasil} fasil, ${data.sekolah} sekolah binaan Anda.`}</p>
+            ) : (<>
             <label className={s.field}>
               <span>Link sheet LK Survey</span>
               <input value={sheet} onChange={(e) => setSheet(e.target.value)} autoComplete="off" spellCheck={false}
@@ -139,6 +144,7 @@ export function SurveiDialog({ data, onClose, onSaved }: { data: SurveiProgres; 
                 {linkSalah ? "Link tidak valid." : "Mengganti link membuat semua fasil dikirimi lagi."}
               </small>
             </label>
+            </>)}
             <label className={s.field}>
               <span>Teks pesan</span>
               <textarea value={teks} onChange={(e) => setTeks(e.target.value)} rows={14} aria-invalid={tanpaLink} />

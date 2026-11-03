@@ -94,7 +94,8 @@ export function SurveiView() {
   function kirim() {
     void aksi("kirim", async () => {
       if (!st?.aktif && cfg) {
-        await post("/api/survei-progres", { aktif: true, sheet: cfg.sheet, link: cfg.link, teks: cfg.teks });
+        await post("/api/survei-progres", { aktif: true, sheet: cfg.dari_tim ? "" : cfg.sheet,
+          link: cfg.dari_tim ? "" : cfg.link, teks: cfg.teks });
       }
       await post("/api/send/start", { coba });
     });
@@ -102,7 +103,8 @@ export function SurveiView() {
 
   function selesai() {
     if (!cfg) return;
-    void aksi("selesai", () => post("/api/survei-progres", { aktif: false, sheet: cfg.sheet, link: cfg.link, teks: cfg.teks }));
+    void aksi("selesai", () => post("/api/survei-progres", { aktif: false, sheet: cfg.dari_tim ? "" : cfg.sheet,
+      link: cfg.dari_tim ? "" : cfg.link, teks: cfg.teks }));
   }
 
   if (!st || !cfg) {
@@ -128,7 +130,8 @@ export function SurveiView() {
               Muat ulang data
             </Button>
           )}
-          <Button variant="secondary" size="sm" disabled={k.running} onClick={() => setAtur(true)}>Atur survei</Button>
+          <Button variant="secondary" size="sm" disabled={k.running} onClick={() => setAtur(true)}>
+            {cfg.dari_tim ? "Ubah teks pesan" : "Atur survei"}</Button>
         </div>
       </header>
 
@@ -137,9 +140,9 @@ export function SurveiView() {
 
       {!st.siap ? (
         <section className={s.kosong}>
-          <h2>Mulai dengan mengatur survei</h2>
-          <p>Tempel link sheet LK Survey dan link pengisian. Penerima diambil otomatis dari baris yang kolom PETUGAS PIC-nya
-            nama Anda.</p>
+          <h2>Link LK Survey belum dipasang</h2>
+          <p>Biasanya link ini sudah diatur admin untuk seluruh tim. Bila belum, tempel link sheet LK Survey di sini.
+            Penerima diambil otomatis dari baris yang kolom PETUGAS PIC-nya nama Anda.</p>
           <Button onClick={() => setAtur(true)}>Atur survei</Button>
         </section>
       ) : (

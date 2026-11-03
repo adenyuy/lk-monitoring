@@ -126,3 +126,13 @@ def test_status_pemantauan_per_fasil():
     assert st["ringkasan"] == {"fasil": 2, "terkirim": 1, "dibaca": 1, "dibalas": 1, "sekolah": 3, "terisi": 1, "tuntas": 0}
     with db.tx() as c:
         c.execute("DELETE FROM aktivitas")
+
+
+def test_link_sheet_dan_pengisian_dari_bawaan_tim(monkeypatch):
+    monkeypatch.setenv("LKM_SURVEI_SHEET_ID", "T" * 30)
+    monkeypatch.setenv("LKM_SURVEI_LINK", "https://survey-progress.netlify.app/")
+    p = survei_progres.pengaturan()
+    assert (p.sheet, p.link, p.as_dict()["dari_tim"]) == ("T" * 30, "https://survey-progress.netlify.app/", True)
+    survei_progres.simpan(aktif=True, sheet="", link="", teks="")  # cukup tekan kirim, tanpa mengisi link
+    assert survei_progres.pengaturan().aktif
+    assert db.get_setting(survei_progres.KUNCI)["sheet"] == ""  # bawaan tim tidak disalin ke laptop

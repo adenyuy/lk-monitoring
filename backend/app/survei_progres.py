@@ -7,7 +7,8 @@ berisi daftar sekolah binaannya.
 Aturan kirim sama dengan Undangan WAG: langsung ke semua fasil (tanpa jam sesi, kuota, batas harian), hanya pukul
 07.00–22.00, jeda acak antarpesan. Tiap fasil dikirimi SEKALI per link form; ganti link = semua dikirimi lagi.
 Kiriman dicatat dengan hash berawalan "svy:" sehingga tidak mengganggu antrean progres mingguan.
-Link sheet disimpan di pengaturan lokal laptop (tidak di repo).
+Link sheet LK Survey & link pengisian berlaku untuk seluruh tim: dibaca dari tab "Pengaturan" di sheet Akses
+(kunci lk_survey dan link_survei), atau LKM_SURVEI_SHEET_ID / `survei` di sheets.json. Tidak disimpan di repo.
 """
 
 import hashlib
@@ -21,6 +22,7 @@ from .sheets import BroadcastRow, cache, normalize_nomor, normalize_petugas
 from .undangan_wag import antrean_sekali, ringkasan  # noqa: F401  (ringkasan dipakai router)
 
 KUNCI = "survei_progres"
+LINK_AWAL = "https://survey-progress.netlify.app/"
 AWALAN = "svy:"
 TAB = "Survei Progres"
 POLA_LINK = re.compile(r"^https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}(/\S*)?$")
@@ -55,7 +57,8 @@ class Pengaturan:
     teks: str = TEKS_AWAL
 
     def as_dict(self) -> dict[str, Any]:
-        return {"aktif": self.aktif, "sheet": self.sheet, "link": self.link, "teks": self.teks, "teks_awal": TEKS_AWAL}
+        return {"aktif": self.aktif, "sheet": self.sheet, "link": self.link, "teks": self.teks, "teks_awal": TEKS_AWAL,
+                "dari_tim": bool(self.sheet) and self.sheet == bawaan()[0]}
 
 
 @dataclass
@@ -68,9 +71,44 @@ class Fasil:
     isi: list[dict[str, str]] = field(default_factory=list)  # per sekolah: npsn, nama, isian, waktu
 
 
+def bawaan() -> tuple[str, str]:
+    """(ID sheet LK Survey, link pengisian) untuk seluruh tim. '' bila belum dipasang."""
+    import json
+    import os
+
+    from . import paths
+
+    sheet, link = os.environ.get("LKM_SURVEI_SHEET_ID", ""), ""
+    if not sheet:
+        f = paths.DATA_DIR / "sheets.json"
+        try:
+            sheet = id_sheet(str(json.loads(f.read_text(encoding="utf-8")).get("survei") or "")) if f.exists() else ""
+        except (ValueError, OSError):
+            sheet = ""
+
+    def load() -> dict[str, str]:
+        from .eskalasi import TAB_PENGATURAN
+        from .google_auth import gspread_client
+
+        try:
+            baris = gspread_client().open_by_key(config.ACCESS_SHEET_ID).values_get(
+                f"'{TAB_PENGATURAN}'!A1:B50").get("values", [])
+        except Exception:
+            return {}
+        return {str(r[0]).strip().casefold(): str(r[1]).strip() for r in baris if len(r) > 1}
+
+    tim = cache.get("survei_bawaan", 600, load) if not (sheet and os.environ.get("LKM_SURVEI_LINK")) else {}
+    sheet = sheet or id_sheet(tim.get("lk_survey", ""))
+    link = os.environ.get("LKM_SURVEI_LINK") or tim.get("link_survei", "") or LINK_AWAL
+    return sheet, rapikan_link(link)
+
+
 def pengaturan() -> Pengaturan:
     d = db.get_setting(KUNCI) or {}
     sheet, link = d.get("sheet", ""), d.get("link", "")
+    if not sheet or not link:
+        b_sheet, b_link = bawaan()
+        sheet, link = sheet or b_sheet, link or b_link
     return Pengaturan(aktif=bool(d.get("aktif")) and bool(sheet) and bool(link), sheet=sheet, link=link,
                       teks=d.get("teks") or TEKS_AWAL)
 
@@ -95,8 +133,9 @@ def matikan() -> None:
 
 def simpan(*, aktif: bool, sheet: str, link: str, teks: str, periksa=None) -> Pengaturan:
     """Simpan pengaturan. `periksa(sheet_id)` membuka sheet untuk memastikan tab Survei Progres ada (dilewati di tes)."""
-    sid = id_sheet(sheet)
-    link = rapikan_link(link)
+    b_sheet, b_link = bawaan()
+    sid = id_sheet(sheet) or b_sheet
+    link = rapikan_link(link) or b_link
     if sid and not re.fullmatch(r"[A-Za-z0-9_-]{20,}", sid):
         raise SurveiError("Itu bukan link Google Sheets. Salin link dari address bar sheet LK Survey.")
     if link and not POLA_LINK.match(link):
@@ -116,7 +155,9 @@ def simpan(*, aktif: bool, sheet: str, link: str, teks: str, periksa=None) -> Pe
             db.set_setting(undangan_wag.KUNCI, {**d, "aktif": False})
         db.delete_setting("kirim_semua")
     p = Pengaturan(aktif=aktif, sheet=sid, link=link, teks=teks)
-    db.set_setting(KUNCI, {"aktif": p.aktif, "sheet": p.sheet, "link": p.link, "teks": p.teks})
+    # Sheet & link bawaan tim tidak disimpan lokal, supaya perubahan dari admin langsung berlaku
+    db.set_setting(KUNCI, {"aktif": p.aktif, "sheet": "" if sid == b_sheet else sid,
+                           "link": "" if link == b_link else link, "teks": p.teks})
     return p
 
 
