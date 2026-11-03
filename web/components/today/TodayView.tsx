@@ -10,6 +10,7 @@ import { SessionTabs } from "./SessionTabs";
 import { FasilList } from "./FasilList";
 import { FasilDrawer } from "./FasilDrawer";
 import { UndanganWagBar } from "./UndanganWag";
+import { SurveiProgresBar } from "./SurveiProgres";
 import s from "./today.module.css";
 
 export function TodayView() {
@@ -124,6 +125,7 @@ export function TodayView() {
         <span className={s.date}>{today.tanggal_panjang}</span>
         <span className={s.blokLk}>Isi LK: sesi {today.blok_lk}</span>
       </div>
+      <SurveiProgresBar aktif={today.survei_progres} berjalan={today.pengiriman.running} onChanged={refresh} />
       <UndanganWagBar aktif={today.undangan_wag} berjalan={today.pengiriman.running} onChanged={refresh} />
       <NowCard today={today} onChanged={refresh} />
       <SessionTabs sesi={today.sesi} dipilih={sesi} onPilih={pilihSesi} />

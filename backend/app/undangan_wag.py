@@ -14,7 +14,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from . import db
 from .send_queue import GAGAL_PERMANEN, Item
@@ -87,6 +87,10 @@ def simpan(*, aktif: bool, link: str, tim: str, teks: str) -> Pengaturan:
         raise UndanganError("Link grup harus berupa link undangan WhatsApp, contoh https://chat.whatsapp.com/AbCdEf123456.")
     if aktif and not link:
         raise UndanganError("Tempel link grup WhatsApp dulu sebelum menyalakan Undangan WAG.")
+    if aktif:  # hanya satu kampanye langsung yang aktif
+        from . import survei_progres
+
+        survei_progres.matikan()
     teks = _terkini((teks or "").strip() or TEKS_AWAL)
     if "{link}" not in teks:
         raise UndanganError("Teks undangan harus memuat {link} supaya link grup ikut terkirim.")
@@ -141,7 +145,13 @@ def penerima(rows: list[BroadcastRow], petugas: str, lk: list | None) -> list[Br
 
 def build(rows: Iterable[BroadcastRow], sends: Iterable[dict], p: Pengaturan) -> list[Item]:
     """Antrean undangan. `sends`: baris tabel sends non-coba, urut waktu naik (semua waktu, bukan per minggu)."""
-    kunci = hash_link(p.link)
+    return antrean_sekali(rows, sends, hash_link(p.link), lambda r: susun(p, r.nama_fasil))
+
+
+def antrean_sekali(rows: Iterable[BroadcastRow], sends: Iterable[dict], kunci: str,
+                   pesan: Callable[[BroadcastRow], str]) -> list[Item]:
+    """Antrean kampanye "sekali per fasil" (Undangan WAG, Survei progres): fasil yang sudah terkirim dengan `kunci`
+    yang sama tidak dikirimi lagi, kapan pun terkirimnya."""
     terkirim: dict[str, str] = {}
     gagal: dict[str, tuple[str, str]] = {}
     for s in sends:
@@ -156,8 +166,7 @@ def build(rows: Iterable[BroadcastRow], sends: Iterable[dict], p: Pengaturan) ->
     items: list[Item] = []
     seen: dict[str, int] = {}
     for r in rows:
-        base = dict(baris=r.baris, nama_fasil=r.nama_fasil, nomor=r.nomor, pesan=susun(p, r.nama_fasil),
-                    hash_pesan=kunci)
+        base = dict(baris=r.baris, nama_fasil=r.nama_fasil, nomor=r.nomor, pesan=pesan(r), hash_pesan=kunci)
         if not r.nomor:
             items.append(Item(**base, status="dilewati", keterangan=f"Nomor tidak valid: {r.nomor_asli or '(kosong)'}"))
         elif r.nomor in seen:

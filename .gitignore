@@ -33,3 +33,6 @@ Thumbs.db
 # Dokumen sumber knowledge (resmi, berisi tangkapan layar sekolah): simpan lokal saja
 docs/knowledge/*.pptx
 docs/knowledge/*.pdf
+
+# Form survei progres (Apps Script + Netlify), tidak ikut repo
+survei-progres/

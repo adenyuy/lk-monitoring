@@ -93,9 +93,10 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
   else if (today.sisa_menit_sesi !== null && k.bisa_kirim) sub = `Sisa waktu sesi ${durasi(today.sisa_menit_sesi)}.`;
   else if (today.menit_ke_berikutnya !== null) sub = `Dimulai dalam ${durasi(today.menit_ke_berikutnya)}.`;
 
-  const undangan = today.undangan_wag || today.kirim_semua; // kirim langsung ke semua fasil
+  const undangan = today.undangan_wag || today.kirim_semua || today.survei_progres; // kirim langsung ke semua fasil
   // Tawarkan "Kirim ke semua" bila masih ada fasil yang belum dikirimi progres mingguan
-  const bisaSemua = !today.undangan_wag && !today.kirim_semua && !kirim.running && today.belum_dikirim > 0;
+  const bisaSemua = !today.undangan_wag && !today.survei_progres && !today.kirim_semua && !kirim.running
+    && today.belum_dikirim > 0;
   if (undangan && !kirim.running && k.bisa_kirim) {
     sub = `Sekitar ${durasi(Math.max(1, Math.round(k.kuota * 32 / 60)))} sampai selesai. Biarkan aplikasi dan WhatsApp tetap terbuka.`;
   }
@@ -143,6 +144,7 @@ export function NowCard({ today, onChanged }: { today: Today; onChanged: () => v
             <>
               <Button loading={busy} onClick={start} className={s.cta}>
                 {coba ? `Coba ${undangan ? Math.min(3, k.kuota) : k.kuota} pesan`
+                  : today.survei_progres ? `Kirim link survei ke ${k.kuota} fasil`
                   : today.undangan_wag ? `Kirim undangan ke ${k.kuota} fasil`
                   : today.kirim_semua ? `Kirim ke ${k.kuota} fasil sekarang` : `Kirim ${k.kuota} pesan`}
               </Button>

@@ -168,14 +168,17 @@ def kondisi_semua(t: datetime, kirim_akhir_pekan: bool, sisa_antrean: int) -> Ko
                    True, sesi_at(t), sisa_antrean, nxt, nxt_at)
 
 
-def kondisi_undangan(t: datetime, kirim_akhir_pekan: bool, sisa_antrean: int) -> Kondisi:
+def kondisi_undangan(t: datetime, kirim_akhir_pekan: bool, sisa_antrean: int, survei: bool = False) -> Kondisi:
     """Mode Undangan WAG: langsung ke semua fasil hari ini. Jam sesi, kuota sesi, batas harian, dan libur akhir pekan
     diabaikan; hanya pukul 07.00–22.00 (jeda acak antarpesan tetap)."""
     nxt, nxt_at = next_sesi(t, kirim_akhir_pekan)
     if not (BYPASS_MULAI <= t.time() <= BYPASS_SAMPAI):
-        return Kondisi("undangan_jam", f"Undangan WAG dikirim pukul {BYPASS_MULAI:%H.%M}–{BYPASS_SAMPAI:%H.%M}.",
+        nama = "Link survei progres" if survei else "Undangan WAG"
+        return Kondisi("undangan_jam", f"{nama} dikirim pukul {BYPASS_MULAI:%H.%M}–{BYPASS_SAMPAI:%H.%M}.",
                        False, None, 0, nxt, nxt_at)
     if sisa_antrean <= 0:
-        return Kondisi("antrean_habis", "Semua fasil sudah diundang ke WAG", False, sesi_at(t), 0, nxt, nxt_at)
-    return Kondisi("undangan", f"Undangan WAG: {sisa_antrean} fasil belum diundang, dikirim langsung tanpa menunggu sesi",
-                   True, sesi_at(t), sisa_antrean, nxt, nxt_at)
+        return Kondisi("antrean_habis", "Semua fasil sudah dikirimi link survei progres" if survei
+                       else "Semua fasil sudah diundang ke WAG", False, sesi_at(t), 0, nxt, nxt_at)
+    judul = (f"Survei progres: {sisa_antrean} fasil belum dikirimi link, dikirim langsung tanpa menunggu sesi" if survei
+             else f"Undangan WAG: {sisa_antrean} fasil belum diundang, dikirim langsung tanpa menunggu sesi")
+    return Kondisi("undangan", judul, True, sesi_at(t), sisa_antrean, nxt, nxt_at)

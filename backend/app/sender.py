@@ -12,7 +12,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Protocol
 
-from . import config, db, events, progres_mingguan, schedule, send_queue, store, tagging, undangan_wag
+from . import config, db, events, progres_mingguan, schedule, send_queue, store, survei_progres, tagging, undangan_wag
 from .sheets import BroadcastRow, filter_petugas
 from .wa import actions
 from .wa.browser import BrowserClosed, worker
@@ -134,10 +134,13 @@ class Sender:
         petugas, _, _ = self._settings()
         rows = filter_petugas(self.load_rows(), petugas)
         sends = store.sends_real()
+        svy = survei_progres.pengaturan()
+        if svy.aktif:  # blast Survei Progres: link form ke fasil binaan di LK Survey (kolom PETUGAS PIC)
+            return survei_progres.build(survei_progres.fasil_binaan(svy, petugas), sends, svy)
         wag = undangan_wag.pengaturan()
         if wag.aktif:  # mode Undangan WAG: pesan undangan grup ke SEMUA fasil binaan (Broadcast + LK)
             return undangan_wag.build(undangan_wag.penerima(rows, petugas, self.load_lk()), sends, wag)
-        bc = [x for x in sends if not x["hash_pesan"].startswith(undangan_wag.AWALAN)]
+        bc = [x for x in sends if not x["hash_pesan"].startswith((undangan_wag.AWALAN, survei_progres.AWALAN))]
         items = send_queue.build(rows, bc, self.clock().date(), store.ulang_all())
         for i in items:
             if i.status == "dilewati" and i.keterangan == "Pesan kosong":
@@ -148,6 +151,8 @@ class Sender:
         _, batas, akhir_pekan = self._settings()
         items = items if items is not None else self.antrean()
         t = self.clock()
+        if survei_progres.pengaturan().aktif:
+            return schedule.kondisi_undangan(t, akhir_pekan, len(send_queue.eligible(items)), survei=True)
         if undangan_wag.pengaturan().aktif:
             return schedule.kondisi_undangan(t, akhir_pekan, len(send_queue.eligible(items)))
         if self.semua_aktif():

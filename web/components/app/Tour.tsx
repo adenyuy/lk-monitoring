@@ -26,6 +26,10 @@ export const PANDUAN: Record<string, Langkah[]> = {
     { target: "tahap", judul: "Tahap chat", isi: "Tiap fasil ada di kolom tahap terjauh minggu ini: belum dihubungi, dihubungi, dibaca, membalas, isian ditanyakan, sampai LK lengkap. Klik fasil untuk melanjutkan chat dan isi LK." },
     { target: "tabel", judul: "Per fasil", isi: "Urutkan dengan klik judul kolom, saring dengan tombol di atas tabel, lalu klik fasil untuk membuka LK dan chat-nya." },
   ],
+  "/survei/": [
+    ...UMUM,
+    { target: "nav", judul: "Survei Progres", isi: "Halaman sementara untuk survei cepat: atur link LK Survey dan link pengisian, kirim link ke fasil binaan, lalu pantau siapa yang sudah membaca, membalas, dan mengisi." },
+  ],
   "/faq/": [...UMUM],
   "/log/": [
     ...UMUM,

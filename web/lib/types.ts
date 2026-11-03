@@ -86,6 +86,7 @@ export type Today = {
   pengiriman: Pengiriman;
   bypass: boolean;
   undangan_wag: boolean;
+  survei_progres: boolean;
   kirim_semua: boolean;
 };
 
@@ -167,7 +168,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 21;
+export const API_REV = 22;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -310,6 +311,48 @@ export type EskalasiInfo = {
   perlu_link: boolean;
   opsi: { permasalahan: string[]; status: string[]; tim: string[] } | null;
   eskalasi: Eskalasi[];
+};
+
+export type SurveiSekolah = { npsn: string; nama: string; isian: string; waktu: string };
+
+export type SurveiFasil = {
+  nama: string;
+  nomor: string;
+  nomor_tersamar: string;
+  kirim: "menunggu" | "terkirim" | "gagal" | "dilewati" | "tanpa_nomor";
+  kirim_waktu: string;
+  kirim_ket: string;
+  wa: "belum" | "terkirim" | "dibaca" | "dibalas";
+  balasan: string;
+  total: number;
+  terisi: number;
+  terakhir_isi: string;
+  sekolah: SurveiSekolah[];
+};
+
+export type SurveiStatus = {
+  aktif: boolean;
+  siap: boolean;
+  galat: string;
+  bisa_kirim?: number;
+  kirim: Pengiriman;
+  ringkasan: { fasil: number; terkirim: number; dibaca: number; dibalas: number; sekolah: number; terisi: number;
+    tuntas: number } | null;
+  fasil: SurveiFasil[];
+};
+
+export type SurveiProgres = {
+  aktif: boolean;
+  sheet: string;
+  link: string;
+  teks: string;
+  teks_awal: string;
+  contoh: string;
+  galat: string;
+  contoh_fasil: { nama: string; nomor: string; sekolah: string[] };
+  fasil: number;
+  sekolah: number;
+  ringkasan: { total: number; terkirim: number; gagal_permanen: number; belum: number } | null;
 };
 
 export type UndanganWag = {
