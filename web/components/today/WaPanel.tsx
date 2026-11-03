@@ -102,6 +102,19 @@ ${minta} ${tutup}` });
   const pesanIngat = ingat.length
     ? `\n\nMohon Bapak/Ibu selalu mengingatkan dan mendampingi sekolah binaan untuk ${ingat.length > 1 ? `${ingat.slice(0, -1).join(", ")}, serta ${ingat[ingat.length - 1]}` : ingat[0]}.`
     : "";
+  // Menagih informasi yang sudah diminta sebelumnya, dan meminta kirim ulang bila formatnya belum sesuai
+  out.push({ kode: "tagih", label: "Tagih informasi", tanya: false,
+    teks: `${salam()} Bapak/Ibu ${nama}, mohon izin menindaklanjuti permintaan informasi yang sudah kami sampaikan sebelumnya.
+
+Mohon kesediaan Bapak/Ibu untuk *segera* mengirimkan informasi tersebut *menggunakan template yang sudah kami kirimkan sebelumnya* (cukup disalin, lalu diisi per sekolah), agar data dapat kami rekap dengan tepat.
+
+Terima kasih atas perhatian dan kerja samanya, Bapak/Ibu 🙏` });
+  out.push({ kode: "format", label: "Minta sesuai format", tanya: false,
+    teks: `Terima kasih atas informasinya, Bapak/Ibu ${nama} 🙏
+
+Mohon izin, agar data dapat kami rekap dengan tepat, mohon informasi tersebut *dikirim ulang sesuai format yang sudah kami kirimkan sebelumnya* (diisi per sekolah sesuai nomor).
+
+Terima kasih atas kerja samanya, Bapak/Ibu.` });
   out.push({ kode: "makasih", label: "Terima kasih", tanya: false,
     teks: `Terima kasih atas informasinya, Bapak/Ibu ${nama}. Sudah kami catat.${pesanIngat} ${"🙏"}` });
   return out;
