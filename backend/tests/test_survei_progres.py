@@ -136,3 +136,12 @@ def test_link_sheet_dan_pengisian_dari_bawaan_tim(monkeypatch):
     survei_progres.simpan(aktif=True, sheet="", link="", teks="")  # cukup tekan kirim, tanpa mengisi link
     assert survei_progres.pengaturan().aktif
     assert db.get_setting(survei_progres.KUNCI)["sheet"] == ""  # bawaan tim tidak disalin ke laptop
+
+
+def test_sel_berisi_dua_nomor():
+    from app.sheets import daftar_nomor, normalize_nomor
+    assert normalize_nomor("081261180420, 6281261180420") == "6281261180420"
+    assert daftar_nomor("082173773717, 6282123773717") == ["6282173773717", "6282123773717"]
+    assert daftar_nomor("0812345678 / 0813345678") == ["62812345678", "62813345678"]
+    assert normalize_nomor("https://wa.me/6285712345678") == "6285712345678"
+    assert normalize_nomor("0812, 0813") == ""

@@ -32,13 +32,32 @@ def clean_petugas(name: str) -> str:
 
 
 def normalize_nomor(raw: str) -> str:
-    """Ambil nomor dari 'https://wa.me/62857...' / '0857-…' / '+62 857…' -> '62857…'. '' bila tidak valid."""
+    """Ambil nomor dari 'https://wa.me/62857...' / '0857-…' / '+62 857…' -> '62857…'. '' bila tidak valid.
+    Sel berisi beberapa nomor ('0812…, 62812…', '0812… / 0813…') -> nomor valid pertama."""
+    semua = daftar_nomor(raw)
+    return semua[0] if semua else ""
+
+
+def _satu_nomor(raw: str) -> str:
     digits = re.sub(r"\D", "", str(raw))
     if digits.startswith("0"):
         digits = "62" + digits[1:]
     elif digits.startswith("8"):
         digits = "62" + digits
     return digits if digits.startswith("62") and 10 <= len(digits) <= 15 else ""
+
+
+def daftar_nomor(raw: str) -> list[str]:
+    """Semua nomor valid dalam satu sel, tanpa duplikat, urut sesuai tulisan."""
+    satu = _satu_nomor(raw)
+    if satu:
+        return [satu]
+    out: list[str] = []
+    for bagian in re.split(r"[,;/|\n]|\b(?:dan|atau)\b", str(raw), flags=re.I):
+        n = _satu_nomor(bagian)
+        if n and n not in out:
+            out.append(n)
+    return out
 
 
 def nomor_key(nomor: str) -> str:
