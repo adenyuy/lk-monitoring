@@ -34,6 +34,17 @@ KELOMPOK = (
     ("terhubung", "Terhubung hari ini", "Respon baik lewat WhatsApp atau sudah ditelepon"),
     ("beres", "Semua hijau", "Semua sekolah binaannya tanpa to-do"),
 )
+# Kolom papan LK: di komponen mana sekolah binaan seorang fasil sedang tertahan (dari to-do).
+POSISI = (
+    ("lp", "Lap. Pendahuluan belum dikirim", ("lp",)),
+    ("lp_rev", "Reviu Lap. Pendahuluan", ("lp_rev",)),
+    ("mg", "Lap. Mingguan", ("mg", "mg_rev")),
+    ("bulanan", "Lap. Bulanan, BKU & BPP", ("paket_bulanan", "bl_rev")),
+    ("progres", "Progres fisik", ("progres",)),
+    ("l50", "Laporan 50%", ("l50", "l50_rev")),
+    ("l100", "Laporan 100%", ("l100", "l100_rev")),
+)
+_POSISI_DARI = {t: k for k, _, ts in POSISI for t in ts}
 TERHUBUNG = {"T", "TP"}
 TIDAK_TERSAMBUNG = {"C", "N"}
 
@@ -297,6 +308,9 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
     dibaca_saja = sum(1 for d in minggu if kode.get(d) in {"R", "C", "N"})
     fokus = Counter(rencana[s.npsn].fokus.judul for s in perlu if rencana[s.npsn].fokus)
     tunggu = [t.tunggu for s in perlu for t in rencana[s.npsn].todo if t.pelaku == "fasil" and t.tunggu]
+    posisi: Counter[str] = Counter()
+    for s in perlu:
+        posisi.update({_POSISI_DARI[t.kode] for t in rencana[s.npsn].todo if t.kode in _POSISI_DARI})
     return {
         "kunci": f.kunci, "nama": f.nama, "nomor": f.nomor, "ptn": f.ptn, "koor": f.koor,
         "punya_nomor": bool(f.nomor),
@@ -312,6 +326,7 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
         "tanpa_progres": bool(perlu) and ada_banding and progres_naik == 0 and hubung >= 2,
         "belum_ditelepon": dibaca_saja >= 2 and "TP" not in kode.values(),
         "progres_naik": progres_naik if ada_banding else None,
+        "posisi": dict(posisi),
     }
 
 

@@ -1,8 +1,13 @@
 """Dashboard: distribusi binaan, capaian komponen, tren per cutoff, dan frekuensi komunikasi.
 
+Semua angka dihitung dari isi komponen LK dan Log Komunikasi (bukan dari to-do; to-do hanya dipakai di halaman LK).
+Hasil hitungan disimpan dan dihitung ulang di latar tiap 10 menit, jadi halaman langsung terbuka.
 Petugas melihat datanya sendiri. Admin bisa memilih PIC lain atau "semua" (nasional).
 """
 
+import logging
+import threading
+import time
 from collections import Counter, defaultdict
 from typing import Any
 
@@ -12,9 +17,14 @@ from .. import cutoff_baru, komunikasi, lk_baru, schedule, todo
 from ..access import Access
 from ..sheets import normalize_petugas
 from .deps import require_access
-from .lkb import _jalan, blok_hari_ini
+from .lkb import _jalan
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/dashboard")
+
+SEGAR_DETIK = 600          # hitung ulang di latar bila hasil lebih tua dari ini
+DIPANTAU_DETIK = 3 * 3600  # dashboard yang dibuka dalam 3 jam terakhir ikut dihitung ulang berkala
+NASIONAL = "__semua__"
 
 KOLOM_TREN = {
     "lp": "Lap. Pendahuluan terkirim (%)", "lp_rev": "Lap. Pendahuluan direviu (%)",
@@ -31,9 +41,8 @@ def _angka(v: Any) -> float | None:
         return None
 
 
-def _capaian(sekolah: list[lk_baru.Sekolah]) -> list[dict[str, Any]]:
+def _capaian(st: list[dict[str, todo.Status]]) -> list[dict[str, Any]]:
     out = []
-    st = [todo.semua_status(s) for s in sekolah]
     for k in lk_baru.KOMPONEN:
         c = Counter(x[k.kode].status for x in st)
         a = sum(x[k.kode].rasio[0] for x in st if x[k.kode].rasio)
@@ -45,6 +54,27 @@ def _capaian(sekolah: list[lk_baru.Sekolah]) -> list[dict[str, Any]]:
                     "persen": round(c["selesai"] / relevan * 100, 1) if relevan else None,
                     "rasio": [a, b] if b else None})
     return out
+
+
+def _progres(st: list[dict[str, todo.Status]]) -> dict[str, Any]:
+    p = [x["progres"].persen for x in st if x["progres"].persen is not None]
+    ember = [("0–24%", 0, 25), ("25–49%", 25, 50), ("50–74%", 50, 75), ("75–99%", 75, 100), ("100%", 100, 101)]
+    return {"rata": round(sum(p) / len(p), 1) if p else None, "ada": len(p),
+            "sebaran": [{"nama": n, "jumlah": sum(1 for v in p if a <= v < b)} for n, a, b in ember]}
+
+
+def _reviu(sekolah: list[lk_baru.Sekolah], st: list[dict[str, todo.Status]]) -> dict[str, Any]:
+    """Waktu tunggu reviu dari kolom LK, hanya untuk komponen reviu yang belum selesai."""
+    per: dict[str, list[float]] = defaultdict(list)
+    for s, x in zip(sekolah, st):
+        for kode, hari in s.tunggu.items():
+            if hari and x.get(kode) and x[kode].status == "belum":
+                per[kode].append(hari)
+    semua = [v for xs in per.values() for v in xs]
+    return {"rata": round(sum(semua) / len(semua), 1) if semua else None,
+            "lewat3": sum(1 for v in semua if v > 3), "menunggu": len(semua),
+            "komponen": [{"label": lk_baru.KOMP[k].label, "menunggu": len(v), "rata": round(sum(v) / len(v), 1),
+                          "lewat3": sum(1 for x in v if x > 3)} for k, v in per.items()]}
 
 
 def _distribusi(sekolah: list[lk_baru.Sekolah]) -> dict[str, Any]:
@@ -69,18 +99,17 @@ def _distribusi(sekolah: list[lk_baru.Sekolah]) -> dict[str, Any]:
     }
 
 
-def _komunikasi(sekolah: list[lk_baru.Sekolah], logkom: lk_baru.LogKom) -> dict[str, Any]:
-    fasil = komunikasi.kelompokkan(sekolah)
+def _komunikasi(fasil: dict[str, komunikasi.Fasil], logkom: lk_baru.LogKom) -> dict[str, Any]:
     tanggal = sorted(logkom.tanggal)
     hari = schedule.now().date().isoformat()
     tampil = [d for d in tanggal if d <= hari][-10:] or tanggal[:5]
     per_hari = []
-    total = Counter()
+    total: Counter[str] = Counter()
+    kode_f = {k: komunikasi.kode_fasil(f, logkom) for k, f in fasil.items()}
     for d in tampil:
-        c = Counter()
-        for f in fasil.values():
-            k = komunikasi.kode_fasil(f, logkom).get(d, "")
-            c[k or "-"] += 1
+        c: Counter[str] = Counter()
+        for k in fasil:
+            c[kode_f[k].get(d, "") or "-"] += 1
         total.update({k: v for k, v in c.items() if k != "-"})
         per_hari.append({"tanggal": d, "kode": dict(c), "tercatat": sum(v for k, v in c.items() if k != "-"),
                          "fasil": len(fasil)})
@@ -111,65 +140,166 @@ def _tren(pic: str | None) -> dict[str, Any]:
     return {"cutoff": cut, "seri": seri, "rata_pic": nasional}
 
 
-@router.get("")
-def dashboard(pic: str = Query("", max_length=120), acc: Access = Depends(require_access)) -> dict[str, Any]:
-    saya = komunikasi.petugas_saya()
-    if pic and normalize_petugas(pic) != normalize_petugas(saya) and not acc.admin:
-        raise HTTPException(403, "Hanya admin yang bisa melihat dashboard PIC lain.")
-    target = pic or saya
-    nasional = target == "__semua__"
-    if nasional:
-        sekolah = _jalan(lk_baru.baca_semua)
-    else:
-        sekolah = _jalan(lk_baru.baca_petugas, target)
+def _tabel_fasil(fasil: dict[str, komunikasi.Fasil], status: dict[str, dict[str, todo.Status]],
+                 logkom: lk_baru.LogKom) -> list[dict[str, Any]]:
+    hari = schedule.now().date().isoformat()
+    out = []
+    for f in fasil.values():
+        st = [status[s.npsn] for s in f.sekolah]
+        belum = sum(1 for x in st for v in x.values() if v.status == "belum")
+        lengkap = sum(1 for x in st if not any(v.status == "belum" for v in x.values()))
+        p = [x["progres"].persen for x in st if x["progres"].persen is not None]
+        kode = komunikasi.kode_fasil(f, logkom)
+        c = Counter(kode.values())
+        tunggu = [h for s in f.sekolah for k, h in s.tunggu.items() if h and status[s.npsn][k].status == "belum"]
+        out.append({"nama": f.nama, "ptn": f.ptn, "sekolah": len(f.sekolah), "lengkap": lengkap, "belum": belum,
+                    "progres": round(sum(p) / len(p), 1) if p else None,
+                    "terhubung": c["T"] + c["TP"], "lambat": c["T1"] + c["T2"],
+                    "tidak": c["R"] + c["C"] + c["N"], "telepon": c["TP"],
+                    "hari_tercatat": len(kode), "kode_hari_ini": kode.get(hari, ""),
+                    "tunggu_maks": max(tunggu) if tunggu else None})
+    out.sort(key=lambda x: (-x["belum"], x["nama"]))
+    return out
+
+
+def _hitung(target: str) -> dict[str, Any]:
+    nasional = target == NASIONAL
+    sekolah = lk_baru.baca_semua() if nasional else lk_baru.baca_petugas(target)
     try:
         logkom = lk_baru.baca_log_kom()
     except Exception:
         logkom = lk_baru.LogKom({}, {}, {})
-    rencana = {s.npsn: todo.rencana(s) for s in sekolah}
-    blok = blok_hari_ini()
-    tahap = Counter(r.tahap for r in rencana.values())
-    fokus = Counter(r.fokus.judul for r in rencana.values() if r.fokus)
-    perlu = [s for s in sekolah if rencana[s.npsn].todo]
-    pelaku = Counter(t.pelaku for r in rencana.values() for t in r.todo)
-    tunggu = [t.tunggu for r in rencana.values() for t in r.todo if t.tunggu]
-    fasil_tabel = []
-    if not nasional:
-        fasil = komunikasi.kelompokkan(sekolah)
-        hari = schedule.now().date().isoformat()
-        for f in fasil.values():
-            r = komunikasi.ringkasan_fasil(f, rencana, logkom, hari, blok, {}, {})
-            kode = komunikasi.kode_fasil(f, logkom)
-            c = Counter(kode.values())
-            fasil_tabel.append({"nama": f.nama, "sekolah": r["sekolah"], "perlu": r["perlu"], "lengkap": r["lengkap"],
-                                "todo": r["todo"], "todo_fasil": r["todo_fasil"], "kelompok": r["kelompok"],
-                                "terhubung": c["T"] + c["TP"], "lambat": c["T1"] + c["T2"],
-                                "tidak": c["R"] + c["C"] + c["N"], "telepon": c["TP"],
-                                "hari_tercatat": len(kode), "tunggu_maks": r["tunggu_maks"]})
-        fasil_tabel.sort(key=lambda x: (-x["todo"], x["nama"]))
-    out = {
+    status = {s.npsn: todo.semua_status(s) for s in sekolah}
+    st = [status[s.npsn] for s in sekolah]
+    fasil = komunikasi.kelompokkan(sekolah)
+    lengkap = sum(1 for x in st if not any(v.status == "belum" for v in x.values()))
+    return {
         "pic": "Nasional" if nasional else target,
         "nasional": nasional,
-        "week": _jalan(lk_baru.week_aktif),
+        "week": lk_baru.week_aktif(),
         "cutoff": komunikasi.label_cutoff(),
         "dibuat": schedule.now().strftime("%d/%m %H.%M"),
         "distribusi": _distribusi(sekolah),
-        "capaian": _capaian(sekolah),
-        "tahap": [{"kode": t, "jumlah": tahap.get(t, 0)} for t in ("pendahuluan", "berkala", "l50", "l100", "selesai")],
-        "fokus": [{"judul": j, "jumlah": v} for j, v in fokus.most_common(8)],
-        "todo": {"sekolah_perlu": len(perlu), "sekolah_beres": len(sekolah) - len(perlu),
-                 "item": sum(pelaku.values()), "oleh_sekolah": pelaku["sekolah"], "oleh_fasil": pelaku["fasil"],
-                 "lengkap": sum(1 for s in perlu if todo.lengkap(s, rencana[s.npsn], blok)),
-                 "tunggu_rata": round(sum(tunggu) / len(tunggu), 1) if tunggu else None,
-                 "tunggu_lewat3": sum(1 for x in tunggu if x > 3)},
-        "komunikasi": _komunikasi(sekolah, logkom),
+        "capaian": _capaian(st),
+        "progres": _progres(st),
+        "reviu": _reviu(sekolah, st),
+        "lengkap": lengkap,
+        "komunikasi": _komunikasi(fasil, logkom),
         "tren": _tren(None if nasional else target),
-        "fasil": fasil_tabel,
+        "fasil": [] if nasional else _tabel_fasil(fasil, status, logkom),
     }
+
+
+# ---------- simpanan hasil & hitung ulang di latar ----------
+
+_hasil: dict[str, tuple[float, dict[str, Any]]] = {}
+_dibuka: dict[str, float] = {}
+_jalan_hitung: set[str] = set()
+_lock = threading.Lock()
+_loop_mulai = False
+
+
+def _kunci(target: str) -> str:
+    return target if target == NASIONAL else normalize_petugas(target)
+
+
+def _hitung_simpan(target: str) -> dict[str, Any]:
+    k = _kunci(target)
+    try:
+        data = _hitung(target)
+        with _lock:
+            _hasil[k] = (time.time(), data)
+        return data
+    finally:
+        with _lock:
+            _jalan_hitung.discard(k)
+
+
+def _latar(target: str) -> None:
+    k = _kunci(target)
+    with _lock:
+        if k in _jalan_hitung:
+            return
+        _jalan_hitung.add(k)
+
+    def run() -> None:
+        try:
+            _hitung_simpan(target)
+        except Exception:
+            log.exception("Dashboard %s gagal dihitung ulang", target)
+
+    threading.Thread(target=run, name=f"dashboard-{k[:20]}", daemon=True).start()
+
+
+def _loop() -> None:
+    while True:
+        time.sleep(SEGAR_DETIK)
+        batas = time.time() - DIPANTAU_DETIK
+        with _lock:
+            target = [t for t, w in _dibuka.items() if w >= batas]
+        for t in target:
+            try:
+                with _lock:
+                    if _kunci(t) in _jalan_hitung:
+                        continue
+                    _jalan_hitung.add(_kunci(t))
+                _hitung_simpan(t)
+            except Exception:
+                log.exception("Dashboard %s gagal dihitung ulang", t)
+
+
+def mulai_latar() -> None:
+    """Hitung dashboard petugas ini saat aplikasi dibuka, lalu ulang tiap 10 menit."""
+    global _loop_mulai
+    with _lock:
+        if _loop_mulai:
+            return
+        _loop_mulai = True
+    threading.Thread(target=_loop, name="dashboard-loop", daemon=True).start()
+    saya = komunikasi.petugas_saya()
+    if saya:
+        _dibuka.setdefault(saya, time.time())
+        _latar(saya)
+
+
+def ambil(target: str, paksa: bool = False) -> dict[str, Any]:
+    k = _kunci(target)
+    with _lock:
+        _dibuka[target] = time.time()
+        ada = _hasil.get(k)
+        sedang = k in _jalan_hitung
+    if ada and not paksa:
+        umur = time.time() - ada[0]
+        if umur > SEGAR_DETIK:
+            _latar(target)
+        return {**ada[1], "umur_detik": int(umur), "menghitung": sedang or umur > SEGAR_DETIK}
+    if sedang and not paksa:
+        # hitungan pertama sedang berjalan di latar; tunggu sebentar
+        for _ in range(120):
+            time.sleep(0.5)
+            with _lock:
+                ada = _hasil.get(k)
+            if ada:
+                return {**ada[1], "umur_detik": int(time.time() - ada[0]), "menghitung": False}
+    with _lock:
+        _jalan_hitung.add(k)
+    data = _hitung_simpan(target)
+    return {**data, "umur_detik": 0, "menghitung": False}
+
+
+@router.get("")
+def dashboard(pic: str = Query("", max_length=120), paksa: bool = False,
+              acc: Access = Depends(require_access)) -> dict[str, Any]:
+    saya = komunikasi.petugas_saya()
+    if pic and normalize_petugas(pic) != normalize_petugas(saya) and not acc.admin:
+        raise HTTPException(403, "Hanya admin yang bisa melihat dashboard PIC lain.")
+    target = pic or saya
+    if not target:
+        raise HTTPException(400, "Nama petugas belum dipilih.")
+    out = dict(_jalan(ambil, target, paksa))
     if acc.admin:
         try:
             out["pilihan_pic"] = [p["nama"] for p in lk_baru.daftar_petugas()]
         except Exception:
             out["pilihan_pic"] = []
     return out
-

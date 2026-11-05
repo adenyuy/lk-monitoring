@@ -24,17 +24,19 @@ function toneStatus(st: string) {
 
 
 /** Popup "Butuh bantuan": tanya teman PIC lewat WhatsApp, atau eskalasi ke stream lain lewat LK Eskalasi. */
-export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClose, awal, tabAwal }: {
+export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClose, awal, tabAwal, hanyaEskalasi }: {
   namaFasil: string;
+  /** Hanya form eskalasi ke tim/stream lain (tanpa tanya teman) */
+  hanyaEskalasi?: boolean;
   sekolah: SekolahPilih[];
   awal?: IsiEskalasi;
   tabAwal?: "teman" | "eskalasi";
   /** Pesan fasil yang akan diteruskan ke teman (dari tombol "Teruskan ke teman"); "" bila dibuka biasa */
   terusan: string;
-  onPilihTeman: (t: Teman) => void;
+  onPilihTeman?: (t: Teman) => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<"teman" | "eskalasi">(tabAwal ?? "teman");
+  const [tab, setTab] = useState<"teman" | "eskalasi">(hanyaEskalasi ? "eskalasi" : tabAwal ?? "teman");
   const tutupRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -51,8 +53,9 @@ export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClo
       <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="esk-judul">
         <header className={s.head}>
           <div>
-            <h2 id="esk-judul">{terusan ? "Teruskan ke teman PIC" : "Butuh bantuan"}</h2>
-            <p>{terusan ? "Pilih teman. Chat-nya dibuka di panel kanan dengan pesan fasil sudah dikutip."
+            <h2 id="esk-judul">{hanyaEskalasi ? "Eskalasi ke tim lain" : terusan ? "Teruskan ke teman PIC" : "Butuh bantuan"}</h2>
+            <p>{hanyaEskalasi ? `Kasus fasil ${namaFasil} yang harus dijawab tim lain? Catat di LK Eskalasi; sekolah dan keterangannya sudah terisi dari to-do.`
+              : terusan ? "Pilih teman. Chat-nya dibuka di panel kanan dengan pesan fasil sudah dikutip."
               : `Pertanyaan fasil ${namaFasil} belum bisa Anda jawab? Tanya teman dulu. Kasus unik yang harus dijawab stream lain? Catat di LK Eskalasi.`}</p>
           </div>
           <button ref={tutupRef} type="button" className={s.close} onClick={onClose} aria-label="Tutup">
@@ -62,12 +65,12 @@ export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClo
           </button>
         </header>
         {terusan && <blockquote className={s.terusan}>{terusan}</blockquote>}
-        {!terusan && <div className={s.tabs} role="tablist">
+        {!terusan && !hanyaEskalasi && <div className={s.tabs} role="tablist">
           <button type="button" role="tab" aria-selected={tab === "teman"} onClick={() => setTab("teman")}>Tanya teman PIC</button>
           <button type="button" role="tab" aria-selected={tab === "eskalasi"} onClick={() => setTab("eskalasi")}>Eskalasi ke stream lain</button>
         </div>}
         <div className={s.body}>
-          {tab === "teman" || terusan ? <TanyaTeman onPilih={onPilihTeman} /> : <FormEskalasi sekolah={sekolah} awal={awal} />}
+          {(tab === "teman" || terusan) && onPilihTeman ? <TanyaTeman onPilih={onPilihTeman} /> : <FormEskalasi sekolah={sekolah} awal={awal} />}
         </div>
       </div>
     </div>

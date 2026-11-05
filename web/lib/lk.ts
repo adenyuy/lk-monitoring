@@ -38,7 +38,11 @@ export type FasilLk = {
   tanpa_progres: boolean;
   belum_ditelepon: boolean;
   progres_naik: number | null;
+  /** {kode kolom papan: jumlah sekolah yang tertahan di sana} */
+  posisi: Record<string, number>;
 };
+
+export type PosisiKolom = { kode: string; label: string; fasil: number; sekolah: number };
 
 export type Indikator = { kode: string; nada: "warn" | "info"; jumlah: number; judul: string; isi: string };
 
@@ -48,6 +52,7 @@ export type LkRingkasan = LkInfo & {
   tahap: { kode: Tahap; jumlah: number }[];
   fokus: { judul: string; jumlah: number }[];
   indikator: Indikator[];
+  posisi: PosisiKolom[];
   tag: string[];
   fasil: FasilLk[];
 };
@@ -95,6 +100,8 @@ export type FasilDetail = LkInfo & FasilLk & {
   nomor_tersamar: string;
   nomor_lain: string[];
   hp_koor: boolean;
+  nomor_koor: string;
+  koor_tersamar: string;
   sekolah_detail: SekolahDetail[];
 };
 

@@ -2,34 +2,33 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { KELOMPOK_INFO, KODE_WARNA, TAHAP_LABEL, hariPendek, type Kelompok, type Tahap } from "@/lib/lk";
-import { Chip, Notice, Spinner } from "@/components/ui";
+import { usePolling } from "@/lib/hooks";
+import { KODE_WARNA, hariPendek, type Tahap } from "@/lib/lk";
+import { Button, Notice, Spinner } from "@/components/ui";
 import s from "./dashboard.module.css";
 
 type Capaian = { kode: string; label: string; tahap: Tahap; pelaku: string; selesai: number; belum: number; due: number;
   kosong: number; tanpa_data: number; relevan: number; persen: number | null; rasio: [number, number] | null };
 type Dash = {
-  pic: string; nasional: boolean; week: number; cutoff: string; dibuat: string;
+  pic: string; nasional: boolean; week: number; cutoff: string; dibuat: string; umur_detik: number; menghitung: boolean;
   distribusi: { sekolah: number; fasil: number; koor: number; jml_ptn: number; jml_kab: number; rata_sekolah_per_fasil: number;
     maks_sekolah_per_fasil: number; tanpa_hp_fasil: number;
     angkatan: { nama: string; jumlah: number }[]; provinsi: { nama: string; jumlah: number }[];
     kab: { nama: string; jumlah: number }[]; ptn: { nama: string; jumlah: number }[] };
   capaian: Capaian[];
-  tahap: { kode: Tahap; jumlah: number }[];
-  fokus: { judul: string; jumlah: number }[];
-  todo: { sekolah_perlu: number; sekolah_beres: number; item: number; oleh_sekolah: number; oleh_fasil: number; lengkap: number;
-    tunggu_rata: number | null; tunggu_lewat3: number };
+  progres: { rata: number | null; ada: number; sebaran: { nama: string; jumlah: number }[] };
+  reviu: { rata: number | null; lewat3: number; menunggu: number;
+    komponen: { label: string; menunggu: number; rata: number; lewat3: number }[] };
+  lengkap: number;
   komunikasi: { hari: { tanggal: string; kode: Record<string, number>; tercatat: number; fasil: number }[];
     total: Record<string, number>; kode: { kode: string; arti: string }[] };
   tren: { cutoff: string[]; seri: { kode: string; label: string; nilai: (number | null)[] }[]; rata_pic: Record<string, number | null> };
-  fasil: { nama: string; sekolah: number; perlu: number; lengkap: number; todo: number; todo_fasil: number; kelompok: Kelompok;
-    terhubung: number; lambat: number; tidak: number; telepon: number; hari_tercatat: number; tunggu_maks: number | null }[];
+  fasil: { nama: string; ptn: string; sekolah: number; lengkap: number; belum: number; progres: number | null;
+    terhubung: number; lambat: number; tidak: number; telepon: number; hari_tercatat: number; kode_hari_ini: string;
+    tunggu_maks: number | null }[];
   pilihan_pic?: string[];
 };
 
-const TAHAP_WARNA: Record<Tahap, string> = {
-  pendahuluan: "#c9d4ef", berkala: "#8ea3dc", l50: "#5673bf", l100: "#2346a0", selesai: "#2f8f5b",
-};
 const URUT_KODE = ["T", "TP", "T1", "T2", "R", "C", "N"];
 const KODE_BATANG: Record<string, string> = {
   T: "#2f8f5b", TP: "#1f7a6c", T1: "#d9a23a", T2: "#c47a2c", R: "#5673bf", C: "#c8484b", N: "#9b4a7f",
@@ -43,10 +42,13 @@ export function DashboardView() {
   const [error, setError] = useState<string | null>(null);
   const [memuat, setMemuat] = useState(false);
 
-  const muat = useCallback(async (p: string) => {
+  const muat = useCallback(async (p: string, paksa = false) => {
     setMemuat(true);
     try {
-      setD(await api<Dash>(`/api/dashboard${p ? `?pic=${encodeURIComponent(p)}` : ""}`));
+      const q = new URLSearchParams();
+      if (p) q.set("pic", p);
+      if (paksa) q.set("paksa", "true");
+      setD(await api<Dash>(`/api/dashboard${q.size ? `?${q}` : ""}`));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -56,20 +58,29 @@ export function DashboardView() {
   }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void muat(pic); }, [pic, muat]);
+  // hasil dihitung ulang di latar tiap 10 menit; ambil versi terbarunya tanpa mengganggu
+  usePolling(() => muat(pic), d?.menghitung ? 15000 : 300000, !!d);
 
   if (error && !d) return <Notice tone="bad" title="Dashboard tidak bisa dimuat">{error}</Notice>;
   if (!d) return <div className={s.loading}><Spinner label="Memuat" /> Menghitung…</div>;
 
   const di = d.distribusi;
-  const beresPct = pct(d.todo.sekolah_beres, di.sekolah);
+  const kompSelesai = d.capaian.reduce((n, x) => n + x.selesai, 0);
+  const kompDue = d.capaian.reduce((n, x) => n + x.relevan, 0);
+  const umur = Math.round(d.umur_detik / 60);
 
   return (
     <div className={`${s.page} ${memuat ? s.memuat : ""}`}>
       <header className={s.head}>
         <div>
-          <p className={s.eyebrow}>WEEK {d.week}{d.cutoff ? ` · ${d.cutoff}` : ""} · dihitung {d.dibuat}</p>
+          <p className={s.eyebrow}>WEEK {d.week}{d.cutoff ? ` · ${d.cutoff}` : ""}</p>
           <h1>Dashboard {d.nasional ? "nasional" : d.pic}</h1>
         </div>
+        <div className={s.headKanan}>
+          <span className={s.segar} title="Dashboard dihitung ulang otomatis di latar setiap 10 menit">
+            {d.menghitung ? <><Spinner /> Memperbarui…</> : <>Dihitung {d.dibuat}{umur > 0 ? ` (${umur} menit lalu)` : ""}</>}
+          </span>
+          <Button variant="secondary" size="sm" loading={memuat} onClick={() => void muat(pic, true)}>Hitung ulang</Button>
         {d.pilihan_pic && (
           <label className={s.pilihPic}>
             <span>Lihat</span>
@@ -78,17 +89,19 @@ export function DashboardView() {
               <option value="__semua__">Nasional (semua PIC)</option>
               {d.pilihan_pic.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
-            {memuat && <Spinner label="Memuat" />}
           </label>
         )}
+        </div>
       </header>
 
       <section className={s.kpi} aria-label="Ringkasan">
         <Kpi label="Sekolah binaan" nilai={fmt(di.sekolah)} ket={`${di.jml_kab} kab/kota · ${di.jml_ptn} PTN`} />
         <Kpi label="Fasilitator" nilai={fmt(di.fasil)} ket={`rata-rata ${String(di.rata_sekolah_per_fasil).replace(".", ",")} sekolah, paling banyak ${di.maks_sekolah_per_fasil}`} />
         <Kpi label="Koordinator" nilai={fmt(di.koor)} ket={di.tanpa_hp_fasil ? `${di.tanpa_hp_fasil} sekolah tanpa nomor fasil` : "semua fasil punya nomor"} />
-        <Kpi label="Sekolah semua hijau" nilai={`${beresPct}%`} ket={`${fmt(d.todo.sekolah_beres)} dari ${fmt(di.sekolah)} sekolah tanpa to-do`} aksen />
-        <Kpi label="To-do terbuka" nilai={fmt(d.todo.item)} ket={`${fmt(d.todo.oleh_sekolah)} tugas sekolah · ${fmt(d.todo.oleh_fasil)} reviu fasil`} />
+        <Kpi label="Komponen selesai" nilai={`${pct(kompSelesai, kompDue)}%`}
+          ket={`${fmt(kompSelesai)} dari ${fmt(kompDue)} komponen yang sudah due · ${fmt(d.lengkap)} sekolah tuntas`} aksen />
+        <Kpi label="Progres fisik rata-rata" nilai={d.progres.rata !== null ? `${String(d.progres.rata).replace(".", ",")}%` : "–"}
+          ket={`dari ${fmt(d.progres.ada)} sekolah yang sudah melapor`} />
       </section>
 
       <div className={s.grid2}>
@@ -102,19 +115,23 @@ export function DashboardView() {
 
         <div className={s.kolom}>
           <section className={s.card}>
-            <div className={s.cardHead}><h2>Posisi sekolah</h2><span>tahap to-do saat ini</span></div>
-            <TahapBar data={d.tahap} total={di.sekolah} />
+            <div className={s.cardHead}><h2>Sebaran progres fisik</h2><span>jumlah sekolah</span></div>
+            <Batang data={d.progres.sebaran} />
           </section>
           <section className={s.card}>
-            <div className={s.cardHead}><h2>Fokus to-do terbanyak</h2><span>jumlah sekolah</span></div>
-            <Batang data={d.fokus.map((f) => ({ nama: f.judul, jumlah: f.jumlah }))} />
-          </section>
-          <section className={s.card}>
-            <div className={s.cardHead}><h2>Reviu fasil</h2></div>
+            <div className={s.cardHead}><h2>Reviu fasil</h2><span>{fmt(d.reviu.menunggu)} laporan menunggu</span></div>
             <div className={s.duo}>
-              <div><b>{d.todo.tunggu_rata !== null ? `${String(d.todo.tunggu_rata).replace(".", ",")} hari` : "–"}</b><span>rata-rata waktu tunggu reviu</span></div>
-              <div><b className={d.todo.tunggu_lewat3 ? s.merah : undefined}>{fmt(d.todo.tunggu_lewat3)}</b><span>laporan menunggu lebih dari 3 hari</span></div>
+              <div><b>{d.reviu.rata !== null ? `${String(d.reviu.rata).replace(".", ",")} hari` : "–"}</b><span>rata-rata waktu tunggu</span></div>
+              <div><b className={d.reviu.lewat3 ? s.merah : undefined}>{fmt(d.reviu.lewat3)}</b><span>menunggu lebih dari 3 hari</span></div>
             </div>
+            {d.reviu.komponen.length > 0 && (
+              <ul className={s.reviuList}>
+                {d.reviu.komponen.map((k) => (
+                  <li key={k.label}><span>{k.label}</span><b>{fmt(k.menunggu)}</b>
+                    <small>{String(k.rata).replace(".", ",")} hari{k.lewat3 ? ` · ${k.lewat3} > 3 hari` : ""}</small></li>
+                ))}
+              </ul>
+            )}
           </section>
         </div>
       </div>
@@ -189,29 +206,6 @@ function Capaian({ data, rata }: { data: Capaian[]; rata: Record<string, number 
         </div>
       ))}
     </div>
-  );
-}
-
-function TahapBar({ data, total }: { data: { kode: Tahap; jumlah: number }[]; total: number }) {
-  return (
-    <>
-      <div className={s.stack} role="img" aria-label={data.map((x) => `${TAHAP_LABEL[x.kode]} ${x.jumlah}`).join(", ")}>
-        {data.filter((x) => x.jumlah).map((x) => (
-          <span key={x.kode} style={{ flexGrow: x.jumlah, background: TAHAP_WARNA[x.kode] }}
-            title={`${TAHAP_LABEL[x.kode]}: ${fmt(x.jumlah)} sekolah (${pct(x.jumlah, total)}%)`} />
-        ))}
-      </div>
-      <ul className={s.legend}>
-        {data.map((x) => (
-          <li key={x.kode}>
-            <i style={{ background: TAHAP_WARNA[x.kode] }} />
-            <span>{TAHAP_LABEL[x.kode]}</span>
-            <b>{fmt(x.jumlah)}</b>
-            <small>{pct(x.jumlah, total)}%</small>
-          </li>
-        ))}
-      </ul>
-    </>
   );
 }
 
@@ -308,16 +302,16 @@ function Spark({ nilai }: { nilai: (number | null)[] }) {
   );
 }
 
-type KolomFasil = "nama" | "sekolah" | "perlu" | "todo" | "isian" | "terhubung" | "tidak" | "telepon";
+type KolomFasil = "nama" | "sekolah" | "lengkap" | "belum" | "progres" | "terhubung" | "tidak" | "telepon";
 
 function TabelFasil({ data }: { data: Dash["fasil"] }) {
-  const [urut, setUrut] = useState<{ k: KolomFasil; naik: boolean }>({ k: "todo", naik: false });
+  const [urut, setUrut] = useState<{ k: KolomFasil; naik: boolean }>({ k: "belum", naik: false });
   const [cari, setCari] = useState("");
   const [semua, setSemua] = useState(false);
   const baris = useMemo(() => {
     const q = cari.toLowerCase();
     const nilai = (r: Dash["fasil"][number]) => urut.k === "nama" ? r.nama.toLowerCase()
-      : urut.k === "isian" ? (r.perlu ? r.lengkap / r.perlu : 2) : r[urut.k];
+      : urut.k === "lengkap" ? r.lengkap / Math.max(1, r.sekolah) : urut.k === "progres" ? r.progres ?? -1 : r[urut.k];
     return data.filter((r) => !q || r.nama.toLowerCase().includes(q)).sort((a, b) => {
       const x = nilai(a), y = nilai(b);
       const c = x < y ? -1 : x > y ? 1 : 0;
@@ -341,23 +335,25 @@ function TabelFasil({ data }: { data: Dash["fasil"] }) {
         <table className={s.tabel}>
           <thead>
             <tr>
-              {th("nama", "Fasil", false)}{th("sekolah", "Sekolah")}{th("perlu", "Punya to-do")}{th("todo", "To-do")}
-              {th("isian", "Isian sesi")}{th("terhubung", "Terhubung")}{th("tidak", "Tidak sampai / dibaca")}{th("telepon", "Ditelepon")}
-              <th>Hari ini</th>
+              {th("nama", "Fasil", false)}{th("sekolah", "Sekolah")}{th("lengkap", "Sekolah lengkap")}{th("belum", "Komponen tertunggak")}
+              {th("progres", "Progres fisik")}{th("terhubung", "Terhubung")}{th("tidak", "Tidak sampai / dibaca")}{th("telepon", "Ditelepon")}
+              <th>Log hari ini</th>
             </tr>
           </thead>
           <tbody>
             {(semua || cari ? baris : baris.slice(0, 20)).map((r) => (
               <tr key={r.nama}>
-                <td>{r.nama}{r.todo_fasil > 0 && <small>{r.todo_fasil} reviu menunggu{r.tunggu_maks ? `, terlama ${Math.round(r.tunggu_maks)} hari` : ""}</small>}</td>
+                <td>{r.nama}<small>{r.ptn}{r.tunggu_maks && r.tunggu_maks >= 1 ? ` · reviu menunggu ${Math.round(r.tunggu_maks)} hari` : ""}</small></td>
                 <td className={s.num}>{r.sekolah}</td>
-                <td className={s.num}>{r.perlu}</td>
-                <td className={s.num}>{r.todo}</td>
-                <td className={s.num}>{r.perlu ? `${r.lengkap}/${r.perlu}` : "–"}</td>
+                <td className={s.num}>{r.lengkap}/{r.sekolah}</td>
+                <td className={`${s.num} ${r.belum ? "" : s.hijauT}`}>{r.belum}</td>
+                <td className={s.num}>{r.progres !== null ? `${String(Math.round(r.progres)).replace(".", ",")}%` : "–"}</td>
                 <td className={s.num}>{r.terhubung}{r.lambat ? <small>+{r.lambat} lambat</small> : null}</td>
                 <td className={`${s.num} ${r.tidak >= 2 && !r.telepon ? s.merah : ""}`}>{r.tidak}</td>
                 <td className={s.num}>{r.telepon}</td>
-                <td><Chip tone={KELOMPOK_INFO[r.kelompok].tone}>{KELOMPOK_INFO[r.kelompok].label}</Chip></td>
+                <td>{r.kode_hari_ini ? (
+                  <span className={s.kodePil} style={{ background: KODE_WARNA[r.kode_hari_ini]?.bg, color: KODE_WARNA[r.kode_hari_ini]?.fg }}
+                    title={KODE_WARNA[r.kode_hari_ini]?.label}>{r.kode_hari_ini}</span>) : <span className={s.kosongT}>belum</span>}</td>
               </tr>
             ))}
           </tbody>

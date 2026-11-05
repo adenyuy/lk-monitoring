@@ -425,7 +425,7 @@ def tulis_isian(week: int, isi: list[tuple[Sekolah, int, str, str, str]]) -> Non
     Baris dicek lewat NPSN dulu supaya tidak menulis ke sekolah lain bila urutan sheet berubah."""
     if not isi:
         return
-    t = tata(week, refresh=True)
+    t = tata(week)
     tab = tab_week(week)
     ss = _ss()
     c_npsn = col_letter(t.identitas["npsn"])
@@ -444,7 +444,9 @@ def tulis_isian(week: int, isi: list[tuple[Sekolah, int, str, str, str]]) -> Non
         data.append({"range": f"'{tab}'!{col_letter(a)}{s.baris}:{col_letter(c)}{s.baris}",
                      "values": [[kendala, tl]]})
     ss.values_batch_update({"valueInputOption": "RAW", "data": data})
-    cache.drop(f"lk2_petugas:{week}:{normalize_petugas(isi[0][0].petugas)}")
+    # Perbarui objek sekolah yang ada di cache supaya tampilan langsung benar tanpa membaca ulang sheet.
+    for s, blok, kode, kendala, tl in isi:
+        s.isian.setdefault(blok, {})[kode] = (kendala, tl)
 
 
 # ---------- Log Komunikasi ----------
@@ -511,12 +513,27 @@ def baca_log_kom(refresh: bool = False) -> LogKom:
     return cache.get("lk2_logkom", 120, load, refresh)
 
 
+def _baris_kom_cocok(lk: LogKom, npsn: list[str]) -> bool:
+    """Cek cepat: baris Log Komunikasi di cache masih berisi NPSN yang sama."""
+    baris = [(n, lk.baris[n]) for n in npsn if n in lk.baris]
+    if not baris:
+        return False
+    got = _ss().values_batch_get([f"'{TAB_LOG_KOM}'!B{b}" for _, b in baris],
+                                 params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("valueRanges", [])
+    for (n, _), vr in zip(baris, got):
+        if re.sub(r"\.0+$", "", _teks((vr.get("values") or [[""]])[0][0])) != n:
+            return False
+    return True
+
+
 def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:
     """Tulis kode komunikasi satu hari untuk beberapa sekolah. Mengembalikan jumlah sel yang ditulis."""
     if not npsn_kode:
         return 0
     with _lock_kom:
-        lk = baca_log_kom(refresh=True)
+        lk = baca_log_kom()
+        if tanggal not in lk.tanggal or not _baris_kom_cocok(lk, list(npsn_kode)):
+            lk = baca_log_kom(refresh=True)
         if tanggal not in lk.tanggal:
             raise LkError(f"Tab {TAB_LOG_KOM} belum punya kolom untuk tanggal {tanggal}. "
                           "Admin perlu membuat WEEK baru (yang juga menambah kolom tanggal).")

@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
-import { KELOMPOK_INFO, KODE_WARNA, TAHAP_LABEL, hariPendek, inisial, type FasilDetail, type OpsiLk,
+import { KELOMPOK_INFO, KODE_WARNA, TAHAP_LABEL, HARI_PENDEK, inisial, type FasilDetail, type OpsiLk,
   type Penerima, type SekolahDetail } from "@/lib/lk";
-import { bacaBalasan, cocokkan, isi as isiTemplate, pilihKendala, templateBawaan } from "@/lib/pesan";
+import { bacaBalasan, cocokkan, isi as isiTemplate, kosong, pilihKendala, templateBawaan, templateKoorFasil,
+  type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
-import { BantuanDialog, type IsiEskalasi } from "@/components/today/BantuanDialog";
-import { TemanPanel, type Teman } from "@/components/today/TemanPanel";
-import { ChatPanel } from "./ChatPanel";
+import { BantuanDialog } from "@/components/today/BantuanDialog";
+import { ChatPanel, SalinTemplate } from "./ChatPanel";
 import { KodePicker } from "./KodePicker";
 import { Track } from "./Track";
 import s from "./lk.module.css";
@@ -34,7 +34,7 @@ export function keteranganEskalasi(d: FasilDetail) {
   return `Fasil ${d.nama} (${kel}). To-do: ${todo}.`;
 }
 
-/** Panel geser satu fasil: Log Komunikasi hari ini, to-do & isian per sekolah, dan chat WhatsApp. */
+/** Layar penuh satu fasil: Log Komunikasi hari ini, to-do & isian per sekolah, chat fasil dan koordinator. */
 export function FasilPanel({ kunci, onClose, kodeLabel }: {
   kunci: string; onClose: () => void; kodeLabel: { kode: string; arti: string }[];
 }) {
@@ -43,11 +43,11 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
   const [error, setError] = useState<string | null>(null);
   const [draf, setDraf] = useState<Draf>({});
   const [kotor, setKotor] = useState<Set<string>>(new Set());
-  const [simpan, setSimpan] = useState<{ busy: boolean; pesan?: { tone: "ok" | "bad"; teks: string } }>({ busy: false });
+  const [buka, setBuka] = useState<Set<string>>(new Set());
+  const [simpan, setSimpan] = useState<{ busy: string | null; pesan?: { tone: "ok" | "bad"; teks: string } }>({ busy: null });
   const [semua, setSemua] = useState(false);
-  const [bantuan, setBantuan] = useState<{ terusan: string; tab: "teman" | "eskalasi"; awal?: IsiEskalasi } | null>(null);
-  const [teman, setTeman] = useState<(Teman & { draf: string; kunci: number }) | null>(null);
-  const [isiChat, setIsiChat] = useState<{ teks: string; kunci: number } | null>(null);
+  const [eskalasi, setEskalasi] = useState(false);
+  const [kanan, setKanan] = useState<"fasil" | "koor">("fasil");
   const [tempel, setTempel] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -68,11 +68,11 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
 
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !bantuan) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !eskalasi) onClose(); };
     window.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [onClose, bantuan]);
+  }, [onClose, eskalasi]);
 
   const penerima: Penerima | null = useMemo(() => data && ({
     kunci: data.kunci, nama: data.nama, tersamar: data.nomor_tersamar, punya_nomor: data.punya_nomor,
@@ -82,9 +82,19 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
       todo: x.todo.map((t) => ({ judul: t.judul, detail: t.detail, pelaku: t.pelaku })) })),
   }), [data]);
 
+  const tplFasil: Template[] = useMemo(() => penerima
+    ? templateBawaan("fasil").filter((t) => !kosong(t.teks, penerima).length)
+      .map((t) => ({ ...t, teks: isiTemplate(t.teks, penerima, "", false) }))
+    : [], [penerima]);
+  const tplKoor: Template[] = useMemo(() => (data ? templateKoorFasil(data) : []), [data]);
+
   function ubah(npsn: string, kode: string, field: "kendala" | "tl", v: string) {
     setDraf((d) => ({ ...d, [npsn]: { ...d[npsn], [kode]: { ...d[npsn][kode], [field]: v } } }));
     setKotor((k) => new Set(k).add(npsn));
+  }
+
+  function toggle(npsn: string) {
+    setBuka((b) => { const n = new Set(b); if (n.has(npsn)) n.delete(npsn); else n.add(npsn); return n; });
   }
 
   async function simpanIsian(npsn?: string) {
@@ -97,14 +107,19 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
         tl: draf[n]?.[t.kode]?.tl ?? "" })));
     });
     if (!isi.length) return;
-    setSimpan({ busy: true });
+    setSimpan({ busy: npsn ?? "semua" });
     try {
       await post("/api/lk2/isi", { isi, kunci: data.kunci });
       setKotor((k) => { const b = new Set(k); target.forEach((x) => b.delete(x)); return b; });
-      setSimpan({ busy: false, pesan: { tone: "ok", teks: `Tersimpan ke LK: ${target.length} sekolah.` } });
+      // tandai lengkap langsung di tampilan; data lengkapnya disegarkan di belakang
+      setData((d) => d && { ...d, sekolah_detail: d.sekolah_detail.map((x) => target.includes(x.npsn)
+        ? { ...x, lengkap: x.todo.every((t) => (draf[x.npsn]?.[t.kode]?.kendala ?? "").trim()
+          && (draf[x.npsn]?.[t.kode]?.tl ?? "").trim()) } : x) });
+      setBuka((b) => { const n = new Set(b); target.forEach((x) => n.delete(x)); return n; });
+      setSimpan({ busy: null, pesan: { tone: "ok", teks: `Tersimpan ke LK: ${target.length} sekolah.` } });
       void muat(true);
     } catch (e) {
-      setSimpan({ busy: false, pesan: { tone: "bad", teks: e instanceof Error ? e.message : String(e) } });
+      setSimpan({ busy: null, pesan: { tone: "bad", teks: e instanceof Error ? e.message : String(e) } });
     }
   }
 
@@ -127,18 +142,21 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
       return baru;
     });
     setKotor((k) => { const b = new Set(k); hasil.forEach((_, sk) => b.add(sk.npsn)); return b; });
-    setSimpan({ busy: false, pesan: { tone: "ok", teks: `${hasil.size} sekolah terisi dari balasan. Periksa lalu tekan Simpan.` } });
+    setBuka((b) => { const n = new Set(b); hasil.forEach((_, sk) => n.add(sk.npsn)); return n; });
+    setSimpan({ busy: null, pesan: { tone: "ok", teks: `${hasil.size} sekolah terisi dari balasan. Periksa lalu tekan Simpan.` } });
     return hasil.size;
   }
 
   async function setKode(kode: string) {
     if (!data) return;
-    setData({ ...data, kode_hari_ini: kode as FasilDetail["kode_hari_ini"] });
+    const lama = data.kode_hari_ini;
+    setData({ ...data, kode_hari_ini: kode as FasilDetail["kode_hari_ini"],
+      kode_minggu: data.kode_minggu.map((d) => (d.tanggal === data.hari ? { ...d, kode: kode as FasilDetail["kode_hari_ini"] } : d)) });
     try {
       await post("/api/lk2/komunikasi", { kunci: data.kunci, kode });
-      void muat(true);
     } catch (e) {
-      setSimpan({ busy: false, pesan: { tone: "bad", teks: e instanceof Error ? e.message : String(e) } });
+      setData((d) => d && { ...d, kode_hari_ini: lama });
+      setSimpan({ busy: null, pesan: { tone: "bad", teks: e instanceof Error ? e.message : String(e) } });
     }
   }
 
@@ -150,130 +168,156 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
 
   const daftarSekolah = data ? (semua ? data.sekolah_detail : data.sekolah_detail.filter((x) => x.todo.length)) : [];
   const hijau = data ? data.sekolah_detail.filter((x) => !x.todo.length).length : 0;
-  const pakaiWa = !!data?.wa_otomatis && !!data.nomor;
+  const lengkapN = data ? data.sekolah_detail.filter((x) => x.todo.length && x.lengkap).length : 0;
+  const waJalan = !!data?.wa_otomatis;
 
   return (
-    <div className={s.scrim} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <aside className={s.drawer} role="dialog" aria-modal="true" aria-label={data?.nama ?? "Detail fasil"}>
-        <header className={s.drawerHead}>
-          <span className={`${s.avatar} ${s.avatarLg} ${data ? s[`av_${KELOMPOK_INFO[data.kelompok].tone}`] : ""}`} aria-hidden="true">
-            {data ? inisial(data.nama) : ""}
-          </span>
-          <div className={s.drawerWho}>
-            <h2>{data?.nama ?? "Memuat…"}</h2>
-            {data && (
-              <span>
-                {data.nomor_tersamar || "Nomor WA kosong"} · {data.ptn || "PTN belum tercatat"}
-                {data.koor && <> · Koor. {data.koor}</>}
-              </span>
-            )}
-          </div>
-          {data && <Chip tone={KELOMPOK_INFO[data.kelompok].tone}>{KELOMPOK_INFO[data.kelompok].label}</Chip>}
+    <div className={s.layar} role="dialog" aria-modal="true" aria-label={data?.nama ?? "Detail fasil"}>
+      <header className={s.layarHead}>
+        <button ref={closeRef} type="button" className={s.kembali} onClick={onClose} aria-label="Tutup, kembali ke daftar fasil">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <span>Daftar fasil</span>
+        </button>
+        <span className={`${s.avatar} ${s.avatarLg} ${data ? s[`av_${KELOMPOK_INFO[data.kelompok].tone}`] : ""}`} aria-hidden="true">
+          {data ? inisial(data.nama) : ""}
+        </span>
+        <div className={s.drawerWho}>
+          <h2>{data?.nama ?? "Memuat…"}</h2>
           {data && (
-            <Button variant="danger" size="sm" onClick={() => setBantuan({ terusan: "", tab: "eskalasi",
-              awal: { npsn: data.sekolah_detail.filter((x) => x.todo.length).map((x) => x.npsn), keterangan: keteranganEskalasi(data) } })}
-              title="Tanya teman PIC, atau catat permasalahan di LK Eskalasi">
-              Butuh bantuan
-            </Button>
+            <span>
+              {data.nomor_tersamar || "Nomor WA kosong"} · {data.ptn || "PTN belum tercatat"}
+              {data.koor && <> · Koor. {data.koor}</>}
+            </span>
           )}
-          <button ref={closeRef} type="button" className={s.close} onClick={onClose} aria-label="Tutup">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-          </button>
-        </header>
-
-        {error && <div className={s.drawerNote}><Notice tone="bad" title="Data fasil tidak terbaca">{error}</Notice></div>}
-        {!data && !error && <div className={s.loading}><Spinner label="Memuat" /></div>}
-
+        </div>
+        {data && <Chip tone={KELOMPOK_INFO[data.kelompok].tone}>{KELOMPOK_INFO[data.kelompok].label}</Chip>}
         {data && (
-          <>
-            <div className={s.komStrip}>
-              <div className={s.komHari}>
-                <span className={s.label}>Log komunikasi {data.log_hari_ini ? "hari ini" : ""}</span>
-                {data.log_hari_ini ? (
-                  <KodePicker besar nilai={data.kode_hari_ini} kode={kodeLabel} onPilih={(k) => void setKode(k)}
-                    label="Kode komunikasi hari ini" />
-                ) : (
-                  <small className={s.muted}>Kolom tanggal hari ini belum ada di Log Komunikasi.</small>
-                )}
-              </div>
-              <div className={s.komMinggu}>
-                <span className={s.label}>Minggu ini</span>
-                <span className={s.minggu}>
-                  {data.kode_minggu.map((d) => (
-                    <i key={d.tanggal} title={`${hariPendek(d.tanggal)}: ${d.kode ? KODE_WARNA[d.kode]?.label : "belum dicatat"}`}
-                      className={d.tanggal === data.hari ? s.hariIni : undefined}
-                      style={d.kode ? { background: KODE_WARNA[d.kode]?.bg, color: KODE_WARNA[d.kode]?.fg } : undefined}>
-                      {d.kode || Number(d.tanggal.slice(8))}
-                    </i>
-                  ))}
-                </span>
-              </div>
-              <TagEditor tag={data.tag} onChange={(t) => void setTag(t)} />
-            </div>
+          <div className={s.layarAksi}>
+            <Button variant="secondary" size="sm" onClick={() => setKanan("koor")} disabled={!data.koor}
+              title={data.koor ? "Fasil tidak membalas? Minta bantuan koordinatornya" : "Koordinator belum tercatat di LK"}>
+              Hubungi koordinator
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => setEskalasi(true)}
+              title="Catat kasus yang perlu dijawab tim lain di LK Eskalasi">
+              Eskalasi ke tim lain
+            </Button>
+          </div>
+        )}
+      </header>
 
-            <div className={`${s.compare} ${pakaiWa ? "" : s.compareSatu}`}>
-              <section className={s.kolomLk} aria-label="Sekolah binaan">
-                <div className={s.kolomHead}>
-                  <h3>Sekolah binaan <span>{data.perlu} perlu tindak lanjut · {hijau} hijau</span></h3>
-                  <div className={s.kolomAksi}>
-                    <label className={s.cek}>
-                      <input type="checkbox" checked={semua} onChange={(e) => setSemua(e.target.checked)} /> Tampilkan yang hijau
-                    </label>
-                    <Button variant="secondary" size="sm" onClick={() => setTempel(!tempel)} aria-expanded={tempel}>
-                      Isi dari balasan
-                    </Button>
-                    <Button size="sm" loading={simpan.busy} disabled={!kotor.size} onClick={() => void simpanIsian()}>
-                      Simpan{kotor.size ? ` (${kotor.size})` : ""}
-                    </Button>
-                  </div>
-                </div>
-                <p className={s.kolomKet}>
-                  Isian masuk ke sesi <b>{data.blok_label}</b>. Cukup isi komponen yang jadi to-do; komponen lain
-                  sudah diberi keterangan otomatis (selesai, belum due, atau menunggu tahap sebelumnya).
-                </p>
-                {tempel && <TempelBalasan onIsi={(t) => { const n = isiDariBalasan(t); if (n) setTempel(false); return n; }} />}
-                {simpan.pesan && (
-                  <p className={simpan.pesan.tone === "ok" ? s.okNote : s.errNote} role="status">{simpan.pesan.teks}</p>
-                )}
-                <Legenda />
-                <div className={s.sekolahList}>
-                  {daftarSekolah.map((x) => (
-                    <SekolahCard key={x.npsn} x={x} draf={draf[x.npsn] ?? {}} opsi={opsi} kotor={kotor.has(x.npsn)}
-                      onUbah={(kode, f, v) => ubah(x.npsn, kode, f, v)} onSimpan={() => void simpanIsian(x.npsn)}
-                      busy={simpan.busy} />
-                  ))}
-                  {!daftarSekolah.length && <p className={s.hijauBesar}>Semua sekolah binaan fasil ini sudah hijau.</p>}
-                </div>
-              </section>
+      {error && <div className={s.drawerNote}><Notice tone="bad" title="Data fasil tidak terbaca">{error}</Notice></div>}
+      {!data && !error && <div className={s.loading}><Spinner label="Memuat" /> Membaca LK…</div>}
 
-              {pakaiWa && penerima ? (
-                <ChatPanel nomor={data.nomor} nama={data.nama} penerima={penerima} isi={isiChat}
-                  tersembunyi={!!teman}
-                  onIsiLk={(t) => isiDariBalasan(t)}
-                  onTeruskan={(t) => setBantuan({ terusan: t, tab: "teman" })} />
-              ) : penerima ? (
-                <SalinTemplate penerima={penerima} waMati={!data.wa_otomatis} />
-              ) : null}
-              {teman && (
-                <TemanPanel key={teman.kunci} teman={teman} draf={teman.draf} nomorFasil={data.nomor}
-                  onKembali={() => setTeman(null)}
-                  onPakai={(teks) => { setIsiChat({ teks, kunci: Date.now() }); setTeman(null); }} />
+      {data && (
+        <>
+          <div className={s.komStrip}>
+            <div className={s.komHari}>
+              <span className={s.label}>Log Komunikasi hari ini</span>
+              {data.log_hari_ini ? (
+                <KodePicker besar nilai={data.kode_hari_ini} kode={kodeLabel} onPilih={(k) => void setKode(k)}
+                  label="Kode komunikasi hari ini" />
+              ) : (
+                <small className={s.muted}>Kolom tanggal hari ini belum ada di Log Komunikasi.</small>
               )}
             </div>
-          </>
-        )}
-      </aside>
-      {bantuan && data && (
-        <BantuanDialog namaFasil={data.nama} sekolah={data.sekolah_detail} terusan={bantuan.terusan}
-          tabAwal={bantuan.tab} awal={bantuan.awal}
-          onClose={() => setBantuan(null)}
-          onPilihTeman={(t) => {
-            const draft = bantuan.terusan
-              ? `*Diteruskan dari fasil ${data.nama}:*\n${bantuan.terusan.split("\n").map((b) => `> ${b}`).join("\n")}\n\nPertanyaan saya: `
-              : `Halo ${t.nama.split(" ")[0]}, mau tanya soal fasil ${data.nama}: `;
-            setTeman({ ...t, draf: draft, kunci: Date.now() });
-            setBantuan(null);
-          }} />
+            <div className={s.komMinggu}>
+              <span className={s.label}>Minggu ini</span>
+              <ol className={s.riwayatKode} aria-label="Kode komunikasi minggu ini">
+                {data.kode_minggu.map((d) => {
+                  const w = KODE_WARNA[d.kode];
+                  const tgl = new Date(`${d.tanggal}T00:00:00`);
+                  return (
+                    <li key={d.tanggal} className={d.tanggal === data.hari ? s.hariIni : undefined}
+                      title={`${HARI_PENDEK[tgl.getDay()]} ${tgl.getDate()}: ${d.kode ? `${d.kode} (${w?.label})` : "belum dicatat"}`}>
+                      <small>{HARI_PENDEK[tgl.getDay()]}</small>
+                      <b style={w ? { background: w.bg, color: w.fg } : undefined}>{d.kode || "–"}</b>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+            <TagEditor tag={data.tag} onChange={(t) => void setTag(t)} />
+          </div>
+
+          <div className={s.compare}>
+            <section className={s.kolomLk} aria-label="Sekolah binaan">
+              <div className={s.kolomHead}>
+                <h3>Sekolah binaan <span>{data.perlu} punya to-do · {lengkapN} isian lengkap · {hijau} hijau</span></h3>
+                <div className={s.kolomAksi}>
+                  <label className={s.cek}>
+                    <input type="checkbox" checked={semua} onChange={(e) => setSemua(e.target.checked)} /> Tampilkan yang hijau
+                  </label>
+                  <Button variant="secondary" size="sm" onClick={() => setTempel(!tempel)} aria-expanded={tempel}>
+                    Isi dari balasan
+                  </Button>
+                  {kotor.size > 0 && (
+                    <Button size="sm" loading={simpan.busy === "semua"} onClick={() => void simpanIsian()}>
+                      Simpan semua ({kotor.size})
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className={s.kolomKet}>
+                Klik sekolah untuk membuka isian Kendala & Tindak lanjut. Isian masuk ke sesi <b>{data.blok_label}</b>;
+                komponen yang bukan to-do sudah diberi keterangan otomatis.
+              </p>
+              {tempel && <TempelBalasan onIsi={(t) => { const n = isiDariBalasan(t); if (n) setTempel(false); return n; }} />}
+              {simpan.pesan && (
+                <p className={simpan.pesan.tone === "ok" ? s.okNote : s.errNote} role="status">{simpan.pesan.teks}</p>
+              )}
+              <Legenda />
+              <div className={s.sekolahList}>
+                {daftarSekolah.map((x) => (
+                  <SekolahCard key={x.npsn} x={x} draf={draf[x.npsn] ?? {}} opsi={opsi} kotor={kotor.has(x.npsn)}
+                    terbuka={buka.has(x.npsn)} onToggle={() => toggle(x.npsn)}
+                    onUbah={(kode, f, v) => ubah(x.npsn, kode, f, v)} onSimpan={() => void simpanIsian(x.npsn)}
+                    busy={simpan.busy === x.npsn} />
+                ))}
+                {!daftarSekolah.length && <p className={s.hijauBesar}>Semua sekolah binaan fasil ini sudah hijau.</p>}
+              </div>
+            </section>
+
+            <aside className={s.kolomWa} aria-label="Pesan">
+              <div className={s.kananTab} role="tablist" aria-label="Kirim pesan ke">
+                <button type="button" role="tab" aria-selected={kanan === "fasil"} onClick={() => setKanan("fasil")}>
+                  Fasil
+                </button>
+                <button type="button" role="tab" aria-selected={kanan === "koor"} onClick={() => setKanan("koor")} disabled={!data.koor}>
+                  Koordinator{data.koor ? "" : " (kosong)"}
+                </button>
+              </div>
+              {kanan === "fasil" ? (
+                waJalan && data.nomor ? (
+                  <ChatPanel key={`f-${data.nomor}`} nomor={data.nomor} nama={data.nama} peran="fasil" template={tplFasil}
+                    onIsiLk={(t) => isiDariBalasan(t)} />
+                ) : (
+                  <SalinTemplate key="sf" template={tplFasil}
+                    ket={!waJalan ? "WhatsApp otomatis mati. Salin pesan ini lalu kirim dari WhatsApp di HP Anda. Balasan fasil bisa ditempel lewat “Isi dari balasan”."
+                      : "Fasil ini belum punya nomor WhatsApp di LK. Salin pesan lalu kirim lewat jalur lain."} />
+                )
+              ) : (
+                <>
+                  <p className={s.koorInfo}>
+                    Koordinator {data.koor_tersamar ? `(${data.koor_tersamar})` : "(nomor kosong)"}: pakai saat fasil tidak
+                    membalas, hanya membaca, atau laporannya tidak bergerak.
+                  </p>
+                  {waJalan && data.nomor_koor ? (
+                    <ChatPanel key={`k-${data.nomor_koor}`} nomor={data.nomor_koor} nama={data.koor} peran="koor" template={tplKoor} />
+                  ) : (
+                    <SalinTemplate key="sk" template={tplKoor}
+                      ket={!waJalan ? "WhatsApp otomatis mati. Salin pesan lalu kirim ke koordinator dari HP Anda."
+                        : "Nomor koordinator belum ada di LK. Salin pesan lalu kirim lewat jalur lain."} />
+                  )}
+                </>
+              )}
+            </aside>
+          </div>
+        </>
+      )}
+      {eskalasi && data && (
+        <BantuanDialog hanyaEskalasi namaFasil={data.nama} sekolah={data.sekolah_detail} terusan=""
+          awal={{ npsn: data.sekolah_detail.filter((x) => x.todo.length).map((x) => x.npsn), keterangan: keteranganEskalasi(data) }}
+          onClose={() => setEskalasi(false)} />
       )}
     </div>
   );
@@ -290,73 +334,91 @@ function Legenda() {
   );
 }
 
-function SekolahCard({ x, draf, opsi, kotor, onUbah, onSimpan, busy }: {
+function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSimpan, busy }: {
   x: SekolahDetail;
   draf: Record<string, { kendala: string; tl: string }>;
   opsi: OpsiLk | null;
   kotor: boolean;
+  terbuka: boolean;
+  onToggle: () => void;
   onUbah: (kode: string, f: "kendala" | "tl", v: string) => void;
   onSimpan: () => void;
   busy: boolean;
 }) {
   const todoKomp = new Set(x.todo.flatMap((t) => t.komponen));
+  const ada = x.todo.length > 0;
+  const terisi = x.todo.filter((t) => (draf[t.kode]?.kendala ?? "").trim() && (draf[t.kode]?.tl ?? "").trim()).length;
   return (
-    <article className={`${s.sekolah} ${x.lengkap && x.todo.length ? s.sekolahLengkap : ""}`}>
-      <header className={s.sekolahHead}>
+    <article className={`${s.sekolah} ${x.lengkap && ada ? s.sekolahLengkap : ""} ${terbuka ? s.sekolahBuka : ""}`}>
+      <button type="button" className={s.sekolahHead} onClick={ada ? onToggle : undefined} aria-expanded={ada ? terbuka : undefined}
+        disabled={!ada}>
         <div>
           <h4>{x.nama}</h4>
           <small>{x.kab}{x.angkatan && ` · Angkatan ${x.angkatan}`} · NPSN {x.npsn}</small>
         </div>
         <div className={s.sekolahChip}>
           {x.delta !== null && x.delta > 0 && <Chip tone="ok">+{x.delta} sejak cutoff lalu</Chip>}
-          <Chip tone={x.todo.length ? (x.lengkap ? "ok" : "warn") : "ok"}>
-            {!x.todo.length ? "Semua hijau" : x.lengkap ? "Isian lengkap" : TAHAP_LABEL[x.tahap]}
+          {kotor && <Chip tone="warn">Belum disimpan</Chip>}
+          <Chip tone={ada ? (x.lengkap ? "ok" : "muted") : "ok"}>
+            {!ada ? "Semua hijau" : x.lengkap ? "Isian lengkap ✓" : `Isian ${terisi}/${x.todo.length}`}
           </Chip>
+          {ada && (
+            <svg className={s.chevron} viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          )}
         </div>
-      </header>
+      </button>
       <Track komponen={x.komponen} todo={todoKomp} />
-      {x.todo.length > 0 && (
-        <ol className={s.todo}>
-          {x.todo.map((t, i) => {
-            const v = draf[t.kode] ?? { kendala: "", tl: "" };
-            const pil = opsi?.kendala[t.komponen[0]] ?? [];
-            const id = `k-${x.npsn}-${t.kode}`;
-            return (
-              <li key={t.kode} className={i === 0 ? s.todoFokus : undefined}>
-                <div className={s.todoJudul}>
-                  <span className={s.todoNo}>{i === 0 ? "Fokus" : i + 1}</span>
-                  <b>{t.judul}</b>
-                  <span className={`${s.pelaku} ${t.pelaku === "fasil" ? s.pelakuFasil : ""}`}>
-                    {t.pelaku === "fasil" ? "Tugas fasil" : "Tugas sekolah"}
-                  </span>
-                  {t.detail && !/^(Belum|Sudah)$/.test(t.detail) && <small>{t.detail}</small>}
-                  {t.tunggu !== null && t.tunggu > 0 && (
-                    <small className={t.tunggu > 3 ? s.lama : undefined}>menunggu reviu {Math.round(t.tunggu)} hari</small>
-                  )}
-                </div>
-                <div className={s.isian}>
-                  <label>
-                    <span>Kendala</span>
-                    <input list={`${id}-opsi`} value={v.kendala} placeholder="Pilih atau ketik kendala"
-                      onChange={(e) => onUbah(t.kode, "kendala", e.target.value)} />
-                    <datalist id={`${id}-opsi`}>{pil.map((o) => <option key={o} value={o} />)}</datalist>
-                  </label>
-                  <label>
-                    <span>Tindak lanjut</span>
-                    <textarea rows={1} value={v.tl} placeholder="Apa yang sudah / akan dilakukan"
-                      onChange={(e) => onUbah(t.kode, "tl", e.target.value)} />
-                  </label>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+      {ada && !terbuka && (
+        <p className={s.todoRingkas}>
+          <span>{TAHAP_LABEL[x.tahap]}:</span> {x.todo.map((t, i) => (
+            <span key={t.kode} className={t.pelaku === "fasil" ? s.todoRingkasFasil : undefined}>
+              {i > 0 && " · "}{t.judul}
+            </span>
+          ))}
+        </p>
       )}
-      {kotor && (
-        <div className={s.sekolahSimpan}>
-          <span>Belum disimpan</span>
-          <Button size="sm" loading={busy} onClick={onSimpan}>Simpan sekolah ini</Button>
-        </div>
+      {ada && terbuka && (
+        <>
+          <ol className={s.todo}>
+            {x.todo.map((t, i) => {
+              const v = draf[t.kode] ?? { kendala: "", tl: "" };
+              const pil = opsi?.kendala[t.komponen[0]] ?? [];
+              const id = `k-${x.npsn}-${t.kode}`;
+              return (
+                <li key={t.kode} className={i === 0 ? s.todoFokus : undefined}>
+                  <div className={s.todoJudul}>
+                    <span className={s.todoNo}>{i === 0 ? "Fokus" : i + 1}</span>
+                    <b>{t.judul}</b>
+                    <span className={`${s.pelaku} ${t.pelaku === "fasil" ? s.pelakuFasil : ""}`}>
+                      {t.pelaku === "fasil" ? "Tugas fasil" : "Tugas sekolah"}
+                    </span>
+                    {t.detail && !/^(Belum|Sudah)$/.test(t.detail) && <small>{t.detail}</small>}
+                    {t.tunggu !== null && t.tunggu > 0 && (
+                      <small className={t.tunggu > 3 ? s.lama : undefined}>menunggu reviu {Math.round(t.tunggu)} hari</small>
+                    )}
+                  </div>
+                  <div className={s.isian}>
+                    <label>
+                      <span>Kendala</span>
+                      <input list={`${id}-opsi`} value={v.kendala} placeholder="Pilih atau ketik kendala"
+                        onChange={(e) => onUbah(t.kode, "kendala", e.target.value)} />
+                      <datalist id={`${id}-opsi`}>{pil.map((o) => <option key={o} value={o} />)}</datalist>
+                    </label>
+                    <label>
+                      <span>Tindak lanjut</span>
+                      <textarea rows={1} value={v.tl} placeholder="Apa yang sudah / akan dilakukan"
+                        onChange={(e) => onUbah(t.kode, "tl", e.target.value)} />
+                    </label>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <div className={s.sekolahSimpan}>
+            <Button variant="ghost" size="sm" onClick={onToggle}>Tutup</Button>
+            <Button size="sm" loading={busy} disabled={!kotor} onClick={onSimpan}>Simpan sekolah ini</Button>
+          </div>
+        </>
       )}
     </article>
   );
@@ -401,34 +463,5 @@ function TagEditor({ tag, onChange }: { tag: string[]; onChange: (t: string[]) =
         )}
       </div>
     </div>
-  );
-}
-
-/** Tanpa WhatsApp otomatis: pilih template, salin, kirim dari HP sendiri. */
-function SalinTemplate({ penerima, waMati }: { penerima: Penerima; waMati: boolean }) {
-  const daftar = templateBawaan("fasil");
-  const [pilih, setPilih] = useState(daftar[0].kode);
-  const [disalin, setDisalin] = useState(false);
-  const t = daftar.find((x) => x.kode === pilih) ?? daftar[0];
-  const teks = isiTemplate(t.teks, penerima, "", false);
-  return (
-    <section className={s.kolomWa} aria-label="Template pesan">
-      <h3>Template pesan</h3>
-      <p className={s.kolomKet}>
-        {waMati ? "WhatsApp otomatis mati. Salin pesan ini lalu kirim dari WhatsApp di HP Anda. Balasan fasil bisa ditempel lewat “Isi dari balasan”."
-          : "Fasil ini belum punya nomor WhatsApp di LK. Salin pesan lalu kirim lewat jalur lain."}
-      </p>
-      <div className={s.tplList}>
-        {daftar.map((x) => (
-          <button key={x.kode} type="button" aria-pressed={x.kode === pilih} onClick={() => { setPilih(x.kode); setDisalin(false); }}>
-            {x.judul}
-          </button>
-        ))}
-      </div>
-      <pre className={s.pratinjau}>{teks}</pre>
-      <Button size="sm" onClick={() => { void navigator.clipboard.writeText(teks).then(() => setDisalin(true)); }}>
-        {disalin ? "Tersalin ✓" : "Salin pesan"}
-      </Button>
-    </section>
   );
 }

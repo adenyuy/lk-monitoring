@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import cutoff_baru, google_auth, lk_baru
+from .. import cutoff_baru, google_auth, komunikasi, lk_baru
 from .deps import require_feature
 from .lkb import _jalan
 
@@ -26,7 +26,15 @@ def info(_=Depends(admin)) -> dict[str, Any]:
         "log_progres": _jalan(cutoff_baru.baca_log_progres),
         "status": cutoff_baru.status(),
         "kolom_wajib": list(cutoff_baru.WAJIB),
+        "cutoff_terakhir": _cutoff_terakhir(),
     }
+
+
+def _cutoff_terakhir() -> str:
+    try:
+        return komunikasi.label_cutoff()
+    except Exception:
+        return ""
 
 
 @router.post("/cek")

@@ -169,13 +169,6 @@ ${TERIMA_KASIH}` },
   }
   if (jenis === "koor") {
     return [
-      { kode: "sulit", judul: "Fasil sulit dihubungi", bawaan: true,
-        ket: "Minta bantuan koordinator untuk fasil yang chatnya tidak sampai / tidak dibalas.",
-        teks: `${SALAM} Bapak/Ibu {nama}, mohon izin. Kami dari tim monitoring ingin menyampaikan bahwa fasilitator berikut belum dapat kami hubungi untuk konfirmasi progres pelaporan sekolah dampingan:
-
-{daftar_sulit}
-
-Mohon bantuan Bapak/Ibu untuk mengingatkan fasilitator tersebut agar dapat merespons pesan kami. ${TERIMA_KASIH}` },
       { kode: "rekap", judul: "Rekap to-do fasil binaan", bawaan: true,
         ket: "Ringkasan per fasil: berapa sekolah yang laporannya belum lengkap.",
         teks: `${SALAM} Bapak/Ibu {nama}, izin menyampaikan rekap progres pelaporan sekolah dampingan fasilitator binaan Bapak/Ibu:
@@ -183,6 +176,13 @@ Mohon bantuan Bapak/Ibu untuk mengingatkan fasilitator tersebut agar dapat meres
 {daftar_fasil}
 
 Mohon bantuan Bapak/Ibu untuk mendorong fasilitator agar laporan sekolah segera lengkap. ${TERIMA_KASIH}` },
+      { kode: "sulit", judul: "Fasil sulit dihubungi", bawaan: true,
+        ket: "Hanya koordinator yang punya fasil berkode R/C/N atau belum ditelepon di Log Komunikasi.",
+        teks: `${SALAM} Bapak/Ibu {nama}, mohon izin. Kami dari tim monitoring ingin menyampaikan bahwa fasilitator berikut belum dapat kami hubungi untuk konfirmasi progres pelaporan sekolah dampingan:
+
+{daftar_sulit}
+
+Mohon bantuan Bapak/Ibu untuk mengingatkan fasilitator tersebut agar dapat merespons pesan kami. ${TERIMA_KASIH}` },
       { kode: "info", judul: "Info / pengumuman", bawaan: true, ket: "Pesan bebas untuk koordinator.",
         teks: `${SALAM} Bapak/Ibu {nama},
 
@@ -278,4 +278,49 @@ export function pilihKendala(teks: string, opsi: string[]) {
     if (s > skor) { skor = s; terbaik = o; }
   }
   return skor >= 0.6 ? terbaik : teks;
+}
+
+// ---------- hubungi koordinator dari panel fasil ----------
+
+type FasilUntukKoor = {
+  nama: string; koor: string; ptn: string; todo_fasil: number; tanpa_progres: boolean;
+  sekolah_detail: { nama: string; todo: { judul: string; detail: string; pelaku: "sekolah" | "fasil" }[] }[];
+};
+
+/** Template WhatsApp ke koordinator tentang satu fasil (sudah terisi, siap kirim). */
+export function templateKoorFasil(f: FasilUntukKoor, salam = salamSekarang()): Template[] {
+  const sapa = f.koor ? `Bapak/Ibu ${f.koor}` : "Bapak/Ibu Koordinator";
+  const sekolah = f.sekolah_detail.filter((x) => x.todo.length).slice().sort((a, b) => a.nama.localeCompare(b.nama));
+  const daftar = sekolah.slice(0, 15).map((x, i) => `${i + 1}. *${x.nama}*: ${x.todo.map((t) => t.judul).join(", ")}`)
+    .join("\n") + (sekolah.length > 15 ? `\n… dan ${sekolah.length - 15} sekolah lainnya` : "");
+  const reviu = f.sekolah_detail.flatMap((x) => x.todo.filter((t) => t.pelaku === "fasil").map((t) => `• ${x.nama}: ${t.judul}`));
+  const siapa = `fasilitator *${f.nama}*${f.ptn ? ` (${f.ptn})` : ""}`;
+  const out: Template[] = [
+    { kode: "sulit", judul: "Fasil tidak membalas", bawaan: true,
+      ket: "Chat ke fasil hanya dibaca, tidak sampai, atau tidak dibalas.",
+      teks: `${salam} ${sapa}, mohon izin. Kami dari tim monitoring Revitalisasi SD 2026 ingin meminta bantuan terkait ${siapa}. Sudah beberapa kali kami hubungi, namun belum mendapat respons.
+
+${sekolah.length ? `Sekolah dampingan beliau yang laporannya masih perlu dilengkapi:\n\n${daftar}\n\n` : ""}Mohon bantuan ${sapa} untuk mengingatkan beliau agar dapat membalas pesan kami. ${TERIMA_KASIH}` },
+  ];
+  if (sekolah.length) {
+    out.push({ kode: "macet", judul: "Laporan tidak bergerak", bawaan: true,
+      ket: "Fasil merespons, tapi laporan sekolahnya belum bertambah.",
+      teks: `${salam} ${sapa}, mohon izin. Kami ingin menyampaikan bahwa ${siapa} sudah merespons pesan kami, namun laporan sekolah dampingannya belum bertambah sejak cutoff sebelumnya:
+
+${daftar}
+
+Mohon bantuan ${sapa} untuk mendorong agar laporan tersebut segera dilengkapi. ${TERIMA_KASIH}` });
+  }
+  if (reviu.length) {
+    out.push({ kode: "reviu", judul: "Reviu menunggu fasil", bawaan: true,
+      ket: "Laporan sekolah sudah masuk, tapi belum direviu fasil.",
+      teks: `${salam} ${sapa}, mohon izin. Laporan sekolah dampingan ${siapa} sudah masuk dan menunggu reviu:
+
+${reviu.slice(0, 15).join("\n")}${reviu.length > 15 ? `\n… dan ${reviu.length - 15} lainnya` : ""}
+
+Mohon bantuan ${sapa} untuk mengingatkan beliau agar segera mereviu. ${TERIMA_KASIH}` });
+  }
+  out.push({ kode: "info", judul: "Pesan bebas", bawaan: true, ket: "Tulis sendiri pesannya.",
+    teks: `${salam} ${sapa}, mohon izin. Terkait ${siapa}:\n\n[tulis pesannya di sini]\n\n${TERIMA_KASIH}` });
+  return out;
 }

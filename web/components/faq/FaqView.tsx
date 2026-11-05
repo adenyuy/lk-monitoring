@@ -243,14 +243,12 @@ const GRUP: { judul: string; isi: T[] }[] = [
         id: "eskalasi",
         q: "Pertanyaan fasil tidak bisa saya jawab. Minta bantuan ke mana?",
         a: (
-          <p>Buka fasilnya lalu tekan tombol merah <b>Butuh bantuan</b>. Di tab <b>Tanya teman PIC</b> pilih teman dari
-            Kontak PIC: chat-nya terbuka di panel kanan, menggantikan chat fasil sementara. Bisa juga langsung dari pesan
-            fasil: tekan <b>Teruskan ke teman</b> di bawah pesannya, maka pesan itu ikut dikutip. Jawaban teman bisa
-            dipindah ke kotak balasan fasil dengan <b>Pakai untuk balas fasil</b>. Untuk kasus unik yang
-            harus dijawab stream lain, pakai tab <b>Eskalasi ke stream lain</b>: pilih sekolah, kelompok permasalahan,
-            tulis keterangan, centang tim tujuan, lalu catat. Aplikasi menulisnya ke sheet LK Eskalasi dengan tanggal hari
-            ini, dan status dari tim terkait bisa dilihat di tab yang sama. Saat pertama dipakai, admin cukup menempel
-            link LK Eskalasi sekali; link itu berlaku untuk seluruh tim.</p>
+          <p>Buka fasilnya lalu tekan tombol merah <b>Eskalasi ke tim lain</b>. Sekolah yang punya to-do dan
+            keterangannya sudah terisi; pilih kelompok permasalahan, lengkapi keterangan, centang tim tujuan, lalu catat.
+            Aplikasi menulisnya ke sheet LK Eskalasi dengan tanggal hari ini, dan status dari tim terkait bisa dilihat di
+            dialog yang sama. Bila fasilnya tidak membalas atau laporannya tidak bergerak, tekan <b>Hubungi
+            koordinator</b>: template pesan ke koordinator sudah berisi nama fasil dan daftar sekolahnya. Saat pertama
+            dipakai, admin cukup menempel link LK Eskalasi sekali; link itu berlaku untuk seluruh tim.</p>
         ),
       },
       {

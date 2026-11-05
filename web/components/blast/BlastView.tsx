@@ -5,7 +5,7 @@ import { api, post } from "@/lib/api";
 import { useCountdown, useEvents, usePolling } from "@/lib/hooks";
 import { KELOMPOK_INFO, TAHAP_LABEL, type Aturan, type BlastState, type JenisPenerima, type Kelompok, type Penerima,
   type TemplateSaya } from "@/lib/lk";
-import { VARIABEL, isi as isiTemplate, kosong, templateBawaan, type Template } from "@/lib/pesan";
+import { SALAM, VARIABEL, isi as isiTemplate, kosong, templateBawaan, type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { formatWa } from "@/components/today/WaPanel";
 import s from "./blast.module.css";
@@ -16,16 +16,22 @@ type DataPenerima = {
 };
 type StateResp = { state: BlastState; aturan: Aturan; wa_terbuka: boolean; wa_otomatis: boolean; jam_kirim: boolean;
   template: TemplateSaya[] };
+type Langkah = 1 | 2 | 3;
 
 const JENIS: { k: JenisPenerima; label: string; ket: string }[] = [
-  { k: "fasil", label: "Fasilitator", ket: "Fasil binaan Anda" },
-  { k: "koor", label: "Koordinator", ket: "Koordinator fasil binaan" },
-  { k: "sekolah", label: "Kepala sekolah", ket: "Sekolah binaan" },
+  { k: "fasil", label: "Fasilitator", ket: "Fasil binaan Anda. Pesan menyebut sekolah dan to-do masing-masing." },
+  { k: "koor", label: "Koordinator", ket: "Koordinator dari fasil binaan. Pesan berisi rekap per fasil." },
+  { k: "sekolah", label: "Kepala sekolah", ket: "Langsung ke sekolah binaan: laporan yang perlu dilengkapi sekolah." },
 ];
 const KELOMPOK_SEKOLAH: { kode: string; label: string }[] = [
   { kode: "pendahuluan", label: TAHAP_LABEL.pendahuluan }, { kode: "berkala", label: TAHAP_LABEL.berkala },
   { kode: "l50", label: TAHAP_LABEL.l50 }, { kode: "l100", label: TAHAP_LABEL.l100 }, { kode: "beres", label: "Semua hijau" },
 ];
+const KELOMPOK_KOOR: { kode: string; label: string }[] = [
+  { kode: "perlu_telepon", label: "Punya fasil sulit dihubungi" }, { kode: "terhubung", label: "Fasilnya bisa dihubungi" },
+];
+const LANGKAH: { n: Langkah; label: string }[] = [{ n: 1, label: "Target" }, { n: 2, label: "Pesan" }, { n: 3, label: "Tinjau & kirim" }];
+const CUSTOM = "custom";
 
 function durasi(detik: number) {
   const m = Math.round(detik / 60);
@@ -34,6 +40,7 @@ function durasi(detik: number) {
 }
 
 export function BlastView() {
+  const [langkah, setLangkah] = useState<Langkah>(1);
   const [jenis, setJenis] = useState<JenisPenerima>("fasil");
   const [data, setData] = useState<DataPenerima | null>(null);
   const [st, setSt] = useState<StateResp | null>(null);
@@ -49,13 +56,15 @@ export function BlastView() {
   const [cari, setCari] = useState("");
   const [buang, setBuang] = useState<Set<string>>(new Set());
   // pesan
-  const [tpl, setTpl] = useState<string>("tanya");
+  const [tpl, setTpl] = useState<string>(() => templateBawaan("fasil")[0].kode);
   const [teks, setTeks] = useState(() => templateBawaan("fasil")[0].teks);
-  const [judul, setJudul] = useState("Tanya kendala per sekolah");
+  const [judul, setJudul] = useState(() => templateBawaan("fasil")[0].judul);
   const [lihat, setLihat] = useState(0);
   const [aturan, setAturan] = useState<Aturan>({ jeda_min: 20, jeda_max: 45, istirahat_setiap: 20, istirahat_menit: 5 });
+  const [aturanBuka, setAturanBuka] = useState(false);
   const [mulai, setMulai] = useState<{ busy: boolean; error?: string; konfirmasi?: boolean }>({ busy: false });
   const teksRef = useRef<HTMLTextAreaElement>(null);
+  const atasRef = useRef<HTMLDivElement>(null);
 
   const muatState = useCallback(async () => {
     try {
@@ -93,14 +102,19 @@ export function BlastView() {
       .map((t) => ({ kode: `saya:${t.id}`, judul: t.judul, ket: "Template simpanan Anda", teks: t.teks, bawaan: false })),
   ], [jenis, st?.template]);
 
-  // ganti jenis -> pakai template pertama jenis itu dan kosongkan saringan
   function gantiJenis(j: JenisPenerima) {
+    if (j === jenis) return;
     const t = templateBawaan(j)[0];
     setJenis(j); setData(null);
     setTpl(t.kode); setTeks(t.teks); setJudul(t.judul); setKel([]); setTag(""); setAngkatan(""); setKab("");
     setBuang(new Set()); setLihat(0);
   }
 
+  function ke(n: Langkah) {
+    setLangkah(n);
+    setMulai({ busy: false });
+    requestAnimationFrame(() => atasRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 
   const terpilih = useMemo(() => {
     if (!data) return [];
@@ -110,10 +124,11 @@ export function BlastView() {
       && (!hanyaTodo || p.perlu > 0) && (!q || p.nama.toLowerCase().includes(q)));
   }, [data, kel, tag, angkatan, kab, hanyaTodo, cari]);
 
-  const siap = terpilih.filter((p) => p.punya_nomor && !buang.has(p.kunci) && !(lewatiHariIni && p.terakhir_blast)
-    && !kosong(teks, p).length);
-  const alasan = (p: Penerima) => !p.punya_nomor ? "Nomor kosong" : lewatiHariIni && p.terakhir_blast
-    ? `Sudah diblast ${p.terakhir_blast}` : kosong(teks, p).length ? "Tidak ada isi untuk variabel" : "";
+  const alasanTarget = (p: Penerima) => !p.punya_nomor ? "Nomor kosong"
+    : lewatiHariIni && p.terakhir_blast ? `Sudah diblast ${p.terakhir_blast}` : "";
+  const target = terpilih.filter((p) => !alasanTarget(p) && !buang.has(p.kunci));
+  const siap = target.filter((p) => !kosong(teks, p).length);
+  const tanpaIsi = target.filter((p) => kosong(teks, p).length);
 
   const contoh = siap[Math.min(lihat, Math.max(0, siap.length - 1))];
   const sisaVar = teks.match(/\{[a-z_]+\}/g)?.filter((v) => !VARIABEL[jenis].some((x) => x.kode === v)) ?? [];
@@ -121,30 +136,34 @@ export function BlastView() {
   const n = siap.length;
   const istirahat = aturan.istirahat_setiap ? Math.floor(Math.max(0, n - 1) / aturan.istirahat_setiap) : 0;
   const perkiraan = Math.max(0, n - 1 - istirahat) * rata + istirahat * aturan.istirahat_menit * 60 + n * 12;
+  const jenisInfo = JENIS.find((j) => j.k === jenis)!;
 
   function pakaiTpl(t: Template) {
     setTpl(t.kode); setTeks(t.teks); setJudul(t.judul); setLihat(0);
+  }
+  function tulisSendiri() {
+    setTpl(CUSTOM); setTeks(`${SALAM} Bapak/Ibu {nama},\n\n`); setJudul("Pesan custom"); setLihat(0);
+    requestAnimationFrame(() => { const el = teksRef.current; if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } });
   }
 
   function sisip(v: string) {
     const el = teksRef.current;
     if (!el) { setTeks(teks + v); return; }
     const a = el.selectionStart, b = el.selectionEnd;
-    const baru = teks.slice(0, a) + v + teks.slice(b);
-    setTeks(baru);
+    setTeks(teks.slice(0, a) + v + teks.slice(b));
     requestAnimationFrame(() => { el.focus(); el.selectionStart = el.selectionEnd = a + v.length; });
   }
 
   async function simpanTpl() {
-    const nama = window.prompt("Nama template", judul.startsWith("Template") ? "" : judul);
+    const nama = window.prompt("Nama template", judul === "Pesan custom" ? "" : judul);
     if (!nama?.trim()) return;
-    const lama = st?.template ?? [];
     const id = `${Date.now().toString(36)}`;
-    const baru = [...lama, { id, judul: nama.trim().slice(0, 60), jenis, teks }];
+    const baru = [...(st?.template ?? []), { id, judul: nama.trim().slice(0, 60), jenis, teks }];
     try {
       const r = await post<{ template: TemplateSaya[] }>("/api/blast/template", { template: baru });
       setSt((x) => x && { ...x, template: r.template });
       setTpl(`saya:${id}`);
+      setJudul(nama.trim().slice(0, 60));
     } catch (e) {
       setMulai({ busy: false, error: e instanceof Error ? e.message : String(e) });
     }
@@ -152,10 +171,15 @@ export function BlastView() {
 
   async function hapusTpl(kode: string) {
     const id = kode.replace("saya:", "");
-    const baru = (st?.template ?? []).filter((t) => t.id !== id);
-    const r = await post<{ template: TemplateSaya[] }>("/api/blast/template", { template: baru });
+    const r = await post<{ template: TemplateSaya[] }>("/api/blast/template",
+      { template: (st?.template ?? []).filter((t) => t.id !== id) });
     setSt((x) => x && { ...x, template: r.template });
     pakaiTpl(templateBawaan(jenis)[0]);
+  }
+
+  function simpanAturan(a: Aturan) {
+    setAturan(a);
+    setAturanBuka(false);
   }
 
   async function kirim(coba: boolean) {
@@ -176,19 +200,25 @@ export function BlastView() {
 
   const state = st?.state;
   const jalan = !!state?.running;
+  const bisaLanjut2 = target.length > 0;
+  const bisaLanjut3 = n > 0 && sisaVar.length === 0 && !!teks.trim();
 
   return (
     <div className={s.page}>
       <header className={s.head}>
         <div>
           <h1>Blast</h1>
-          <p>Kirim satu pesan ke banyak fasil, koordinator, atau kepala sekolah. Isinya menyesuaikan to-do tiap penerima.</p>
+          <p>Kirim satu pesan ke banyak penerima sekaligus. Isinya menyesuaikan to-do tiap penerima.</p>
         </div>
+        <button type="button" className={s.aturanBtn} onClick={() => setAturanBuka(true)} aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
+          <span><b>Aturan kirim</b><small>jeda {aturan.jeda_min}–{aturan.jeda_max} dtk{aturan.istirahat_setiap ? ` · istirahat ${aturan.istirahat_menit} mnt / ${aturan.istirahat_setiap} pesan` : " · tanpa istirahat"}</small></span>
+        </button>
       </header>
 
       {st && !st.wa_otomatis && (
         <Notice tone="warn" title="WhatsApp otomatis sedang mati">
-          Blast butuh WhatsApp otomatis. Nyalakan lagi lewat saklar di halaman LK, atau salin template dari panel fasil
+          Blast butuh WhatsApp otomatis. Nyalakan lagi lewat saklar di halaman LK, atau salin template dari layar fasil
           untuk dikirim dari HP.
         </Notice>
       )}
@@ -198,206 +228,299 @@ export function BlastView() {
 
       {state && (jalan || state.selesai) && <Progres state={state} onUbah={muatState} />}
 
-      <section className={s.card} aria-labelledby="h-penerima">
-        <div className={s.cardHead}>
-          <h2 id="h-penerima"><span className={s.no}>1</span>Penerima</h2>
-          <div className={s.segmen} role="tablist" aria-label="Jenis penerima">
+      <div ref={atasRef} className={s.stepper} role="list" aria-label="Langkah blast">
+        {LANGKAH.map((l) => {
+          const bisa = l.n === 1 || (l.n === 2 && bisaLanjut2) || (l.n === 3 && bisaLanjut2 && bisaLanjut3);
+          return (
+            <button key={l.n} type="button" role="listitem" disabled={!bisa && l.n > langkah}
+              className={`${s.step} ${langkah === l.n ? s.stepAktif : ""} ${langkah > l.n ? s.stepLewat : ""}`}
+              aria-current={langkah === l.n ? "step" : undefined} onClick={() => bisa && ke(l.n)}>
+              <span className={s.stepNo}>{langkah > l.n ? "✓" : l.n}</span>
+              <span className={s.stepTeks}>
+                <b>{l.label}</b>
+                <small>{l.n === 1 ? `${jenisInfo.label} · ${target.length} penerima`
+                  : l.n === 2 ? (tpl === CUSTOM ? "Pesan custom" : judul)
+                  : n ? `${n} pesan · ±${durasi(perkiraan)}` : "–"}</small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {langkah === 1 && (
+        <section className={s.card} aria-labelledby="h-target">
+          <div className={s.cardHead}><h2 id="h-target">Siapa yang dikirimi?</h2></div>
+          <div className={s.jenisGrid} role="radiogroup" aria-label="Jenis penerima">
             {JENIS.map((j) => (
-              <button key={j.k} type="button" role="tab" aria-selected={jenis === j.k} onClick={() => gantiJenis(j.k)} title={j.ket}>
-                {j.label}
+              <button key={j.k} type="button" role="radio" aria-checked={jenis === j.k} onClick={() => gantiJenis(j.k)}>
+                <b>{j.label}</b><small>{j.ket}</small>
               </button>
             ))}
           </div>
-        </div>
 
-        {error && <Notice tone="bad" title="Penerima tidak bisa dimuat">{error}</Notice>}
-        {!data && !error && <div className={s.loading}><Spinner label="Memuat" /> Membaca LK…</div>}
-        {data && (
-          <>
-            <div className={s.saring}>
-              <div className={s.chipGrup} aria-label="Kelompok">
-                {(jenis === "sekolah" ? KELOMPOK_SEKOLAH : data.kelompok).map((k) => {
-                  const on = kel.includes(k.kode);
-                  const jml = data.penerima.filter((p) => p.kelompok === k.kode).length;
-                  if (!jml) return null;
+          {error && <Notice tone="bad" title="Penerima tidak bisa dimuat">{error}</Notice>}
+          {!data && !error && <div className={s.loading}><Spinner label="Memuat" /> Membaca LK…</div>}
+          {data && (
+            <>
+              <div className={s.saring}>
+                <div className={s.chipGrup} aria-label="Kelompok">
+                  {(jenis === "sekolah" ? KELOMPOK_SEKOLAH : jenis === "koor" ? KELOMPOK_KOOR : data.kelompok).map((k) => {
+                    const on = kel.includes(k.kode);
+                    const jml = data.penerima.filter((p) => p.kelompok === k.kode).length;
+                    if (!jml) return null;
+                    return (
+                      <button key={k.kode} type="button" aria-pressed={on}
+                        onClick={() => setKel(on ? kel.filter((x) => x !== k.kode) : [...kel, k.kode])}>
+                        {k.label}<i>{jml}</i>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={s.saringBaris}>
+                  <input type="search" placeholder="Cari nama" value={cari} onChange={(e) => setCari(e.target.value)} aria-label="Cari penerima" />
+                  {data.angkatan.length > 1 && (
+                    <select value={angkatan} onChange={(e) => setAngkatan(e.target.value)} aria-label="Angkatan">
+                      <option value="">Semua angkatan</option>
+                      {data.angkatan.map((a) => <option key={a} value={a}>Angkatan {a}</option>)}
+                    </select>
+                  )}
+                  {data.kab.length > 1 && (
+                    <select value={kab} onChange={(e) => setKab(e.target.value)} aria-label="Kabupaten/kota">
+                      <option value="">Semua kab/kota</option>
+                      {data.kab.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  )}
+                  {data.tag.length > 0 && (
+                    <select value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Tag">
+                      <option value="">Semua tag</option>
+                      {data.tag.map((a) => <option key={a} value={a}>#{a}</option>)}
+                    </select>
+                  )}
+                  <label className={s.cek}><input type="checkbox" checked={hanyaTodo} onChange={(e) => setHanyaTodo(e.target.checked)} /> Hanya yang punya to-do</label>
+                  <label className={s.cek}><input type="checkbox" checked={lewatiHariIni} onChange={(e) => setLewatiHariIni(e.target.checked)} /> Lewati yang sudah diblast hari ini</label>
+                </div>
+              </div>
+
+              <div className={s.penerimaHead}>
+                <b>{target.length} penerima dipilih</b>
+                <span>dari {terpilih.length} yang cocok saringan{data.jumlah_tanpa_nomor ? ` · ${data.jumlah_tanpa_nomor} tanpa nomor` : ""}</span>
+                <div>
+                  <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set())}>Pilih semua</button>
+                  <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set(terpilih.map((p) => p.kunci)))}>Kosongkan</button>
+                </div>
+              </div>
+              <ul className={s.penerima}>
+                {terpilih.map((p) => {
+                  const ket = alasanTarget(p);
+                  const on = !ket && !buang.has(p.kunci);
                   return (
-                    <button key={k.kode} type="button" aria-pressed={on}
-                      onClick={() => setKel(on ? kel.filter((x) => x !== k.kode) : [...kel, k.kode])}>
-                      {k.label}<i>{jml}</i>
-                    </button>
+                    <li key={p.kunci} className={ket ? s.mati : undefined}>
+                      <label>
+                        <input type="checkbox" checked={on} disabled={!!ket}
+                          onChange={() => { const b = new Set(buang); if (b.has(p.kunci)) b.delete(p.kunci); else b.add(p.kunci); setBuang(b); }} />
+                        <span className={s.pNama}>
+                          <b>{p.nama}</b>
+                          <small>{jenis === "sekolah" ? `${p.kepsek || "Kepala sekolah"} · ${p.tersamar || "tanpa nomor"}`
+                            : jenis === "koor" ? `${p.tersamar || "tanpa nomor"} · ${p.fasil?.length ?? 0} fasil, ${p.jumlah_sekolah} sekolah`
+                            : `${p.tersamar || "tanpa nomor"} · ${p.jumlah_sekolah} sekolah${p.perlu ? `, ${p.perlu} punya to-do` : ""}`}</small>
+                        </span>
+                        {jenis === "fasil" && KELOMPOK_INFO[p.kelompok as Kelompok] && (
+                          <Chip tone={KELOMPOK_INFO[p.kelompok as Kelompok].tone}>{KELOMPOK_INFO[p.kelompok as Kelompok].label}</Chip>
+                        )}
+                        {ket && <small className={s.alasan}>{ket}</small>}
+                      </label>
+                    </li>
                   );
                 })}
-              </div>
-              <div className={s.saringBaris}>
-                <input type="search" placeholder="Cari nama" value={cari} onChange={(e) => setCari(e.target.value)} aria-label="Cari penerima" />
-                {data.angkatan.length > 1 && (
-                  <select value={angkatan} onChange={(e) => setAngkatan(e.target.value)} aria-label="Angkatan">
-                    <option value="">Semua angkatan</option>
-                    {data.angkatan.map((a) => <option key={a} value={a}>Angkatan {a}</option>)}
-                  </select>
-                )}
-                {data.kab.length > 1 && (
-                  <select value={kab} onChange={(e) => setKab(e.target.value)} aria-label="Kabupaten/kota">
-                    <option value="">Semua kab/kota</option>
-                    {data.kab.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                )}
-                {data.tag.length > 0 && (
-                  <select value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Tag">
-                    <option value="">Semua tag</option>
-                    {data.tag.map((a) => <option key={a} value={a}>#{a}</option>)}
-                  </select>
-                )}
-                <label className={s.cek}><input type="checkbox" checked={hanyaTodo} onChange={(e) => setHanyaTodo(e.target.checked)} /> Hanya yang punya to-do</label>
-                <label className={s.cek}><input type="checkbox" checked={lewatiHariIni} onChange={(e) => setLewatiHariIni(e.target.checked)} /> Lewati yang sudah diblast hari ini</label>
-              </div>
-            </div>
-
-            <div className={s.penerimaHead}>
-              <b>{siap.length} akan dikirimi</b>
-              <span>dari {terpilih.length} yang cocok saringan{data.jumlah_tanpa_nomor ? ` · ${data.jumlah_tanpa_nomor} tanpa nomor` : ""}</span>
-              <div>
-                <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set())}>Pilih semua</button>
-                <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set(terpilih.map((p) => p.kunci)))}>Kosongkan</button>
-              </div>
-            </div>
-            <ul className={s.penerima}>
-              {terpilih.map((p) => {
-                const ket = alasan(p);
-                const on = !ket && !buang.has(p.kunci);
-                return (
-                  <li key={p.kunci} className={ket ? s.mati : undefined}>
-                    <label>
-                      <input type="checkbox" checked={on} disabled={!!ket}
-                        onChange={() => { const b = new Set(buang); if (b.has(p.kunci)) b.delete(p.kunci); else b.add(p.kunci); setBuang(b); }} />
-                      <span className={s.pNama}>
-                        <b>{p.nama}</b>
-                        <small>{jenis === "sekolah" ? `${p.kepsek || "Kepala sekolah"} · ${p.tersamar || "tanpa nomor"}`
-                          : `${p.tersamar || "tanpa nomor"} · ${p.jumlah_sekolah} sekolah${p.perlu ? `, ${p.perlu} punya to-do` : ""}`}</small>
-                      </span>
-                      {jenis !== "sekolah" && KELOMPOK_INFO[p.kelompok as Kelompok] && (
-                        <Chip tone={KELOMPOK_INFO[p.kelompok as Kelompok].tone}>{KELOMPOK_INFO[p.kelompok as Kelompok].label}</Chip>
-                      )}
-                      {ket && <small className={s.alasan}>{ket}</small>}
-                    </label>
-                  </li>
-                );
-              })}
-              {!terpilih.length && <li className={s.kosong}>{memuat ? "Memuat…" : "Tidak ada penerima yang cocok dengan saringan."}</li>}
-            </ul>
-          </>
-        )}
-      </section>
-
-      <section className={s.card} aria-labelledby="h-pesan">
-        <div className={s.cardHead}>
-          <h2 id="h-pesan"><span className={s.no}>2</span>Pesan</h2>
-          <span className={s.ket}>Pilih template lalu ubah sesukanya. Variabel diisi otomatis per penerima.</span>
-        </div>
-        <div className={s.tplGrid}>
-          {daftarTpl.map((t) => (
-            <button key={t.kode} type="button" aria-pressed={tpl === t.kode} onClick={() => pakaiTpl(t)}>
-              <b>{t.judul}</b><small>{t.ket}</small>
-            </button>
-          ))}
-        </div>
-        <div className={s.tulis}>
-          <div className={s.editor}>
-            <label className={s.judulInput}>
-              <span>Judul blast (untuk riwayat)</span>
-              <input value={judul} maxLength={80} onChange={(e) => setJudul(e.target.value)} />
-            </label>
-            <textarea ref={teksRef} value={teks} rows={14} maxLength={4000} aria-label="Isi pesan"
-              onChange={(e) => { setTeks(e.target.value); if (!tpl.startsWith("saya:")) setTpl(""); }} />
-            <div className={s.varBar} aria-label="Sisipkan variabel">
-              {VARIABEL[jenis].map((v) => (
-                <button key={v.kode} type="button" title={v.arti} onClick={() => sisip(v.kode)}>{v.kode}</button>
-              ))}
-            </div>
-            {sisaVar.length > 0 && <p className={s.err}>Variabel tidak dikenal: {sisaVar.join(", ")}</p>}
-            <div className={s.editorAksi}>
-              <Button variant="secondary" size="sm" disabled={!teks.trim()} onClick={() => void simpanTpl()}>Simpan sebagai template</Button>
-              {tpl.startsWith("saya:") && <Button variant="ghost" size="sm" onClick={() => void hapusTpl(tpl)}>Hapus template ini</Button>}
-            </div>
-          </div>
-          <div className={s.preview}>
-            <div className={s.previewHead}>
-              <span>Pratinjau{contoh ? `: ${contoh.nama}` : ""}</span>
-              {siap.length > 1 && (
-                <span className={s.previewNav}>
-                  <button type="button" aria-label="Penerima sebelumnya" disabled={lihat <= 0} onClick={() => setLihat(lihat - 1)}>‹</button>
-                  {Math.min(lihat, siap.length - 1) + 1}/{siap.length}
-                  <button type="button" aria-label="Penerima berikutnya" disabled={lihat >= siap.length - 1} onClick={() => setLihat(lihat + 1)}>›</button>
-                </span>
-              )}
-            </div>
-            <div className={s.hp}>
-              {contoh && data ? <div className={s.bubble}>{formatWa(isiTemplate(teks, contoh, data.petugas, false))}</div>
-                : <p className={s.kosong}>Belum ada penerima yang dipilih.</p>}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className={s.card} aria-labelledby="h-aturan">
-        <div className={s.cardHead}>
-          <h2 id="h-aturan"><span className={s.no}>3</span>Aturan kirim</h2>
-          <span className={s.ket}>Jeda acak dan istirahat berkala membuat pola kirim mirip manusia, supaya nomor lebih aman.</span>
-        </div>
-        <div className={s.aturan}>
-          <fieldset>
-            <legend>Jeda antar pesan</legend>
-            <div className={s.angkaBaris}>
-              <Angka label="paling cepat" nilai={aturan.jeda_min} min={5} max={600} satuan="detik"
-                onChange={(v) => setAturan({ ...aturan, jeda_min: v, jeda_max: Math.max(v, aturan.jeda_max) })} />
-              <span>sampai</span>
-              <Angka label="paling lama" nilai={aturan.jeda_max} min={aturan.jeda_min} max={900} satuan="detik"
-                onChange={(v) => setAturan({ ...aturan, jeda_max: v })} />
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Istirahat</legend>
-            <div className={s.angkaBaris}>
-              <span>setiap</span>
-              <Angka label="jumlah pesan" nilai={aturan.istirahat_setiap} min={0} max={200} satuan="pesan"
-                onChange={(v) => setAturan({ ...aturan, istirahat_setiap: v })} />
-              <span>selama</span>
-              <Angka label="lama istirahat" nilai={aturan.istirahat_menit} min={1} max={60} satuan="menit"
-                onChange={(v) => setAturan({ ...aturan, istirahat_menit: v })} />
-            </div>
-            {aturan.istirahat_setiap === 0 && <small className={s.err}>0 = tanpa istirahat</small>}
-          </fieldset>
-          <div className={s.estimasi}>
-            <span>Perkiraan selesai</span>
-            <b>{n ? durasi(perkiraan) : "–"}</b>
-            <small>{n} pesan{istirahat ? `, ${istirahat}× istirahat` : ""}</small>
-          </div>
-        </div>
-        {aturan.jeda_min < 15 && (
-          <Notice tone="warn" title="Jeda sangat pendek">Di bawah 15 detik meningkatkan risiko nomor dibatasi WhatsApp. Pakai hanya untuk penerima yang sudah sering membalas.</Notice>
-        )}
-        {mulai.error && <Notice tone="bad" title="Blast belum bisa dimulai">{mulai.error}</Notice>}
-        <div className={s.kirimBar}>
-          {mulai.konfirmasi ? (
-            <>
-              <span>Kirim <b>{n} pesan</b> “{judul}” sekarang?</span>
-              <Button variant="ghost" onClick={() => setMulai({ busy: false })}>Batal</Button>
-              <Button loading={mulai.busy} onClick={() => void kirim(false)}>Ya, kirim</Button>
-            </>
-          ) : (
-            <>
-              <Button variant="secondary" disabled={jalan || !n || !st?.wa_otomatis || sisaVar.length > 0} loading={mulai.busy}
-                onClick={() => void kirim(true)} title="Membuka chat 3 penerima pertama tanpa menekan kirim">
-                Coba 3 penerima
-              </Button>
-              <Button disabled={jalan || !n || !st?.wa_otomatis || !st?.jam_kirim || sisaVar.length > 0}
-                onClick={() => setMulai({ busy: false, konfirmasi: true })}>
-                Kirim ke {n} penerima
-              </Button>
+                {!terpilih.length && <li className={s.kosong}>{memuat ? "Memuat…" : "Tidak ada penerima yang cocok dengan saringan."}</li>}
+              </ul>
             </>
           )}
+          <div className={s.navBar}>
+            <span />
+            <Button disabled={!bisaLanjut2} onClick={() => ke(2)}>Lanjut: tulis pesan</Button>
+          </div>
+        </section>
+      )}
+
+      {langkah === 2 && (
+        <section className={s.card} aria-labelledby="h-pesan">
+          <div className={s.cardHead}>
+            <h2 id="h-pesan">Pesannya apa?</h2>
+            <span className={s.ket}>Pilih template atau tulis sendiri. Variabel seperti {"{nama}"} diisi otomatis per penerima.</span>
+          </div>
+          <div className={s.tplGrid}>
+            {daftarTpl.map((t) => {
+              const cocok = target.filter((p) => !kosong(t.teks, p).length).length;
+              return (
+                <button key={t.kode} type="button" aria-pressed={tpl === t.kode} onClick={() => pakaiTpl(t)}>
+                  <b>{t.judul}</b><small>{t.ket}</small>
+                  <em className={cocok ? undefined : s.tplKosong}>{cocok} dari {target.length} penerima</em>
+                </button>
+              );
+            })}
+            <button type="button" aria-pressed={tpl === CUSTOM} onClick={tulisSendiri} className={s.tplCustom}>
+              <b>+ Tulis sendiri</b><small>Pesan custom dari nol. Bisa disimpan jadi template.</small>
+            </button>
+          </div>
+          <div className={s.tulis}>
+            <div className={s.editor}>
+              <label className={s.judulInput}>
+                <span>Judul blast (untuk riwayat)</span>
+                <input value={judul} maxLength={80} onChange={(e) => setJudul(e.target.value)} />
+              </label>
+              <textarea ref={teksRef} value={teks} rows={14} maxLength={4000} aria-label="Isi pesan"
+                onChange={(e) => { setTeks(e.target.value); if (tpl !== CUSTOM && !tpl.startsWith("saya:")) setTpl(CUSTOM); }} />
+              <div className={s.varBar} aria-label="Sisipkan variabel">
+                {VARIABEL[jenis].map((v) => (
+                  <button key={v.kode} type="button" title={v.arti} onClick={() => sisip(v.kode)}>{v.kode}</button>
+                ))}
+              </div>
+              {sisaVar.length > 0 && <p className={s.err}>Variabel tidak dikenal: {sisaVar.join(", ")}</p>}
+              {tanpaIsi.length > 0 && (
+                <Notice tone="warn" title={`${tanpaIsi.length} penerima dilewati`}>
+                  Variabel di pesan ini tidak punya isi untuk {tanpaIsi.slice(0, 3).map((p) => p.nama).join(", ")}
+                  {tanpaIsi.length > 3 ? `, dan ${tanpaIsi.length - 3} lainnya` : ""}. Pilih template lain bila semua perlu dikirimi.
+                </Notice>
+              )}
+              <div className={s.editorAksi}>
+                <Button variant="secondary" size="sm" disabled={!teks.trim()} onClick={() => void simpanTpl()}>Simpan sebagai template</Button>
+                {tpl.startsWith("saya:") && <Button variant="ghost" size="sm" onClick={() => void hapusTpl(tpl)}>Hapus template ini</Button>}
+              </div>
+            </div>
+            <Pratinjau siap={siap} lihat={lihat} setLihat={setLihat} contoh={contoh} teks={teks} petugas={data?.petugas ?? ""} />
+          </div>
+          <div className={s.navBar}>
+            <Button variant="ghost" onClick={() => ke(1)}>Kembali</Button>
+            <Button disabled={!bisaLanjut3} onClick={() => ke(3)}>Lanjut: tinjau ({n} pesan)</Button>
+          </div>
+        </section>
+      )}
+
+      {langkah === 3 && (
+        <section className={s.card} aria-labelledby="h-tinjau">
+          <div className={s.cardHead}><h2 id="h-tinjau">Tinjau lalu kirim</h2></div>
+          <div className={s.tinjau}>
+            <dl className={s.ringkas}>
+              <div><dt>Penerima</dt><dd><b>{n} {jenisInfo.label.toLowerCase()}</b>
+                {tanpaIsi.length > 0 && <small>{tanpaIsi.length} dilewati karena variabel kosong</small>}
+                <button type="button" className={s.linkBtn} onClick={() => ke(1)}>Ubah</button></dd></div>
+              <div><dt>Pesan</dt><dd><b>{judul}</b><button type="button" className={s.linkBtn} onClick={() => ke(2)}>Ubah</button></dd></div>
+              <div><dt>Aturan kirim</dt><dd>
+                <b>Jeda {aturan.jeda_min}–{aturan.jeda_max} detik</b>
+                <small>{aturan.istirahat_setiap ? `Istirahat ${aturan.istirahat_menit} menit tiap ${aturan.istirahat_setiap} pesan` : "Tanpa istirahat"}</small>
+                <button type="button" className={s.linkBtn} onClick={() => setAturanBuka(true)}>Ubah</button></dd></div>
+              <div className={s.ringkasAksen}><dt>Perkiraan selesai</dt><dd><b>{n ? durasi(perkiraan) : "–"}</b>
+                <small>{n} pesan{istirahat ? `, ${istirahat}× istirahat` : ""}</small></dd></div>
+            </dl>
+            <Pratinjau siap={siap} lihat={lihat} setLihat={setLihat} contoh={contoh} teks={teks} petugas={data?.petugas ?? ""} />
+          </div>
+          {aturan.jeda_min < 15 && (
+            <Notice tone="warn" title="Jeda sangat pendek">Di bawah 15 detik meningkatkan risiko nomor dibatasi WhatsApp.</Notice>
+          )}
+          {mulai.error && <Notice tone="bad" title="Blast belum bisa dimulai">{mulai.error}</Notice>}
+          <div className={s.navBar}>
+            <Button variant="ghost" onClick={() => ke(2)}>Kembali</Button>
+            <div className={s.kirimAksi}>
+              {mulai.konfirmasi ? (
+                <>
+                  <span>Kirim <b>{n} pesan</b> sekarang?</span>
+                  <Button variant="ghost" onClick={() => setMulai({ busy: false })}>Batal</Button>
+                  <Button loading={mulai.busy} onClick={() => void kirim(false)}>Ya, kirim</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="secondary" disabled={jalan || !n || !st?.wa_otomatis || sisaVar.length > 0} loading={mulai.busy}
+                    onClick={() => void kirim(true)} title="Membuka chat 3 penerima pertama tanpa menekan kirim">
+                    Coba 3 penerima
+                  </Button>
+                  <Button disabled={jalan || !n || !st?.wa_otomatis || !st?.jam_kirim || sisaVar.length > 0}
+                    onClick={() => setMulai({ busy: false, konfirmasi: true })}>
+                    Kirim ke {n} penerima
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {aturanBuka && <AturanDialog awal={aturan} onSimpan={simpanAturan} onClose={() => setAturanBuka(false)} />}
+    </div>
+  );
+}
+
+function Pratinjau({ siap, lihat, setLihat, contoh, teks, petugas }: {
+  siap: Penerima[]; lihat: number; setLihat: (n: number) => void; contoh: Penerima | undefined; teks: string; petugas: string;
+}) {
+  return (
+    <div className={s.preview}>
+      <div className={s.previewHead}>
+        <span>Pratinjau{contoh ? `: ${contoh.nama}` : ""}</span>
+        {siap.length > 1 && (
+          <span className={s.previewNav}>
+            <button type="button" aria-label="Penerima sebelumnya" disabled={lihat <= 0} onClick={() => setLihat(lihat - 1)}>‹</button>
+            {Math.min(lihat, siap.length - 1) + 1}/{siap.length}
+            <button type="button" aria-label="Penerima berikutnya" disabled={lihat >= siap.length - 1} onClick={() => setLihat(lihat + 1)}>›</button>
+          </span>
+        )}
+      </div>
+      <div className={s.hp}>
+        {contoh ? <div className={s.bubble}>{formatWa(isiTemplate(teks, contoh, petugas, false))}</div>
+          : <p className={s.kosong}>Belum ada penerima yang bisa dikirimi pesan ini.</p>}
+      </div>
+    </div>
+  );
+}
+
+function AturanDialog({ awal, onSimpan, onClose }: { awal: Aturan; onSimpan: (a: Aturan) => void; onClose: () => void }) {
+  const [a, setA] = useState(awal);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector("input")?.focus();
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onClose]);
+  const contoh = 50;
+  const rata = (a.jeda_min + a.jeda_max) / 2;
+  const ist = a.istirahat_setiap ? Math.floor((contoh - 1) / a.istirahat_setiap) : 0;
+  const lama = (contoh - 1 - ist) * rata + ist * a.istirahat_menit * 60 + contoh * 12;
+  return (
+    <div className={s.scrim} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={ref} className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="h-aturan">
+        <h2 id="h-aturan">Aturan kirim</h2>
+        <p className={s.ket}>Jeda acak dan istirahat berkala membuat pola kirim mirip manusia, supaya nomor lebih aman.</p>
+        <fieldset className={s.field}>
+          <legend>Jeda antar pesan</legend>
+          <div className={s.angkaBaris}>
+            <Angka label="paling cepat" nilai={a.jeda_min} min={5} max={600} satuan="detik"
+              onChange={(v) => setA({ ...a, jeda_min: v, jeda_max: Math.max(v, a.jeda_max) })} />
+            <span>sampai</span>
+            <Angka label="paling lama" nilai={a.jeda_max} min={a.jeda_min} max={900} satuan="detik"
+              onChange={(v) => setA({ ...a, jeda_max: v })} />
+          </div>
+        </fieldset>
+        <fieldset className={s.field}>
+          <legend>Istirahat</legend>
+          <div className={s.angkaBaris}>
+            <span>setiap</span>
+            <Angka label="jumlah pesan" nilai={a.istirahat_setiap} min={0} max={200} satuan="pesan"
+              onChange={(v) => setA({ ...a, istirahat_setiap: v })} />
+            <span>selama</span>
+            <Angka label="lama istirahat" nilai={a.istirahat_menit} min={1} max={60} satuan="menit"
+              onChange={(v) => setA({ ...a, istirahat_menit: v })} />
+          </div>
+          {a.istirahat_setiap === 0 && <small className={s.err}>0 = tanpa istirahat</small>}
+        </fieldset>
+        <p className={s.estimasiKecil}>Contoh: {contoh} pesan selesai dalam ±{durasi(lama)}.</p>
+        {a.jeda_min < 15 && <p className={s.err}>Jeda di bawah 15 detik meningkatkan risiko nomor dibatasi WhatsApp.</p>}
+        <div className={s.dialogAksi}>
+          <Button variant="ghost" onClick={() => setA({ jeda_min: 20, jeda_max: 45, istirahat_setiap: 20, istirahat_menit: 5 })}>Kembalikan bawaan</Button>
+          <Button variant="secondary" onClick={onClose}>Batal</Button>
+          <Button onClick={() => onSimpan(a)}>Pakai aturan ini</Button>
         </div>
-      </section>
+      </div>
     </div>
   );
 }

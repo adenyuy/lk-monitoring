@@ -4,14 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, post } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
-import { KELOMPOK_INFO, KODE_WARNA, hariPendek, inisial, type FasilLk, type Kelompok, type LkRingkasan } from "@/lib/lk";
+import { KELOMPOK_INFO, hariPendek, type FasilLk, type Kelompok, type LkRingkasan } from "@/lib/lk";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { FasilPanel } from "./FasilPanel";
 import { KodePicker } from "./KodePicker";
 import s from "./lk.module.css";
-
-type Filter = Kelompok | "semua";
-const PER_HAL = 30;
 
 /** Halaman LK: fasil binaan dikelompokkan menurut keadaan komunikasi hari ini, lalu to-do sekolahnya. */
 export function LkView() {
@@ -19,10 +16,6 @@ export function LkView() {
   const params = useSearchParams();
   const [data, setData] = useState<LkRingkasan | null>(null);
   const [error, setError] = useState<{ status?: number; pesan: string } | null>(null);
-  const [filter, setFilter] = useState<Filter>("semua");
-  const [tag, setTag] = useState("");
-  const [cari, setCari] = useState("");
-  const [hal, setHal] = useState(0);
   const [buka, setBuka] = useState<string | null>(params?.get("fasil") ?? null);
   const [muatUlang, setMuatUlang] = useState(false);
 
@@ -54,13 +47,6 @@ export function LkView() {
     if (params?.get("fasil")) router.replace("/lk/");
     void muat();
   }, [muat, params, router]);
-
-  const baris = useMemo(() => {
-    if (!data) return [];
-    const q = cari.trim().toLowerCase();
-    return data.fasil.filter((f) => (filter === "semua" || f.kelompok === filter) && (!tag || f.tag.includes(tag))
-      && (!q || f.nama.toLowerCase().includes(q) || f.ptn.toLowerCase().includes(q)));
-  }, [data, filter, tag, cari]);
 
   async function setKode(f: FasilLk, kode: string) {
     setData((d) => d && { ...d, fasil: d.fasil.map((x) => (x.kunci === f.kunci ? { ...x, kode_hari_ini: kode as FasilLk["kode_hari_ini"] } : x)) });
@@ -97,8 +83,6 @@ export function LkView() {
   const t = data.total;
   const pctIsi = t.perlu ? Math.round((t.lengkap / t.perlu) * 100) : 100;
   const pctHub = t.fasil ? Math.round((t.dihubungi / t.fasil) * 100) : 0;
-  const tampil = baris.slice(hal * PER_HAL, (hal + 1) * PER_HAL);
-  const jmlHal = Math.ceil(baris.length / PER_HAL);
   const mulaiLog = data.log_rentang[0];
 
   return (
@@ -152,58 +136,7 @@ export function LkView() {
         </section>
       )}
 
-      <section className={s.card}>
-        <div className={s.kelompokBar} role="tablist" aria-label="Kelompok fasil">
-          <button type="button" role="tab" aria-selected={filter === "semua"} onClick={() => { setFilter("semua"); setHal(0); }}
-            className={s.kelompokTab}>
-            <span>Semua</span><b>{t.fasil}</b>
-          </button>
-          {data.kelompok.map((k) => (
-            <button key={k.kode} type="button" role="tab" aria-selected={filter === k.kode} title={k.arti}
-              className={`${s.kelompokTab} ${s[`kt_${k.kode}`]}`} disabled={!k.jumlah}
-              onClick={() => { setFilter(k.kode); setHal(0); }}>
-              <span>{k.label}</span><b>{k.jumlah}</b>
-            </button>
-          ))}
-        </div>
-
-        <div className={s.alat}>
-          <input type="search" placeholder="Cari nama fasil atau PTN" value={cari} aria-label="Cari fasil"
-            onChange={(e) => { setCari(e.target.value); setHal(0); }} />
-          {data.tag.length > 0 && (
-            <div className={s.tagFilter} aria-label="Saring tag">
-              {data.tag.map((x) => (
-                <button key={x} type="button" aria-pressed={tag === x} onClick={() => { setTag(tag === x ? "" : x); setHal(0); }}>
-                  #{x}
-                </button>
-              ))}
-            </div>
-          )}
-          <span className={s.jumlah}>{baris.length} fasil</span>
-        </div>
-
-        {filter !== "semua" && (
-          <p className={s.artiKelompok}>{data.kelompok.find((k) => k.kode === filter)?.arti}</p>
-        )}
-
-        <ul className={s.daftar}>
-          {tampil.map((f) => (
-            <li key={f.kunci}>
-              <FasilBaris f={f} hari={data.hari} logAda={data.log_hari_ini} waOtomatis={data.wa_otomatis}
-                kode={data.kode} onBuka={() => setBuka(f.kunci)} onKode={(k) => void setKode(f, k)} />
-            </li>
-          ))}
-          {!tampil.length && <li className={s.kosong}>Tidak ada fasil di kelompok ini.</li>}
-        </ul>
-
-        {jmlHal > 1 && (
-          <nav className={s.hal} aria-label="Halaman">
-            <Button variant="secondary" size="sm" disabled={hal === 0} onClick={() => setHal(hal - 1)}>Sebelumnya</Button>
-            <span>{hal + 1} / {jmlHal}</span>
-            <Button variant="secondary" size="sm" disabled={hal >= jmlHal - 1} onClick={() => setHal(hal + 1)}>Berikutnya</Button>
-          </nav>
-        )}
-      </section>
+      <Papan data={data} onBuka={setBuka} onKode={(f, k) => void setKode(f, k)} />
 
       {buka && <FasilPanel kunci={buka} onClose={tutup} kodeLabel={data.kode} />}
     </div>
@@ -231,53 +164,148 @@ function Meter({ judul, nilai, dari, satuan, pct, ket }: {
   );
 }
 
-function FasilBaris({ f, hari, logAda, waOtomatis, kode, onBuka, onKode }: {
-  f: FasilLk; hari: string; logAda: boolean; waOtomatis: boolean; kode: { kode: string; arti: string }[];
+type Kolom = { kode: string; label: string; ket: string };
+
+const KET_POSISI: Record<string, string> = {
+  lp: "Sekolah belum mengirim; komponen lain menunggu",
+  lp_rev: "Sudah dikirim, menunggu reviu fasil",
+  mg: "Unggah atau reviu Lap. Mingguan",
+  bulanan: "Bulanan, BKU, BPP diunggah bersama",
+  progres: "Progres fisik belum cukup untuk laporan",
+  l50: "Unggah atau reviu Lap. 50%",
+  l100: "Unggah atau reviu Lap. 100%",
+};
+
+/** Papan kartu: tiap kolom satu komponen; fasil muncul di kolom tempat sekolah binaannya masih tertahan. */
+function Papan({ data, onBuka, onKode }: {
+  data: LkRingkasan; onBuka: (kunci: string) => void; onKode: (f: FasilLk, kode: string) => void;
+}) {
+  const [fokus, setFokus] = useState<string>("semua");
+  const [kel, setKel] = useState<Kelompok | "">("");
+  const [tag, setTag] = useState("");
+  const [cari, setCari] = useState("");
+
+  const kolom: Kolom[] = useMemo(() => [
+    ...data.posisi.map((p) => ({ kode: p.kode, label: p.label, ket: KET_POSISI[p.kode] ?? "" })),
+    { kode: "hijau", label: "Semua hijau", ket: "Tidak ada to-do, cukup dipantau" },
+  ], [data.posisi]);
+
+  const saring = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    return data.fasil.filter((f) => (!kel || f.kelompok === kel) && (!tag || f.tag.includes(tag))
+      && (!q || f.nama.toLowerCase().includes(q) || f.ptn.toLowerCase().includes(q)));
+  }, [data.fasil, kel, tag, cari]);
+
+  const isi = useMemo(() => {
+    const out: Record<string, FasilLk[]> = {};
+    for (const k of kolom) {
+      out[k.kode] = (k.kode === "hijau" ? saring.filter((f) => !f.perlu) : saring.filter((f) => f.posisi[k.kode]))
+        .slice().sort((a, b) => (b.posisi[k.kode] ?? 0) - (a.posisi[k.kode] ?? 0) || a.nama.localeCompare(b.nama));
+    }
+    return out;
+  }, [kolom, saring]);
+
+  const satu = fokus !== "semua";
+  const tampilKolom = satu ? kolom.filter((k) => k.kode === fokus) : kolom.filter((k) => isi[k.kode].length);
+  const jmlSekolah = (k: string) => isi[k].reduce((n, f) => n + (f.posisi[k] ?? 0), 0);
+
+  return (
+    <section className={s.card} aria-labelledby="h-papan">
+      <div className={s.papanHead}>
+        <div>
+          <h2 id="h-papan">Posisi fasil per komponen</h2>
+          <p>Fasil muncul di setiap komponen tempat sekolah binaannya masih tertahan. Klik kartu untuk membuka LK fasil.</p>
+        </div>
+        <input type="search" placeholder="Cari nama fasil atau PTN" value={cari} aria-label="Cari fasil"
+          onChange={(e) => setCari(e.target.value)} />
+      </div>
+
+      <div className={s.komponenBar} role="tablist" aria-label="Saring komponen">
+        <button type="button" role="tab" aria-selected={!satu} onClick={() => setFokus("semua")}>
+          <span>Semua komponen</span><b>{saring.length}</b>
+        </button>
+        {kolom.map((k) => (
+          <button key={k.kode} type="button" role="tab" aria-selected={fokus === k.kode} disabled={!isi[k.kode].length}
+            onClick={() => setFokus(fokus === k.kode ? "semua" : k.kode)}
+            title={k.kode === "hijau" ? k.ket : `${isi[k.kode].length} fasil, ${jmlSekolah(k.kode)} sekolah`}>
+            <span>{k.label}</span><b>{isi[k.kode].length}</b>
+          </button>
+        ))}
+      </div>
+
+      <div className={s.alat}>
+        <label className={s.pilihKecil}>
+          <span>Komunikasi hari ini</span>
+          <select value={kel} onChange={(e) => setKel(e.target.value as Kelompok | "")}>
+            <option value="">Semua ({data.total.fasil})</option>
+            {data.kelompok.filter((k) => k.jumlah).map((k) => <option key={k.kode} value={k.kode}>{k.label} ({k.jumlah})</option>)}
+          </select>
+        </label>
+        {data.tag.length > 0 && (
+          <div className={s.tagFilter} aria-label="Saring tag">
+            {data.tag.map((x) => (
+              <button key={x} type="button" aria-pressed={tag === x} onClick={() => setTag(tag === x ? "" : x)}>#{x}</button>
+            ))}
+          </div>
+        )}
+        {kel && <span className={s.artiKelompok}>{data.kelompok.find((k) => k.kode === kel)?.arti}</span>}
+      </div>
+
+      <div className={`${s.board} ${satu ? s.boardSatu : ""}`}>
+        {tampilKolom.map((k) => (
+          <div key={k.kode} className={s.col}>
+            <div className={s.colHead}>
+              <b>{k.label}</b>
+              <span className={s.colN} title="Jumlah fasil">{isi[k.kode].length}</span>
+              <small>{k.kode === "hijau" ? k.ket : `${jmlSekolah(k.kode)} sekolah · ${k.ket}`}</small>
+            </div>
+            <ul className={s.colList}>
+              {isi[k.kode].map((f) => (
+                <li key={f.kunci}>
+                  <KartuFasil f={f} kolom={k.kode} logAda={data.log_hari_ini} kode={data.kode}
+                    onBuka={() => onBuka(f.kunci)} onKode={(x) => onKode(f, x)} />
+                </li>
+              ))}
+              {!isi[k.kode].length && <li className={s.colEmpty}>Kosong</li>}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KartuFasil({ f, kolom, logAda, kode, onBuka, onKode }: {
+  f: FasilLk; kolom: string; logAda: boolean; kode: { kode: string; arti: string }[];
   onBuka: () => void; onKode: (k: string) => void;
 }) {
   const info = KELOMPOK_INFO[f.kelompok];
-  const pct = f.perlu ? Math.round((f.lengkap / f.perlu) * 100) : 100;
+  const n = f.posisi[kolom] ?? 0;
   return (
-    <div className={s.baris}>
-      <button type="button" className={s.barisUtama} onClick={onBuka} aria-label={`Buka ${f.nama}`}>
-        <span className={`${s.avatar} ${s[`av_${info.tone}`]}`} aria-hidden="true">{inisial(f.nama)}</span>
-        <span className={s.barisNama}>
-          <b>{f.nama}</b>
-          <small>{f.ptn || "PTN belum tercatat"}{!f.punya_nomor && <> · <em>nomor WA kosong</em></>}</small>
-          {f.tag.length > 0 && <span className={s.tagKecil}>{f.tag.map((x) => <i key={x}>#{x}</i>)}</span>}
-        </span>
-        <span className={s.barisFokus}>
-          {f.fokus.length ? f.fokus.slice(0, 2).map((x) => (
-            <span key={x.judul}>{x.judul}<i>×{x.jumlah}</i></span>
-          )) : <span className={s.hijau}>Semua sekolah hijau</span>}
-          {f.todo_fasil > 0 && <small>{f.todo_fasil} reviu menunggu fasil{f.tunggu_maks ? `, terlama ${Math.round(f.tunggu_maks)} hari` : ""}</small>}
-        </span>
-        <span className={s.barisIsian} title="Sekolah yang Kendala & Tindak Lanjut sesi ini sudah lengkap">
-          <span className={s.mini}><span style={{ width: `${pct}%` }} /></span>
-          <small>{f.lengkap}/{f.perlu} isian</small>
-        </span>
-        <span className={s.minggu} aria-label="Log komunikasi minggu ini">
-          {f.kode_minggu.map((d) => (
-            <i key={d.tanggal} title={`${hariPendek(d.tanggal)}: ${d.kode || "belum dicatat"}`}
-              className={d.tanggal === hari ? s.hariIni : undefined}
-              style={d.kode ? { background: KODE_WARNA[d.kode]?.bg, color: KODE_WARNA[d.kode]?.fg } : undefined}>
-              {d.kode || Number(d.tanggal.slice(8))}
-            </i>
-          ))}
+    <div className={`${s.kartu} ${s[`kartu_${info.tone}`] ?? ""}`}>
+      <button type="button" className={s.kartuUtama} onClick={onBuka} aria-label={`Buka ${f.nama}`}>
+        <b>{f.nama}</b>
+        <small>{f.ptn || "PTN belum tercatat"}</small>
+        <span className={s.kartuPil}>
+          {kolom !== "hijau" && <em className={s.pilSekolah}>{n} sekolah</em>}
+          {f.perlu > 0 && (
+            <em className={f.lengkap >= f.perlu ? s.pilOk : s.pilIsian} title="Sekolah yang isian Kendala & TL sesi ini sudah lengkap">
+              Isian {f.lengkap}/{f.perlu}
+            </em>
+          )}
+          {!f.punya_nomor && <em className={s.pilMerah}>Nomor WA kosong</em>}
+          {f.tanpa_progres && <em className={s.pilKuning} title="Sering terhubung tapi laporannya tidak bergerak sejak cutoff sebelumnya">Respon tanpa progres</em>}
+          {f.belum_ditelepon && <em className={s.pilKuning} title="Berkali-kali hanya dibaca / tidak sampai, belum pernah ditelepon">Belum ditelepon</em>}
+          {f.tag.map((x) => <em key={x} className={s.pilTag}>#{x}</em>)}
         </span>
       </button>
-      <div className={s.barisAksi}>
-        {(f.tanpa_progres || f.belum_ditelepon) && (
-          <span className={s.flag} title={f.tanpa_progres ? "Sering terhubung tapi laporannya tidak bergerak sejak cutoff sebelumnya"
-            : "Berkali-kali hanya dibaca / tidak sampai, belum pernah ditelepon"}>
-            {f.tanpa_progres ? "Respon tanpa progres" : "Belum ditelepon"}
-          </span>
-        )}
-        {logAda && (
+      {logAda && (
+        <div className={s.kartuKaki}>
+          <span>{info.label}</span>
           <KodePicker nilai={f.kode_hari_ini} kode={kode} onPilih={onKode}
-            label={waOtomatis ? "Otomatis dari WA, bisa diubah" : "Catat komunikasi hari ini"} />
-        )}
-      </div>
+            label={`Kode komunikasi hari ini untuk ${f.nama}`} />
+        </div>
+      )}
     </div>
   );
 }

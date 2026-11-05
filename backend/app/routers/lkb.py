@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .. import aktivitas, db, komunikasi, lk_baru, schedule, todo
 from ..access import Access
-from ..sheets import cache
+from ..sheets import cache, daftar_nomor
 from ..wa.status import mask
 from .deps import require_access, require_admin
 
@@ -70,6 +70,9 @@ def _info(k: dict[str, Any]) -> dict[str, Any]:
 @router.get("")
 def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any]:
     k = _konteks(refresh)
+    from . import dashboard
+
+    dashboard.mulai_latar()  # siapkan dashboard di latar supaya langsung terbuka saat dipilih
     daftar = [komunikasi.ringkasan_fasil(f, k["rencana"], k["logkom"], k["hari"], k["blok"], k["tag"], k["delta"])
               for f in k["fasil"].values()]
     urut = {kode: i for i, (kode, *_r) in enumerate(komunikasi.KELOMPOK)}
@@ -80,6 +83,9 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
     tahap = Counter(r.tahap for r in k["rencana"].values())
     fokus = Counter(r.fokus.judul for r in k["rencana"].values() if r.fokus)
     semua_tag = sorted({t for x in daftar for t in x["tag"]}, key=str.casefold)
+    posisi = [{"kode": kode, "label": lbl,
+               "fasil": sum(1 for x in daftar if x["posisi"].get(kode)),
+               "sekolah": sum(x["posisi"].get(kode, 0) for x in daftar)} for kode, lbl, _ in komunikasi.POSISI]
     return {
         **_info(k),
         "total": {"fasil": len(daftar), "sekolah": len(k["sekolah"]), "perlu": perlu, "lengkap": lengkap,
@@ -90,6 +96,7 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
         "tahap": [{"kode": t, "jumlah": tahap.get(t, 0)} for t in ("pendahuluan", "berkala", "l50", "l100", "selesai")],
         "fokus": [{"judul": j, "jumlah": v} for j, v in fokus.most_common(8)],
         "indikator": komunikasi.indikator(daftar),
+        "posisi": posisi,
         "tag": semua_tag,
         "fasil": daftar,
     }
@@ -109,6 +116,8 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
         "nomor_tersamar": mask(f.nomor) if f.nomor else "",
         "nomor_lain": [mask(n) for n in f.nomor_lain],
         "hp_koor": bool(f.hp_koor),
+        "nomor_koor": (daftar_nomor(f.hp_koor) or [""])[0],
+        "koor_tersamar": mask((daftar_nomor(f.hp_koor) or [""])[0]) if f.hp_koor else "",
         "sekolah_detail": [{**todo.ringkas(s, k["rencana"][s.npsn], k["blok"]), "kepsek": s.kepsek,
                             "punya_hp_kepsek": bool(s.hp_kepsek),
                             "delta": k["delta"].get(s.npsn)} for s in sekolah],
@@ -138,7 +147,7 @@ class IsiReq(BaseModel):
 @router.post("/isi")
 def isi(req: IsiReq, _=Depends(require_access)) -> dict[str, Any]:
     blok = req.blok or blok_hari_ini()
-    sekolah = {s.npsn: s for s in _jalan(komunikasi.sekolah_saya, True)}
+    sekolah = {s.npsn: s for s in _jalan(komunikasi.sekolah_saya)}
     tulis = []
     for x in req.isi:
         s = sekolah.get(x.npsn.strip())
