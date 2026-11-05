@@ -1,6 +1,7 @@
 """Lokasi file. Data pengguna disimpan di luar folder repo supaya update tidak menyentuhnya."""
 
 import os
+import sys
 from pathlib import Path
 
 APP_DIR_NAME = "LKMonitoring"
@@ -16,8 +17,11 @@ def _data_dir() -> Path:
     override = os.environ.get("LKM_DATA_DIR")
     if override:
         return Path(override)
-    base = os.environ.get("APPDATA") or str(Path.home())
-    return Path(base) / APP_DIR_NAME
+    if os.environ.get("APPDATA"):
+        return Path(os.environ["APPDATA"]) / APP_DIR_NAME
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / APP_DIR_NAME
+    return Path.home() / f".{APP_DIR_NAME.lower()}"
 
 
 DATA_DIR = _data_dir()

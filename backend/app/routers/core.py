@@ -41,7 +41,7 @@ def pasang_pembaruan() -> dict[str, Any]:
     from ..sender import sender
 
     if not pembaruan.aktif():
-        raise HTTPException(400, "Pembaruan otomatis hanya tersedia di aplikasi hasil install.bat.")
+        raise HTTPException(400, "Pembaruan otomatis hanya tersedia di aplikasi hasil pemasang (install.bat / install.command).")
     if _sibuk():
         raise HTTPException(409, "Pengiriman sedang berjalan. Tunggu selesai atau tekan Berhenti dulu.")
     pembaruan.pasang()

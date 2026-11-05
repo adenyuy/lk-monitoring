@@ -49,7 +49,7 @@ def aktif() -> bool:
     """Hanya di folder install (clone branch release) dan bukan saat tes."""
     if os.environ.get("LKM_TANPA_PEMBARUAN"):
         return False
-    if not (paths.REPO_DIR / ".git").exists() or not (paths.REPO_DIR / "start.bat").exists():
+    if not (paths.REPO_DIR / ".git").exists() or not _skrip_start().exists():
         return False
     try:
         return _jalan("rev-parse", "--abbrev-ref", "HEAD", timeout=10) == "release"
@@ -78,16 +78,26 @@ def cek(paksa: bool = False) -> dict[str, Any]:
         return dict(_hasil)
 
 
+def _skrip_start() -> Path:
+    """start.bat di Windows, start.command di Mac."""
+    return paths.REPO_DIR / ("start.bat" if os.name == "nt" else "start.command")
+
+
 def pasang() -> None:
-    """Jalankan start.bat setelah server mati, lalu matikan server ini (WhatsApp ditutup rapi dulu)."""
+    """Jalankan skrip start setelah server mati, lalu matikan server ini (WhatsApp ditutup rapi dulu)."""
     from .wa.browser import worker
 
-    bat = paths.REPO_DIR / "start.bat"
+    skrip = _skrip_start()
     env = dict(os.environ, LKM_TANPA_BROWSER="1")  # tampilan yang sedang terbuka memuat ulang sendiri
-    # Konsol tersembunyi diwarisi git/pip/ping di dalam start.bat, jadi tidak ada jendela yang berkedip
-    flags = _tanpa_jendela | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen(f'cmd /c ping -n 6 127.0.0.1 >nul & call "{bat}"', cwd=str(paths.REPO_DIR), env=env,
-                     creationflags=flags, close_fds=True)
+    if os.name == "nt":
+        # Konsol tersembunyi diwarisi git/pip/ping di dalam start.bat, jadi tidak ada jendela yang berkedip
+        flags = _tanpa_jendela | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        subprocess.Popen(f'cmd /c ping -n 6 127.0.0.1 >nul & call "{skrip}"', cwd=str(paths.REPO_DIR), env=env,
+                         creationflags=flags, close_fds=True)
+    else:
+        subprocess.Popen(["/bin/bash", "-c", f'sleep 5; exec "{skrip}"'], cwd=str(paths.REPO_DIR), env=env,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True, close_fds=True)
 
     def matikan() -> None:
         time.sleep(0.8)  # beri waktu respons terkirim

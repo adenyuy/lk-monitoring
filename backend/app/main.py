@@ -104,6 +104,15 @@ def _resolve_static(path: str) -> Path | None:
     for candidate in (target, target / "index.html", target.with_suffix(".html")):
         if candidate.is_file():
             return candidate
+    # Prefetch Next.js meminta 'x/__next.!KGFwcCk.x.__PAGE__.txt', sedangkan export menyimpannya sebagai folder
+    # 'x/__next.!KGFwcCk/x/__PAGE__.txt'. Titik setelah segmen pertama berarti garis miring.
+    nama = target.name
+    if nama.startswith("__next.") and nama.endswith(".txt"):
+        bagian = nama[len("__next."):-len(".txt")].split(".")
+        if len(bagian) >= 2:
+            alt = (target.parent / f"__next.{bagian[0]}" / Path(*bagian[1:-1]) / f"{bagian[-1]}.txt").resolve()
+            if out in alt.parents and alt.is_file():
+                return alt
     return None
 
 

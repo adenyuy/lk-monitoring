@@ -17,6 +17,15 @@ Langkah:
 3. Tunggu sampai selesai (5–15 menit pertama kali). Git, Python, dan Google Chrome dipasang otomatis bila belum ada.
 4. Aplikasi terbuka di browser, dan di Desktop muncul shortcut **LK Monitoring**.
 
+**Di Mac (macOS 11 ke atas):**
+
+1. Buka aplikasi **Terminal** (Cmd + Spasi, ketik Terminal), tempel baris ini, lalu tekan Enter:
+   `curl -fsSL https://raw.githubusercontent.com/adenyuy/lk-monitoring/release/install.command | bash`
+2. Bila muncul jendela pemasangan **Command Line Tools** atau **Python**, selesaikan dulu, lalu jalankan baris tadi sekali lagi.
+3. Google Chrome harus sudah terpasang. Bila belum, pemasang membuka halaman unduhnya.
+4. Aplikasi terbuka di browser, dan di Desktop muncul **LK Monitoring.command**. Untuk mematikan, klik dua kali
+   **stop.command** di folder `~/Library/Application Support/LKMonitoring/app`.
+
 Selanjutnya cukup klik dua kali **LK Monitoring** di Desktop. Aplikasi memperbarui dirinya sendiri setiap dibuka. Bila aplikasi sedang jalan saat admin merilis versi baru, muncul banner biru **Versi baru tersedia**: tekan **Perbarui sekarang**.
 
 ## 2. Persiapan pertama

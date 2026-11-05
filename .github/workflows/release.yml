@@ -47,10 +47,12 @@ jobs:
           find "$R/backend" -name __pycache__ -type d -prune -exec rm -rf {} +
           cp -r web/out "$R/web/out"
           cp scripts/install.bat scripts/start.bat scripts/stop.bat "$R/"
+          cp scripts/install.command scripts/start.command scripts/stop.command "$R/"
+          chmod +x "$R"/*.command
           cp docs/CARA_PAKAI.md "$R/"
           echo "$VERSI" > "$R/backend/app/_version.txt"
           printf '.venv/\n__pycache__/\n' > "$R/.gitignore"
-          printf '*.bat text eol=crlf\n' > "$R/.gitattributes"
+          printf '*.bat text eol=crlf\n*.command text eol=lf\n' > "$R/.gitattributes"
 
       - name: Dorong ke branch release + tag
         run: |
