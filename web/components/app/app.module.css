@@ -1428,3 +1428,5 @@
   font-size: 11.5px;
   font-weight: 500;
 }
+
+.assistBtn > span.assistKecil { font-size: 10.5px; }

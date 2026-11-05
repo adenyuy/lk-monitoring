@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { TodayView } from "@/components/today/TodayView";
-
-export const metadata: Metadata = { title: "Hari ini – LK Monitoring" };
+import { Pindah } from "@/components/app/Pindah";
 
 export default function TodayPage() {
-  return <TodayView />;
+  return <Pindah ke="/lk/" />;
 }

@@ -11,13 +11,13 @@ function inisial(nama: string) {
   return ((k[0]?.[0] ?? "") + (k[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-/** Profil petugas: status WhatsApp, batas harian, dan keluar / ganti akun Google. */
-export function UserMenu({ nama, email, waLabel, waDot, batas, ringkas = false }: {
+/** Profil petugas: status WhatsApp, dan keluar / ganti akun Google. */
+export function UserMenu({ nama, email, waLabel, waDot, ringkas = false }: {
   nama: string;
   email: string;
   waLabel: string;
   waDot: string;
-  batas: number;
+  batas?: number;
   ringkas?: boolean;
 }) {
   const [buka, setBuka] = useState(false);
@@ -62,7 +62,7 @@ export function UserMenu({ nama, email, waLabel, waDot, batas, ringkas = false }
             <small><i className={s.dot} style={{ background: waDot }} /> {waLabel}</small>
           </div>
           <Link href="/setup/" role="menuitem" className={s.menuItem} onClick={() => setBuka(false)}>
-            Ubah batas harian <span>{batas} pesan</span>
+            Ganti nama petugas / WhatsApp
           </Link>
           <button type="button" role="menuitem" className={`${s.menuItem} ${s.menuDanger}`}
             onClick={() => { setBuka(false); setKonfirmasi(true); }}>

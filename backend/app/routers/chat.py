@@ -12,6 +12,13 @@ from ..wa import actions
 from ..wa.browser import worker
 from .deps import require_feature
 
+
+def _sibuk() -> bool:
+    from ..blast import sibuk
+
+    return sibuk()
+
+
 router = APIRouter(prefix="/api/chat")
 wa_blast = require_feature("wa_blast")
 MAKS_BALASAN = 2000
@@ -32,7 +39,7 @@ def _nomor_fasil(nomor: str) -> str:
 
 
 def _siap() -> None:
-    if sender.state.running:
+    if _sibuk():
         raise HTTPException(409, "Pengiriman sedang berjalan. Chat bisa dibaca dan dibalas setelah sesi selesai atau setelah menekan Berhenti.")
     if not worker.browser_open():
         raise HTTPException(409, "WhatsApp belum dibuka. Tekan Buka WhatsApp dulu.")

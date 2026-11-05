@@ -1,420 +1,249 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ApiError, api, post } from "@/lib/api";
-import type { CutoffCek, CutoffInfo, CutoffKolom, CutoffMode, CutoffRun } from "@/lib/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, post } from "@/lib/api";
+import { usePolling } from "@/lib/hooks";
 import { Button, Notice, Spinner } from "@/components/ui";
-import { NoAccess } from "@/components/app/NoAccess";
-import s from "./cutoff.module.css";
+import s from "./cutoff2.module.css";
 
-const HARI = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
-const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+type Status = { jalan: boolean; langkah: string; persen: number; hasil: null | { tab: string; sekolah: number; baru: number;
+  keterangan: number; cutoff: string }; error: string };
+type Info = {
+  weeks: number[]; week_aktif: number | null; senin_baru: string;
+  riwayat: { waktu: string; week: string; file: string; sekolah: string; baru: string; oleh: string }[];
+  log_progres: { cutoff: string[]; baris: { kelompok: string; komponen: string; nilai: string[] }[] };
+  status: Status; kolom_wajib: string[];
+};
+type Cek = { token: string; file: string; week: number; tab: string; sekolah_file: number; sekolah_lk: number; cocok: number;
+  baru: number; tidak_di_file: number; berubah: { kolom: string; jumlah: number }[];
+  naik_selesai: { komponen: string; jumlah: number }[]; bku_bpp: boolean };
 
-function tambahHari(iso: string, n: number) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-const tgl = (iso: string) => `${Number(iso.slice(8, 10))} ${BULAN[Number(iso.slice(5, 7)) - 1]}`;
-const jam = (waktu: string) => waktu.slice(11, 16).replace(":", ".");
-const angka = (n: number) => n.toLocaleString("id-ID");
-
-type Detail = { judul: string; runs: CutoffRun[] };
+const fmt = (n: number | string) => Number(n).toLocaleString("id-ID");
 
 export function CutoffView() {
-  const router = useRouter();
-  const [info, setInfo] = useState<CutoffInfo | null>(null);
+  const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [terkunci, setTerkunci] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [week, setWeek] = useState<number | null>(null);
+  const [cek, setCek] = useState<Cek | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [aksiError, setAksiError] = useState<string | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
+  const [seret, setSeret] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const muat = useCallback(async () => {
     try {
-      setInfo(await api<CutoffInfo>("/api/cutoff"));
+      const r = await api<Info>("/api/cutoff");
+      setInfo(r);
+      setStatus(r.status);
+      setWeek((w) => w ?? r.week_aktif);
       setError(null);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 403) setTerkunci(true);
-      else setError(e instanceof Error ? e.message : String(e));
+      setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void muat(); }, [muat]);
 
-  useEffect(() => {
-    // Ambil data sekali saat halaman dibuka
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void muat();
+  const pantau = useCallback(async () => {
+    const r = await api<Status>("/api/cutoff/status");
+    setStatus(r);
+    if (!r.jalan) void muat();
   }, [muat]);
+  usePolling(pantau, 2000, !!status?.jalan);
 
-  if (terkunci) {
-    return <NoAccess onClose={() => router.replace("/today/")} />;
-  }
-  if (error && !info) return <Notice tone="bad" title="Tarik Cutoff tidak bisa dimuat">{error}</Notice>;
-  if (!info) return <div className={s.loading}><Spinner label="Memuat" /> Membaca daftar WEEK di LK…</div>;
-
-  return (
-    <div className={s.page}>
-      <header className={s.head}>
-        <h1>Tarik Cutoff</h1>
-        <p>Unggah file cutoff dari aplikasi, cek hasilnya, lalu tulis ke sheet WEEK di LK.</p>
-      </header>
-      <StatusTarik info={info} />
-      <div className={s.layout}>
-        <Kalender info={info} onUbah={setInfo} />
-        <FormTarik info={info} onSelesai={muat} />
-      </div>
-    </div>
-  );
-}
-
-const oleh = (r: CutoffRun) => (r.oleh ? ` oleh ${r.oleh}` : "");
-
-/** Sudah/belum ditarik untuk hari ini dan WEEK aktif, dari admin mana pun. */
-function StatusTarik({ info }: { info: CutoffInfo }) {
-  const terakhir = (f: (r: CutoffRun) => boolean) => info.riwayat.filter(f).at(-1);
-  const hariIni = (r?: CutoffRun) => !!r && r.waktu.startsWith(info.hari_ini);
-  const kapan = (r: CutoffRun) => `${r.waktu.startsWith(info.hari_ini) ? "hari ini" : tgl(r.waktu.slice(0, 10))}, ${jam(r.waktu)}${oleh(r)}`;
-  const harian = terakhir((r) => r.mode === "harian");
-  const mingguan = terakhir((r) => r.mode === "mingguan" && r.week === info.week_aktif);
-  const tunggu = terakhir((r) => r.mode === "waktu_tunggu");
-  const item: [string, boolean, string][] = [
-    ["Harian", hariIni(harian), harian ? (hariIni(harian) ? `Sudah ${kapan(harian)}` : `Belum hari ini. Terakhir ${kapan(harian)}`) : "Belum pernah"],
-    [`Mingguan WEEK ${info.week_aktif}`, !!mingguan, mingguan ? `Sudah ${kapan(mingguan)}` : "Belum ditarik minggu ini"],
-    ["Waktu tunggu", hariIni(tunggu), tunggu ? (hariIni(tunggu) ? `Sudah ${kapan(tunggu)}` : `Belum hari ini. Terakhir ${kapan(tunggu)}`) : "Belum pernah"],
-  ];
-  return (
-    <section className={s.status} aria-label="Status tarik data">
-      {item.map(([judul, ok, teks]) => (
-        <div key={judul} className={`${s.statusItem} ${ok ? s.statusOk : ""}`}>
-          <i aria-hidden="true">{ok ? "✓" : ""}</i>
-          <div><b>{judul}</b><span>{teks}</span></div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-/** Kiri = tarik mingguan (baseline) per WEEK; kanan per hari: kotak hijau = harian, garis biru di bawahnya = waktu tunggu. */
-function Kalender({ info, onUbah }: { info: CutoffInfo; onUbah: (i: CutoffInfo) => void }) {
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [ubah, setUbah] = useState(false);
-  const weeks = info.weeks.length ? info.weeks : ["1"];
-
-  async function simpanMulai(tanggal: string) {
-    if (!tanggal) return;
-    onUbah(await post<CutoffInfo>("/api/cutoff/week1", { tanggal }));
-    setUbah(false);
-  }
-
-  const total = info.riwayat.length;
-  return (
-    <section className={s.card} aria-labelledby="h-kal" data-tour="kalender">
-      <div className={s.cardHead}>
-        <h2 id="h-kal">Riwayat tarik</h2>
-        <span>{total ? `${total} kali ditarik` : "Belum pernah"}</span>
-      </div>
-
-      <div className={s.cal} onMouseLeave={() => setDetail(null)}>
-        <div className={s.calHead} aria-hidden="true">
-          <span className={s.calWeekLabel} />
-          <span className={s.calBigHead}>Mingguan</span>
-          <span className={s.calDays}>{HARI.map((h) => <span key={h}>{h[0]}</span>)}</span>
-        </div>
-        {weeks.map((w) => {
-          const senin = tambahHari(info.week1_senin, (Number(w) - 1) * 7);
-          const mingguan = info.riwayat.filter((r) => r.mode === "mingguan" && r.week === w);
-          return (
-            <div key={w} className={s.calRow}>
-              <span className={s.calWeekLabel}>
-                <b>WEEK {w}</b>
-                <small>{tgl(senin)}–{tgl(tambahHari(senin, 6))}</small>
-              </span>
-              <button type="button" className={`${s.big} ${mingguan.length ? s.on : ""}`}
-                aria-label={`WEEK ${w} mingguan: ${mingguan.length ? "sudah ditarik" : "belum ditarik"}`}
-                onMouseEnter={() => setDetail({ judul: `WEEK ${w}, tarik mingguan (baseline)`, runs: mingguan })}
-                onFocus={() => setDetail({ judul: `WEEK ${w}, tarik mingguan (baseline)`, runs: mingguan })} />
-              <span className={s.calDays}>
-                {HARI.map((h, i) => {
-                  const d = tambahHari(senin, i);
-                  const pada = (mode: CutoffMode) => info.riwayat.filter((r) => r.mode === mode && r.week === w && r.waktu.startsWith(d));
-                  const runs = pada("harian");
-                  const tunggu = pada("waktu_tunggu");
-                  const judul = `${h}, ${tgl(d)}: tarik harian WEEK ${w}`;
-                  const judulTunggu = `${h}, ${tgl(d)}: tarik waktu tunggu WEEK ${w}`;
-                  return (
-                    <span key={d} className={`${s.dayCol} ${i >= 5 ? s.weekend : ""}`}>
-                      <button type="button"
-                        className={`${s.day} ${runs.length ? s.on : ""} ${d === info.hari_ini ? s.today : ""}`}
-                        aria-label={`${judul}: ${runs.length ? "sudah ditarik" : "belum"}`}
-                        onMouseEnter={() => setDetail({ judul, runs })} onFocus={() => setDetail({ judul, runs })} />
-                      <button type="button" className={`${s.tunggu} ${tunggu.length ? s.tungguOn : ""}`}
-                        aria-label={`${judulTunggu}: ${tunggu.length ? "sudah ditarik" : "belum"}`}
-                        onMouseEnter={() => setDetail({ judul: judulTunggu, runs: tunggu })}
-                        onFocus={() => setDetail({ judul: judulTunggu, runs: tunggu })} />
-                    </span>
-                  );
-                })}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className={s.detail} aria-live="polite">
-        {detail ? (
-          <>
-            <b>{detail.judul}</b>
-            {detail.runs.length === 0 ? <span>Belum ditarik.</span> : detail.runs.map((r, i) => (
-              <span key={i}>
-                Pukul {jam(r.waktu)}{oleh(r)}{r.sekolah ? `, ${angka(r.sekolah)} sekolah` : ""}{r.file ? `, file ${r.file}` : ""}
-              </span>
-            ))}
-          </>
-        ) : (
-          <span>Arahkan kursor ke kotak untuk melihat kapan data ditarik.</span>
-        )}
-      </div>
-
-      <div className={s.legend}>
-        <span><i className={`${s.swatch} ${s.on}`} /> Harian / mingguan sudah ditarik</span>
-        <span><i className={`${s.swatchTunggu} ${s.tungguOn}`} /> Waktu tunggu sudah ditarik</span>
-        <span><i className={s.swatch} /> Belum</span>
-        <span><i className={`${s.swatch} ${s.today}`} /> Hari ini</span>
-      </div>
-
-      <div className={s.mulai}>
-        {ubah ? (
-          <label>
-            WEEK 1 mulai
-            <input type="date" defaultValue={info.week1_senin} onChange={(e) => void simpanMulai(e.target.value)} />
-          </label>
-        ) : (
-          <span>
-            WEEK 1 dimulai Senin, {tgl(info.week1_senin)}.{" "}
-            <button type="button" className={s.linkBtn} onClick={() => setUbah(true)}>Ubah</button>
-          </span>
-        )}
-        <small>Riwayat dari semua admin, dicatat di LK (tab tersembunyi Log Tarik Data).</small>
-      </div>
-    </section>
-  );
-}
-
-const rentang = (k?: CutoffKolom) => (k ? `${k.mulai}–${k.akhir}` : "progres/submit/reviu");
-
-/** Kolom LK yang terbaca dari judul baris 2. Bila admin menyisipkan/memindah kolom, aplikasi ikut menyesuaikan. */
-function KolomLk({ kolom }: { kolom: CutoffInfo["kolom"] }) {
-  if (kolom.error) {
-    return <Notice tone="bad" title="Kolom LK tidak dikenali">{kolom.error}</Notice>;
-  }
-  if (!kolom.harian || !kolom.mingguan) return null;
-  const baris = [
-    ["NPSN", kolom.harian.npsn],
-    ["Prioritas", kolom.harian.prioritas],
-    ["Baseline (progres, submit, reviu)", rentang(kolom.mingguan)],
-    ["Harian (progres, submit, reviu)", rentang(kolom.harian)],
-    ["Isian sesi Senin–Rabu", kolom.blok?.["1"] ?? "–"],
-    ["Isian sesi Rabu–Jumat", kolom.blok?.["2"] ?? "–"],
-  ];
-  return (
-    <details className={s.kolomLk}>
-      <summary>Kolom LK terbaca otomatis dari judul baris 2</summary>
-      <dl>
-        {baris.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
-      </dl>
-      <p>Kalau admin menyisipkan atau memindah kolom, aplikasi menyesuaikan sendiri selama judul kolomnya tetap sama.</p>
-    </details>
-  );
-}
-
-function FormTarik({ info, onSelesai }: { info: CutoffInfo; onSelesai: () => void }) {
-  const [mode, setMode] = useState<CutoffMode>("harian");
-  const tunggu = mode === "waktu_tunggu";
-  const [week, setWeek] = useState(info.weeks.includes(info.week_aktif) ? info.week_aktif : info.weeks.at(-1) ?? "1");
-  const [file, setFile] = useState<File | null>(null);
-  const [cek, setCek] = useState<CutoffCek | null>(null);
-  const [busy, setBusy] = useState<"cek" | "tulis" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hasil, setHasil] = useState<string | null>(null);
-  const [seret, setSeret] = useState(false);
-  const [yakin, setYakin] = useState(false);
-  // File yang mencakup kurang dari separuh sekolah di sheet hampir pasti salah pilih
-  const curiga = !!cek && (cek.mode === "waktu_tunggu"
-    ? cek.menunggu_ada < cek.menunggu_lk * 0.5
-    : cek.sekolah_mingguan < cek.sekolah_sheet * 0.5);
-
-  function reset() {
-    setYakin(false);
+  async function periksa(f: File) {
+    if (!week) return;
+    setFile(f);
     setCek(null);
-    setHasil(null);
-    setError(null);
-  }
-
-  async function periksa() {
-    if (!file) return;
-    setBusy("cek");
-    reset();
+    setAksiError(null);
+    setBusy(true);
+    const form = new FormData();
+    form.append("file", f);
+    form.append("week", String(week));
     try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("mode", mode);
-      form.append("week", week);
-      setCek(await api<CutoffCek>("/api/cutoff/cek", { method: "POST", body: form }));
+      setCek(await api<Cek>("/api/cutoff/cek", { method: "POST", body: form }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setAksiError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
   async function tulis() {
     if (!cek) return;
-    setBusy("tulis");
-    setError(null);
+    setBusy(true);
+    setAksiError(null);
     try {
-      const r = await post<{ sekolah: number; tab: string; kolom: string; waktu: string }>("/api/cutoff/tulis", { token: cek.token });
-      setHasil(`${angka(r.sekolah)} sekolah ditulis ke ${r.tab} kolom ${r.kolom}, pukul ${r.waktu}.`);
+      setStatus(await post<Status>("/api/cutoff/tulis", { token: cek.token }));
       setCek(null);
       setFile(null);
-      onSelesai();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setAksiError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
+  if (error && !info) return <Notice tone="bad" title="Tarik Cutoff tidak bisa dimuat">{error}</Notice>;
+  if (!info) return <div className={s.loading}><Spinner label="Memuat" /> Membaca LK…</div>;
+
   return (
-    <section className={s.card} aria-labelledby="h-form">
-      <div className={s.cardHead}><h2 id="h-form">Tarik data</h2></div>
+    <div className={s.page}>
+      <header className={s.head}>
+        <h1>Tarik Cutoff</h1>
+        <p>Unggah export per sekolah dari aplikasi. Data komponen di WEEK diperbarui, keterangan otomatis Kendala/TL
+          ditulis ulang sesuai to-do terbaru, dan Log Progres mendapat kolom cutoff baru.</p>
+      </header>
 
-      <fieldset className={s.field} data-tour="mode">
-        <legend>Jenis tarikan</legend>
-        <div className={s.modes}>
-          {([
-            ["harian", "Harian", `Progres, submit, dan reviu terbaru ke kolom ${rentang(info.kolom.harian)}, lalu hitung ulang Prioritas${info.kolom.harian ? ` (${info.kolom.harian.prioritas})` : ""}.`],
-            ["mingguan", "Mingguan (baseline)", `Data awal pekan ke kolom ${rentang(info.kolom.mingguan)}. Biasanya tiap Senin.`],
-            ["waktu_tunggu", "Waktu tunggu", "Hari sejak laporan 50% dikirim, untuk sekolah yang sudah submit tapi belum direviu. Ditulis ke kolom Waktu Tunggu. Tarik tiap hari."],
-          ] as const).map(([k, judul, isi]) => (
-            <label key={k} className={`${s.mode} ${mode === k ? s.modeOn : ""}`}>
-              <input type="radio" name="mode" value={k} checked={mode === k} onChange={() => { setMode(k); reset(); }} />
-              <b>{judul}</b>
-              <span>{isi}</span>
-            </label>
-          ))}
+      {status?.jalan && (
+        <section className={`${s.card} ${s.jalan}`} aria-live="polite">
+          <div className={s.jalanHead}><Spinner /> <b>{status.langkah}…</b><span>{status.persen}%</span></div>
+          <div className={s.bar}><span style={{ width: `${status.persen}%` }} /></div>
+          <small>Proses ini bisa beberapa menit untuk belasan ribu sekolah. Halaman boleh ditinggal.</small>
+        </section>
+      )}
+      {!status?.jalan && status?.hasil && (
+        <Notice tone="ok" title={`${status.hasil.cutoff} tersimpan di ${status.hasil.tab}`}>
+          {fmt(status.hasil.sekolah)} sekolah diperbarui{status.hasil.baru ? `, ${fmt(status.hasil.baru)} sekolah baru` : ""},
+          {" "}{fmt(status.hasil.keterangan)} keterangan otomatis ditulis ulang.
+        </Notice>
+      )}
+      {!status?.jalan && status?.error && <Notice tone="bad" title="Penulisan cutoff gagal">{status.error}</Notice>}
+
+      <section className={s.card}>
+        <div className={s.cardHead}>
+          <h2>1. Pilih file dan WEEK tujuan</h2>
+          <label className={s.week}>
+            <span>WEEK</span>
+            <select value={week ?? ""} onChange={(e) => { setWeek(Number(e.target.value)); setCek(null); }}>
+              {info.weeks.map((w) => <option key={w} value={w}>WEEK {w}{w === info.week_aktif ? " (terbaru)" : ""}</option>)}
+            </select>
+          </label>
         </div>
-      </fieldset>
-
-      <KolomLk kolom={info.kolom} />
-
-      <label className={s.field}>
-        <span className={s.legend}>Sheet tujuan</span>
-        <select value={week} onChange={(e) => { setWeek(e.target.value); reset(); }}>
-          {(info.weeks.length ? info.weeks : ["1"]).map((w) => <option key={w} value={w}>WEEK {w}</option>)}
-        </select>
-      </label>
-
-      <div className={s.field} data-tour="file">
-        <span className={s.legend}>{tunggu ? "File tanggal kirim laporan 50%" : "File cutoff"}</span>
-        <label className={`${s.drop} ${seret ? s.dropOn : ""} ${file ? s.dropFile : ""}`}
-          onDragOver={(e) => { e.preventDefault(); setSeret(true); }}
-          onDragLeave={() => setSeret(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setSeret(false);
-            const f = e.dataTransfer.files[0];
-            if (f) { setFile(f); reset(); }
-          }}>
-          <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => { setFile(e.target.files?.[0] ?? null); reset(); }} />
-          {file ? (
-            <><b>{file.name}</b><span>{(file.size / 1024 / 1024).toFixed(1).replace(".", ",")} MB. Klik untuk ganti file.</span></>
-          ) : (
-            <><b>Pilih atau seret file CSV/Excel ke sini</b><span>{tunggu
-              ? "File To Do List laporan 50% belum direviu dari aplikasi (CSV/Excel). Kolom NPSN dan Tanggal Kirim dicari dari judulnya."
-              : "File cutoff dari aplikasi, kolom A–G: NPSN sampai Sudah Review."}</span></>
-          )}
-        </label>
-      </div>
-
-      <div className={s.actions}>
-        <Button variant={cek ? "secondary" : "primary"} loading={busy === "cek"} disabled={!file || busy !== null} onClick={periksa}>
-          {busy === "cek" ? "Membaca file…" : "Cek file"}
-        </Button>
-        <span className={s.hint}>Belum ada yang ditulis ke LK sampai Anda menekan Tulis.</span>
-      </div>
-
-      {error && <Notice tone="bad" title="Belum bisa">{error}</Notice>}
-      {hasil && <Notice tone="ok" title="Selesai">{hasil}</Notice>}
+        <div className={`${s.drop} ${seret ? s.dropAktif : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setSeret(true); }} onDragLeave={() => setSeret(false)}
+          onDrop={(e) => { e.preventDefault(); setSeret(false); const f = e.dataTransfer.files[0]; if (f) void periksa(f); }}>
+          <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3" /><path d="m7 8 5-5 5 5" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
+          <b>{file ? file.name : "Seret file CSV / Excel ke sini"}</b>
+          <span>atau</span>
+          <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()} disabled={busy || !!status?.jalan}>Pilih file</Button>
+          <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void periksa(f); e.target.value = ""; }} />
+          <details className={s.wajib}>
+            <summary>Kolom yang wajib ada di file</summary>
+            <p>{info.kolom_wajib.join(" · ")}</p>
+          </details>
+        </div>
+        {busy && !cek && <p className={s.muted}><Spinner /> Membandingkan file dengan LK…</p>}
+        {aksiError && <Notice tone="bad" title="File belum bisa dipakai">{aksiError}</Notice>}
+      </section>
 
       {cek && (
-        <div className={s.preview}>
-          <h3>Hasil cek, belum ditulis</h3>
-          {cek.peringatan && <Notice tone="warn" title="Periksa urutan kolom">{cek.peringatan}</Notice>}
-          {cek.mode === "waktu_tunggu" ? (
-            <dl className={s.stats}>
-              <div><dt>Baris di file</dt><dd>{angka(cek.baris_file)}</dd></div>
-              <div><dt>Sekolah di file</dt><dd>{angka(cek.sekolah_file)}</dd></div>
-              <div><dt>Tanpa tanggal kirim (dilewati)</dt><dd>{angka(cek.tanpa_tanggal)}</dd></div>
-              <div><dt>Sekolah di {cek.tab}</dt><dd>{angka(cek.sekolah_sheet)}</dd></div>
-              <div><dt>Ada di file dan di {cek.tab}</dt><dd>{angka(cek.sekolah_cocok)}</dd></div>
-              <div className={s.statKey}>
-                <dt>Menunggu reviu yang dapat angka waktu tunggu</dt>
-                <dd>{angka(cek.menunggu_ada)} / {angka(cek.menunggu_lk)}</dd>
-              </div>
-            </dl>
-          ) : (
-          <dl className={s.stats}>
-            <div><dt>Baris di file</dt><dd>{angka(cek.baris_file)}</dd></div>
-            <div><dt>Sekolah punya laporan mingguan/bulanan/bulanan</dt><dd>{angka(cek.sekolah_mingguan)}</dd></div>
-            <div><dt>Sekolah punya laporan 50%</dt><dd>{angka(cek.sekolah_lap50)}</dd></div>
-            <div><dt>Sekolah di {cek.tab}</dt><dd>{angka(cek.sekolah_sheet)}</dd></div>
-            <div><dt>Tanpa laporan mingguan/bulanan</dt><dd>{angka(cek.tanpa_mingguan)}</dd></div>
-            <div className={s.statKey}><dt>Baris yang berubah</dt><dd>{angka(cek.berubah)}</dd></div>
-          </dl>
-          )}
-          {cek.prioritas?.length > 0 && (
-            <table className={s.prio}>
-              <thead><tr><th>Prioritas</th><th>Sekarang</th><th>Setelah ditulis</th><th>Selisih</th></tr></thead>
+        <section className={s.card}>
+          <div className={s.cardHead}><h2>2. Periksa perubahan</h2><span>{cek.file} → {cek.tab}</span></div>
+          <div className={s.angka}>
+            <div><b>{fmt(cek.cocok)}</b><span>sekolah cocok</span></div>
+            <div><b>{fmt(cek.baru)}</b><span>sekolah baru (ditambahkan, PIC dikosongkan)</span></div>
+            <div><b>{fmt(cek.tidak_di_file)}</b><span>sekolah LK tidak ada di file (dibiarkan)</span></div>
+          </div>
+          <div className={s.dua}>
+            <div>
+              <h3>Komponen yang bertambah selesai</h3>
+              {cek.naik_selesai.length ? (
+                <ul className={s.daftar}>{cek.naik_selesai.map((x) => <li key={x.komponen}><span>{x.komponen}</span><b>+{fmt(x.jumlah)}</b></li>)}</ul>
+              ) : <p className={s.muted}>Belum ada komponen yang bertambah selesai.</p>}
+            </div>
+            <div>
+              <h3>Kolom yang berubah</h3>
+              {cek.berubah.length ? (
+                <ul className={s.daftar}>{cek.berubah.slice(0, 12).map((x) => <li key={x.kolom}><span>{x.kolom}</span><b>{fmt(x.jumlah)}</b></li>)}</ul>
+              ) : <p className={s.muted}>Tidak ada nilai yang berubah.</p>}
+            </div>
+          </div>
+          {!cek.bku_bpp && <Notice tone="info">File ini belum punya kolom BKU/BPP, jadi isi BKU dan BPP di LK tidak diubah.</Notice>}
+          <div className={s.aksi}>
+            <Button variant="ghost" onClick={() => setCek(null)}>Batal</Button>
+            <Button loading={busy} onClick={() => void tulis()}>Tulis ke {cek.tab}</Button>
+          </div>
+        </section>
+      )}
+
+      <WeekBaru info={info} onSelesai={muat} />
+
+      {info.log_progres.cutoff.length > 0 && (
+        <section className={s.card}>
+          <div className={s.cardHead}><h2>Log Progres nasional</h2><span>dari tab Log Progres</span></div>
+          <div className={s.tabelWrap}>
+            <table className={s.tabel}>
+              <thead><tr><th>Komponen</th>{info.log_progres.cutoff.map((c) => <th key={c}>{c}</th>)}</tr></thead>
               <tbody>
-                {cek.prioritas.map((p) => {
-                  const d = p.sesudah - p.sebelum;
-                  return (
-                    <tr key={p.label}>
-                      <td>{p.label}</td>
-                      <td>{angka(p.sebelum)}</td>
-                      <td><b>{angka(p.sesudah)}</b></td>
-                      <td className={d > 0 ? s.naik : d < 0 ? s.turun : s.sama}>{d > 0 ? `+${angka(d)}` : d < 0 ? `−${angka(-d)}` : "0"}</td>
-                    </tr>
-                  );
-                })}
+                {info.log_progres.baris.map((b, i) => (
+                  <tr key={i} className={b.kelompok !== info.log_progres.baris[i - 1]?.kelompok ? s.grupAwal : undefined}>
+                    <td><small>{b.kelompok !== info.log_progres.baris[i - 1]?.kelompok ? b.kelompok : ""}</small>{b.komponen}</td>
+                    {b.nilai.map((v, j) => <td key={j} className={s.num}>{v}</td>)}
+                  </tr>
+                ))}
               </tbody>
             </table>
-          )}
-          {curiga && (
-            <div className={s.guard}>
-              <Notice tone="bad" title="File ini kemungkinan salah atau terpotong">
-                {cek.mode === "waktu_tunggu" ? (
-                  <>Hanya {angka(cek.menunggu_ada)} dari {angka(cek.menunggu_lk)} sekolah yang menunggu reviu punya tanggal kirim
-                    di file ini. Bila ditulis, waktu tunggu sekolah lainnya jadi kosong.</>
-                ) : (
-                  <>Hanya {angka(cek.sekolah_mingguan)} dari {angka(cek.sekolah_sheet)} sekolah di {cek.tab} punya laporan mingguan/bulanan
-                    di file ini. Bila ditulis, sekolah lain akan kehilangan progresnya dan banyak yang berubah jadi Prioritas 1.</>
-                )}
-              </Notice>
-              <label className={s.yakin}>
-                <input type="checkbox" checked={yakin} onChange={(e) => setYakin(e.target.checked)} />
-                Saya sudah memeriksa file ini dan tetap ingin menulisnya
-              </label>
-            </div>
-          )}
-          <div className={s.actions}>
-            <Button loading={busy === "tulis"} disabled={busy !== null || (curiga && !yakin)} onClick={tulis}>
-              {busy === "tulis" ? "Menulis…" : `Tulis ke ${cek.tab}`}
-            </Button>
-            <span className={s.hint}>{cek.mode === "waktu_tunggu"
-              ? `Kolom ${cek.kolom} (Waktu Tunggu) di ${cek.tab} akan ditimpa untuk ${angka(cek.sekolah_sheet)} sekolah, dihitung per hari ini.`
-              : `Kolom ${cek.kolom} di ${cek.tab} akan ditimpa untuk ${angka(cek.sekolah_sheet)} sekolah.`}</span>
           </div>
-        </div>
+        </section>
       )}
+
+      {info.riwayat.length > 0 && (
+        <section className={s.card}>
+          <div className={s.cardHead}><h2>Riwayat tarikan</h2></div>
+          <ul className={s.riwayat}>
+            {info.riwayat.map((r, i) => (
+              <li key={i}><span>{r.waktu}</span><b>{r.week}</b><span>{r.file}</span><span>{fmt(r.sekolah)} sekolah{Number(r.baru) ? `, ${r.baru} baru` : ""}</span><small>{r.oleh}</small></li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function WeekBaru({ info, onSelesai }: { info: Info; onSelesai: () => void }) {
+  const [senin, setSenin] = useState(info.senin_baru);
+  const [konfirmasi, setKonfirmasi] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [hasil, setHasil] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
+  const berikut = (info.week_aktif ?? 0) + 1;
+  async function buat() {
+    setBusy(true);
+    try {
+      const r = await post<{ tab: string; tanggal: string[] }>("/api/cutoff/week-baru", { senin });
+      setHasil({ tone: "ok", teks: `${r.tab} dibuat. Log Komunikasi mendapat kolom ${r.tanggal[0]} s.d. ${r.tanggal[4]}.` });
+      setKonfirmasi(false);
+      onSelesai();
+    } catch (e) {
+      setHasil({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className={s.card}>
+      <div className={s.cardHead}><h2>WEEK baru</h2><span>sekali seminggu, sebelum Senin</span></div>
+      <p className={s.muted}>
+        Menyalin WEEK {info.week_aktif} menjadi WEEK {berikut}: data sekolah dan komponen ikut, isian Kendala/TL petugas
+        dikosongkan (keterangan otomatis ditulis ulang), dan Log Komunikasi mendapat 5 kolom tanggal Senin–Jumat.
+      </p>
+      <div className={s.weekBaris}>
+        <label className={s.week}><span>Senin</span><input type="date" value={senin} onChange={(e) => setSenin(e.target.value)} /></label>
+        {konfirmasi ? (
+          <>
+            <span>Buat WEEK {berikut} mulai {senin}?</span>
+            <Button variant="ghost" size="sm" onClick={() => setKonfirmasi(false)}>Batal</Button>
+            <Button size="sm" loading={busy} onClick={() => void buat()}>Ya, buat</Button>
+          </>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => setKonfirmasi(true)}>Buat WEEK {berikut}</Button>
+        )}
+      </div>
+      {hasil && <p className={hasil.tone === "ok" ? s.ok : s.bad}>{hasil.teks}</p>}
     </section>
   );
 }

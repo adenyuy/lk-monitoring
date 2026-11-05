@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
-import type { EskalasiInfo, SekolahLk } from "@/lib/types";
+import type { EskalasiInfo } from "@/lib/types";
+
+type SekolahPilih = { npsn: string; nama: string };
+/** Isian awal form eskalasi (dari to-do / kelompok fasil). */
+export type IsiEskalasi = { npsn: string[]; keterangan: string };
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import type { Teman } from "./TemanPanel";
 import s from "./eskalasi.module.css";
@@ -20,15 +24,17 @@ function toneStatus(st: string) {
 
 
 /** Popup "Butuh bantuan": tanya teman PIC lewat WhatsApp, atau eskalasi ke stream lain lewat LK Eskalasi. */
-export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClose }: {
+export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClose, awal, tabAwal }: {
   namaFasil: string;
-  sekolah: SekolahLk[];
+  sekolah: SekolahPilih[];
+  awal?: IsiEskalasi;
+  tabAwal?: "teman" | "eskalasi";
   /** Pesan fasil yang akan diteruskan ke teman (dari tombol "Teruskan ke teman"); "" bila dibuka biasa */
   terusan: string;
   onPilihTeman: (t: Teman) => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<"teman" | "eskalasi">("teman");
+  const [tab, setTab] = useState<"teman" | "eskalasi">(tabAwal ?? "teman");
   const tutupRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -61,7 +67,7 @@ export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClo
           <button type="button" role="tab" aria-selected={tab === "eskalasi"} onClick={() => setTab("eskalasi")}>Eskalasi ke stream lain</button>
         </div>}
         <div className={s.body}>
-          {tab === "teman" || terusan ? <TanyaTeman onPilih={onPilihTeman} /> : <FormEskalasi sekolah={sekolah} />}
+          {tab === "teman" || terusan ? <TanyaTeman onPilih={onPilihTeman} /> : <FormEskalasi sekolah={sekolah} awal={awal} />}
         </div>
       </div>
     </div>
@@ -141,12 +147,12 @@ function PasangLink({ onSelesai }: { onSelesai: () => void }) {
   );
 }
 
-function FormEskalasi({ sekolah }: { sekolah: SekolahLk[] }) {
+function FormEskalasi({ sekolah, awal }: { sekolah: SekolahPilih[]; awal?: IsiEskalasi }) {
   const [info, setInfo] = useState<EskalasiInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pilih, setPilih] = useState<string[]>([]);
+  const [pilih, setPilih] = useState<string[]>(awal?.npsn ?? []);
   const [masalah, setMasalah] = useState("");
-  const [ket, setKet] = useState("");
+  const [ket, setKet] = useState(awal?.keterangan ?? "");
   const [tim, setTim] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [hasil, setHasil] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);

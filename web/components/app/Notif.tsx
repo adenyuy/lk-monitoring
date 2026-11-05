@@ -43,9 +43,9 @@ function kabariDesktop(fasil: FasilTindakLanjut[]) {
       const n = new Notification(`${f.nama} membalas`, { body: f.alasan, tag: f.nomor });
       n.onclick = () => {
         window.focus();
-        // Di luar React (handler notifikasi): muat ulang penuh ke Hari ini memang disengaja
+        // Di luar React (handler notifikasi): muat ulang penuh ke LK memang disengaja
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = `/today/?fasil=${encodeURIComponent(f.nomor)}`;
+        window.location.href = `/lk/?fasil=${encodeURIComponent(f.nomor)}`;
       };
     } catch {
       /* browser menolak: abaikan */
@@ -77,7 +77,7 @@ export function useNotif(adaBaru: boolean) {
 
   const muat = useCallback(async () => {
     try {
-      const r = await api<{ tanggal: string; items: Pengingat[] }>("/api/pengingat");
+      const r = await api<{ tanggal: string; items: Pengingat[] }>("/api/lk2/pengingat");
       setData(r);
       kabariDesktop(r.items.find((x) => x.jenis === "perlu_balas")?.fasil ?? []);
       const t = baca<{ tanggal?: string; judul?: string[] }>(KUNCI_TUTUP, {});
@@ -97,7 +97,7 @@ export function useNotif(adaBaru: boolean) {
   const items: Notif[] = [
     ...(adaBaru ? [{
       jenis: "lanjut" as const, judul: "Ada perubahan data baru",
-      isi: "Broadcast atau LK berubah sejak terakhir Anda membuka Log.", kunci: "log-baru", href: "/log/",
+      isi: "Ada catatan baru sejak terakhir Anda membuka Log.", kunci: "log-baru", href: "/log/",
     }] : []),
     ...(data?.items ?? [])
       .filter((x) => x.jenis === "tindak_lanjut" || x.jenis === "chat_manual" || x.jenis === "perlu_balas"
@@ -176,7 +176,7 @@ const KATEGORI: Record<FasilTindakLanjut["kategori"], string> = {
   bimtek: "Peserta bimtek, belum direviu",
 };
 
-/** Popup daftar fasil dari notifikasi, tiap baris menuju panel fasil di Hari ini. */
+/** Popup daftar fasil dari notifikasi, tiap baris menuju panel fasil di LK. */
 export function DaftarFasil({ item, onBuka, onClose }: {
   item: Notif; onBuka: (nomor: string) => void; onClose: () => void;
 }) {
@@ -198,7 +198,7 @@ export function DaftarFasil({ item, onBuka, onClose }: {
         <div className={s.dfHead}>
           <div>
             <h2 id="df-judul">{item.judul}</h2>
-            <p>Klik fasil untuk membuka LK dan chat-nya di Hari ini.</p>
+            <p>Klik fasil untuk membuka to-do, LK, dan chat-nya.</p>
           </div>
           <button type="button" className={s.dfX} onClick={onClose} aria-label="Tutup">×</button>
         </div>

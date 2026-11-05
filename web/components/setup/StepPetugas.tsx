@@ -58,7 +58,7 @@ export function StepPetugas({
     <>
       <h1 className={s.title}>Pilih nama petugas</h1>
       <p className={s.desc}>
-        Sesuai kolom Nama Petugas di sheet Broadcast. Hanya fasilitator dengan nama ini yang akan dikirimi pesan dari
+        Sesuai kolom PIC di LK. Hanya sekolah dan fasil dengan nama ini yang tampil dan bisa dikirimi pesan dari
         nomor WhatsApp-mu.
       </p>
 
@@ -86,7 +86,7 @@ export function StepPetugas({
                     <span className={s.radio} aria-hidden="true" />
                     <span className={s.optionName}>{p.nama}</span>
                     {dariAkses && norm(p.nama) === norm(dariAkses) && <span className={s.badge}>Akunmu</span>}
-                    <span className={s.count}>{p.jumlah_fasil} fasilitator</span>
+                    <span className={s.count}>{p.jumlah_fasil} sekolah</span>
                   </button>
                 </li>
               );

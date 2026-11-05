@@ -510,16 +510,7 @@ def nomor_lk(s: "Sekolah") -> list[str]:
 
 
 def nomor_milik() -> set[str]:
-    """Semua nomor fasil petugas ini: dari sheet Broadcast dan dari LK."""
-    from . import db  # hindari import melingkar saat modul dimuat
+    """Semua nomor yang boleh dibaca/dikirimi petugas ini (fasil, koordinator, kepala sekolah binaan di LK)."""
+    from . import komunikasi  # hindari import melingkar
 
-    petugas = db.get_setting("nama_petugas") or ""
-    out = {r.nomor for r in filter_petugas(read_broadcast(), petugas) if r.nomor}
-    try:
-        lk = read_lk(week_aktif())
-        for s in lk:
-            if normalize_petugas(s.petugas) == normalize_petugas(petugas):
-                out.update(nomor_lk(s))
-    except Exception:
-        pass  # LK tidak terbaca: cukup nomor dari Broadcast
-    return out
+    return komunikasi.nomor_milik()

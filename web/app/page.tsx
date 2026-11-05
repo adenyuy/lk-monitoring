@@ -13,7 +13,7 @@ export default function Home() {
   useEffect(() => {
     if (!me) return;
     const siap = me.logged_in && !!me.access && me.settings.setup_selesai;
-    router.replace(siap ? "/today/" : "/setup/");
+    router.replace(siap ? "/lk/" : "/setup/");
   }, [me, router]);
 
   return (

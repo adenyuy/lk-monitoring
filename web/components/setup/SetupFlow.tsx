@@ -3,26 +3,26 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMe } from "@/lib/hooks";
-import type { Me, Petugas } from "@/lib/types";
+import type { Me } from "@/lib/types";
 import { Notice, Spinner } from "@/components/ui";
 import { StepLogin } from "./StepLogin";
 import { StepPetugas } from "./StepPetugas";
 import { StepWhatsApp } from "./StepWhatsApp";
-import { StepBatas } from "./StepBatas";
+import { StepMode } from "./StepMode";
 import s from "./setup.module.css";
 
 const STEPS = [
   { label: "Masuk Google", hint: "Akun yang terdaftar di tim" },
-  { label: "Pilih nama", hint: "Sesuai sheet Broadcast" },
-  { label: "Hubungkan WhatsApp", hint: "Scan QR sekali saja" },
-  { label: "Batas harian", hint: "Pesan maksimal per hari" },
+  { label: "Pilih nama", hint: "Sesuai kolom PIC di LK" },
+  { label: "Hubungkan WhatsApp", hint: "Scan QR, atau lewati" },
+  { label: "Cara kerja", hint: "WA otomatis atau LK saja" },
 ];
 
 /** Langkah pertama yang belum beres. */
 function firstIncomplete(me: Me): number {
   if (me.needs_credentials || !me.logged_in || !me.access) return 0;
   if (!me.settings.nama_petugas) return 1;
-  if (!me.settings.wa_terhubung) return 2;
+  if (!me.settings.wa_terhubung && me.settings.wa_otomatis !== false) return 2;
   return 3;
 }
 
@@ -41,7 +41,6 @@ export function SetupFlow() {
   const router = useRouter();
   const { me, error, reload } = useMe();
   const [step, setStep] = useState<number | null>(null);
-  const [petugas, setPetugas] = useState<Petugas | null>(null);
 
   // Tentukan langkah awal sekali, saat data pertama kali datang.
   if (me && step === null) setStep(firstIncomplete(me));
@@ -57,10 +56,10 @@ export function SetupFlow() {
             LK Monitoring
           </div>
           <div>
-            <h2 className={s.headline}>Siapkan sekali, kirim per sesi.</h2>
+            <h2 className={s.headline}>Siapkan sekali, kerja tiap hari.</h2>
             <p className={s.lead}>
-              Empat langkah ini cukup dilakukan sekali di laptop ini. Setelah itu tinggal buka aplikasi dan kirim saat
-              sesi berjalan.
+              Empat langkah ini cukup dilakukan sekali di laptop ini. Setelah itu tinggal buka aplikasi: isi LK,
+              catat komunikasi, dan kirim pesan dari satu tempat.
             </p>
           </div>
           <ol className={s.rail} aria-label="Langkah persiapan">
@@ -110,13 +109,13 @@ export function SetupFlow() {
               {current === 0 && <StepLogin me={me} reload={reload} onNext={() => go(1)} />}
               {current === 1 && (
                 <StepPetugas me={me} onBack={() => go(0)}
-                  onNext={(p) => { setPetugas(p); void reload(); go(2); }} />
+                  onNext={() => { void reload(); go(2); }} />
               )}
-              {current === 2 && <StepWhatsApp onBack={() => go(1)} onNext={() => { void reload(); go(3); }} />}
+              {current === 2 && <StepWhatsApp onBack={() => go(1)} onNext={() => { void reload(); go(3); }}
+                onLewati={() => go(3)} />}
               {current === 3 && (
-                <StepBatas awal={me.settings.batas_harian} namaPetugas={petugas?.nama ?? me.settings.nama_petugas}
-                  jumlahFasilAwal={petugas?.jumlah_fasil ?? null}
-                  onBack={() => go(2)} onDone={() => router.replace("/today/")} />
+                <StepMode awal={me.settings.wa_otomatis !== false} waTerhubung={me.settings.wa_terhubung}
+                  onBack={() => go(2)} onDone={() => { void reload(); router.replace("/lk/"); }} />
               )}
             </>
           )}

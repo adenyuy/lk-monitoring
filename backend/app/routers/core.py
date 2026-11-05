@@ -9,7 +9,13 @@ from .. import config, db, google_auth, schedule, sheets
 from ..access import AccessError, access_for
 from .deps import require_access, require_login
 
-from ..sheets import week_aktif  # noqa: E402
+
+
+def _sibuk() -> bool:
+    from ..blast import sibuk
+
+    return sibuk()
+
 
 router = APIRouter(prefix="/api")
 
@@ -36,7 +42,7 @@ def pasang_pembaruan() -> dict[str, Any]:
 
     if not pembaruan.aktif():
         raise HTTPException(400, "Pembaruan otomatis hanya tersedia di aplikasi hasil install.bat.")
-    if sender.state.running:
+    if _sibuk():
         raise HTTPException(409, "Pengiriman sedang berjalan. Tunggu selesai atau tekan Berhenti dulu.")
     pembaruan.pasang()
     return {"ok": True, "versi": config.VERSION}
@@ -72,7 +78,7 @@ def logout() -> dict[str, Any]:
     """Keluar dari akun Google. Persiapan diulang supaya akun baru memilih nama petugasnya sendiri."""
     from ..sender import sender  # hindari import melingkar
 
-    if sender.state.running:
+    if _sibuk():
         raise HTTPException(409, "Pengiriman sedang berjalan. Tekan Berhenti dan tunggu selesai sebelum keluar.")
     google_auth.logout()
     db.set_setting("setup_selesai", False)
@@ -82,12 +88,22 @@ def logout() -> dict[str, Any]:
 
 # ---------- me ----------
 
+def _week() -> str:
+    from .. import lk_baru
+
+    try:
+        return str(lk_baru.week_aktif())
+    except Exception:
+        return ""
+
+
 def _settings() -> dict[str, Any]:
     return {
         "nama_petugas": db.get_setting("nama_petugas"),
         "batas_harian": db.get_setting("batas_harian", config.BATAS_HARIAN_DEFAULT),
         "kirim_akhir_pekan": db.get_setting("kirim_akhir_pekan", False),
-        "week": week_aktif(),
+        "wa_otomatis": bool(db.get_setting("wa_otomatis", True)),
+        "week": _week(),
         "wa_terhubung": db.get_setting("wa_terhubung", False),
         "setup_selesai": db.get_setting("setup_selesai", False),
     }
@@ -130,6 +146,7 @@ class SettingsIn(BaseModel):
     kirim_akhir_pekan: bool | None = None
     week: str | None = Field(None, pattern=r"^\d{1,2}$")
     setup_selesai: bool | None = None
+    wa_otomatis: bool | None = None
     konfirmasi_risiko: str | None = Field(None, max_length=100)
 
 
@@ -159,11 +176,18 @@ def save_settings(body: SettingsIn, _: str = Depends(require_login)) -> dict[str
 
 @router.get("/petugas")
 def petugas(refresh: bool = False, acc=Depends(require_access)) -> dict[str, Any]:
+    """Daftar PIC dari kolom PIC di LK (WEEK terbaru)."""
+    from .. import lk_baru
+
+    if refresh:
+        sheets.cache.clear()
     try:
-        rows = sheets.read_broadcast(refresh=refresh)
+        daftar = lk_baru.daftar_petugas()
+    except lk_baru.LinkBelumAda as e:
+        raise HTTPException(400, str(e)) from e
     except Exception as e:
-        raise HTTPException(502, f"Sheet Broadcast tidak bisa dibaca: {e}") from e
+        raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
     return {
-        "petugas": sheets.petugas_summary(rows),
+        "petugas": [{"nama": x["nama"], "jumlah_fasil": x["jumlah_sekolah"]} for x in daftar],
         "dari_akses": acc.nama_petugas,
     }

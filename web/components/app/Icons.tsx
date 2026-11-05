@@ -36,3 +36,12 @@ export const IconSurvei = () => (
 export const IconAdmin = () => (
   <Svg><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z" /><circle cx="12" cy="10.5" r="2.3" /><path d="M8.3 16.2a4.2 4.2 0 0 1 7.4 0" /></Svg>
 );
+export const IconLk = () => (
+  <Svg><rect x="4.5" y="3.5" width="15" height="18" rx="2" /><path d="M9 3.5h6v3H9z" /><path d="M8.5 11h7" /><path d="M8.5 14.5h7" /><path d="M8.5 18h4" /></Svg>
+);
+export const IconBlast = () => (
+  <Svg><path d="M21.5 2.5 10.5 13.5" /><path d="m21.5 2.5-7 19-4-8-8-4z" /></Svg>
+);
+export const IconDashboard = () => (
+  <Svg><rect x="3.5" y="3.5" width="7" height="9" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="5" rx="1.5" /><rect x="13.5" y="11.5" width="7" height="9" rx="1.5" /><rect x="3.5" y="15.5" width="7" height="5" rx="1.5" /></Svg>
+);

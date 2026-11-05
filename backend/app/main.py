@@ -1,7 +1,6 @@
 """Server lokal: API di /api, tampilan Next.js (static export) di /."""
 
 import logging
-import threading
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -11,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from . import chat_refresh, config, db, lk_otomatis, paths
-from .cutoff import susulkan_riwayat  # bukan `cutoff`: nama itu dipakai router di bawah
-from .routers import admin, bimtek, chat, core, cutoff, eskalasi, lk, log, rekap, send, today, wa
+from .routers import admin, bimtek, blast, chat, core, cutoff, dashboard, eskalasi, lkb, log, rekap, send, today, wa
 from .wa.browser import worker
 
 
@@ -32,7 +30,6 @@ db.connect()
 async def lifespan(_: FastAPI):
     chat_refresh.start_background()
     lk_otomatis.picu()  # susulkan status komunikasi LK untuk chat minggu ini yang sudah dibaca / dibalas
-    threading.Thread(target=susulkan_riwayat, name="riwayat-tarik", daemon=True).start()
     yield
     worker.shutdown()  # tutup Chrome WhatsApp dengan rapi
 
@@ -79,7 +76,9 @@ app.include_router(core.router)
 app.include_router(wa.router)
 app.include_router(send.router)
 app.include_router(today.router)
-app.include_router(lk.router)
+app.include_router(lkb.router)
+app.include_router(blast.router)
+app.include_router(dashboard.router)
 app.include_router(chat.router)
 app.include_router(rekap.router)
 app.include_router(log.router)

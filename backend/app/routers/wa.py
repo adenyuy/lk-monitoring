@@ -9,6 +9,13 @@ from ..wa import status as wa_status
 from ..wa.browser import worker
 from .deps import require_login
 
+
+def _sibuk() -> bool:
+    from ..blast import sibuk
+
+    return sibuk()
+
+
 router = APIRouter(prefix="/api/wa")
 
 
@@ -40,7 +47,7 @@ def wa_open_chat(nomor: str, _: str = Depends(require_login)) -> dict[str, Any]:
     from ..sheets import normalize_nomor
     from ..wa import actions
 
-    if sender.state.running:
+    if _sibuk():
         raise HTTPException(409, "Pengiriman sedang berjalan. Buka chat setelah sesi selesai atau tekan Berhenti.")
     n = normalize_nomor(nomor)
     if not n:

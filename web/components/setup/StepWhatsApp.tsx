@@ -38,7 +38,7 @@ const HOWTO = [
   },
 ];
 
-export function StepWhatsApp({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+export function StepWhatsApp({ onBack, onNext, onLewati }: { onBack: () => void; onNext: () => void; onLewati?: () => void }) {
   const [wa, setWa] = useState<WaStatus | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,11 +120,14 @@ export function StepWhatsApp({ onBack, onNext }: { onBack: () => void; onNext: (
 
       <div className={s.actions}>
         {state === "logged_in" ? (
-          <Button onClick={onNext}>Lanjut ke batas harian</Button>
+          <Button onClick={onNext}>Lanjut</Button>
         ) : state === "closed" || state === "error" ? (
           <Button loading={opening} onClick={openWa}>{opening ? "Membuka Chrome…" : "Buka jendela WhatsApp"}</Button>
         ) : (
           <Button variant="secondary" loading={opening} onClick={openWa}>Tampilkan jendela WhatsApp</Button>
+        )}
+        {state !== "logged_in" && onLewati && (
+          <Button variant="ghost" onClick={onLewati}>Lewati, saya pakai WhatsApp di HP</Button>
         )}
         <Button variant="ghost" onClick={onBack}>Kembali</Button>
       </div>

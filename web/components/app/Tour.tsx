@@ -6,42 +6,22 @@ import s from "./app.module.css";
 export type Langkah = { target: string; judul: string; isi: string };
 
 const UMUM: Langkah[] = [
-  { target: "nav", judul: "Menu", isi: "Pindah halaman di sini: Rekap, Hari ini, Log, dan Tarik Cutoff. Di laptop, arahkan kursor ke menu untuk melihat namanya." },
-  { target: "dock", judul: "Tombol bulat", isi: "Lingkarannya hitung mundur sesi. Angka merah = notifikasi baru, misalnya sesi terlewat, fasil yang perlu dichat lagi, atau perubahan data. Ketuk untuk membuka notifikasi dan pindah halaman. Seret untuk memindahkannya ke mana saja." },
+  { target: "nav", judul: "Menu", isi: "LK untuk kerja harian, Blast untuk kirim pesan massal, Dashboard untuk melihat capaian, Log untuk riwayat. Di laptop, arahkan kursor ke menu untuk melihat namanya." },
+  { target: "dock", judul: "Tombol bulat", isi: "Lingkarannya menunjukkan isian sesi hari ini yang sudah lengkap. Angka merah = notifikasi baru, misalnya fasil yang membalas atau belum dicatat di Log Komunikasi. Ketuk untuk membuka notifikasi dan pindah halaman. Seret untuk memindahkannya." },
 ];
 
 /** Langkah panduan per halaman. `target` = nilai atribut data-tour di elemen. */
 export const PANDUAN: Record<string, Langkah[]> = {
-  "/today/": [
-    ...UMUM,
-    { target: "now", judul: "Mulai kirim di sini", isi: "Tekan Kirim untuk mengirim pesan Broadcast sesi ini satu per satu. Nyalakan Mode coba bila ingin melihat prosesnya tanpa benar-benar mengirim." },
-    { target: "sesi", judul: "Lima sesi hari ini", isi: "Pilih sesi untuk melihat fasil yang sudah dan akan dikirimi di sesi itu." },
-    { target: "fasil", judul: "Daftar fasil", isi: "Batang warna menunjukkan prioritas sekolah binaannya. Klik satu fasil untuk membuka LK dan chat WhatsApp-nya berdampingan." },
-    { target: "wa", judul: "Status WhatsApp", isi: "Harus terhubung sebelum mengirim. Bila belum, tekan Buka WhatsApp di pengingat merah." },
-  ],
-  "/rekap/": [
-    ...UMUM,
-    { target: "prio", judul: "Sekolah per prioritas", isi: "P1 belum submit laporan 50%, P2 sudah submit tapi progres di bawah 50%, P3 belum direviu." },
-    { target: "p1", judul: "Kemajuan fasil minggu ini", isi: "Pilih tab Semua, P1, P2, atau P3: berapa fasil yang sudah dihubungi (Broadcast atau chat), membalas, dan isian LK-nya lengkap. Mulai dari nol lagi tiap Senin." },
-    { target: "tahap", judul: "Tahap chat", isi: "Tiap fasil ada di kolom tahap terjauh minggu ini: belum dihubungi, dihubungi, dibaca, membalas, isian ditanyakan, sampai LK lengkap. Klik fasil untuk melanjutkan chat dan isi LK." },
-    { target: "tabel", judul: "Per fasil", isi: "Urutkan dengan klik judul kolom, saring dengan tombol di atas tabel, lalu klik fasil untuk membuka LK dan chat-nya." },
-  ],
-  "/survei/": [
-    ...UMUM,
-    { target: "nav", judul: "Survei Progres", isi: "Halaman sementara untuk survei cepat: atur link LK Survey dan link pengisian, kirim link ke fasil binaan, lalu pantau siapa yang sudah membaca, membalas, dan mengisi." },
-  ],
+  "/lk/": [...UMUM],
+  "/blast/": [...UMUM],
+  "/dashboard/": [...UMUM],
   "/faq/": [...UMUM],
   "/log/": [
     ...UMUM,
-    { target: "logtab", judul: "Dua cara melihat log", isi: "Per hari: semua yang terjadi di satu tanggal, dikelompokkan per sesi. Riwayat per fasil: kapan fasil itu dikirimi Broadcast, membaca, membalas, dan kapan LK-nya diisi." },
+    { target: "logtab", judul: "Dua cara melihat log", isi: "Per hari: semua yang terjadi di satu tanggal. Riwayat per fasil: kapan fasil itu dikirimi pesan, membaca, membalas, dan kapan LK-nya diisi." },
     { target: "kalender", judul: "Kalender", isi: "Pilih tanggal. Angka di kotak = jumlah catatan hari itu; makin gelap, makin banyak." },
   ],
-  "/cutoff/": [
-    ...UMUM,
-    { target: "kalender", judul: "Riwayat tarik", isi: "Kotak besar = tarik mingguan per WEEK, kotak kecil = tarik harian per hari. Hijau berarti sudah ditarik." },
-    { target: "mode", judul: "Jenis tarikan", isi: "Harian mengisi progres, submit, dan reviu terbaru lalu menghitung ulang Prioritas. Mingguan mengisi baseline." },
-    { target: "file", judul: "File cutoff", isi: "Pilih atau seret file CSV/Excel dari aplikasi, lalu tekan Cek file. Belum ada yang ditulis sampai Anda menekan Tulis." },
-  ],
+  "/cutoff/": [...UMUM],
 };
 
 function terlihat(target: string): HTMLElement | null {

@@ -13,7 +13,7 @@ import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
-import { IconAdmin, IconCutoff, IconHariIni, IconLog, IconLogo, IconRekap, IconSurvei } from "./Icons";
+import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconLogo } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -92,19 +92,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const waLabel = wa?.state === "logged_in" ? `WhatsApp ${wa.nomor_tersamar || "terhubung"}`
     : wa?.state === "closed" ? "WhatsApp belum dibuka" : wa ? "WhatsApp menunggu" : "Memeriksa WhatsApp";
   const waDot = WA_WARNA[wa?.state ?? ""] ?? "#98a2b3";
-  const langkah = PANDUAN[path] ?? PANDUAN["/today/"];
+  const langkah = PANDUAN[path] ?? PANDUAN["/lk/"] ?? PANDUAN["/today/"];
 
   const menu = (
     <>
-      <Link href="/rekap/" className={s.item} aria-current={aktif("/rekap/")}>
-        <span className={s.ico}><IconRekap /></span>
-        <span className={s.lbl}>Rekap</span>
+      <Link href="/lk/" className={s.item} aria-current={aktif("/lk/")}>
+        <span className={s.ico}><IconLk /></span><span className={s.lbl}>LK</span>
       </Link>
-      <Link href="/today/" className={s.item} aria-current={aktif("/today/")}>
-        <span className={s.ico}><IconHariIni /></span><span className={s.lbl}>Blast</span>
+      <Link href="/blast/" className={s.item} aria-current={aktif("/blast/")}>
+        <span className={s.ico}><IconBlast /></span><span className={s.lbl}>Blast</span>
       </Link>
-      <Link href="/survei/" className={s.item} aria-current={aktif("/survei/")}>
-        <span className={s.ico}><IconSurvei /></span><span className={s.lbl}>Survei</span>
+      <Link href="/dashboard/" className={s.item} aria-current={aktif("/dashboard/")}>
+        <span className={s.ico}><IconDashboard /></span><span className={s.lbl}>Dashboard</span>
       </Link>
       <Link href="/log/" className={s.item} aria-current={aktif("/log/")}>
         <span className={s.ico}><IconLog />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru" />}</span>
@@ -133,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className={s.shell}>
       {/* Laptop: menu samping, hanya ikon; melebar saat kursor diarahkan */}
       <aside className={s.side} aria-label="Menu" data-dock-hindari="kiri">
-        <Link href="/today/" className={s.brand}>
+        <Link href="/lk/" className={s.brand}>
           <span className={s.logo}><IconLogo /></span>
           <span className={s.lbl}>LK Monitoring</span>
         </Link>
@@ -148,7 +147,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* HP: bar atas ringkas + menu bawah */}
       <header className={s.mTop} data-dock-hindari="atas">
-        <Link href="/today/" className={s.brand}><span className={s.logo}><IconLogo /></span>LK Monitoring</Link>
+        <Link href="/lk/" className={s.brand}><span className={s.logo}><IconLogo /></span>LK Monitoring</Link>
         <UserMenu nama={me.settings.nama_petugas ?? ""} email={me.email ?? ""} waLabel={waLabel} waDot={waDot}
           batas={me.settings.batas_harian} ringkas />
       </header>

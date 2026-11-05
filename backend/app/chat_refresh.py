@@ -21,6 +21,13 @@ from .wa import actions
 from .wa.browser import worker
 
 log = logging.getLogger(__name__)
+
+
+def _sibuk() -> bool:
+    from .blast import sibuk
+
+    return sibuk()
+
 INTERVAL_DETIK = 10 * 60
 HARI_KE_BELAKANG = 7
 
@@ -33,15 +40,17 @@ def refresh_once() -> dict:
     if not _lock.acquire(blocking=False):
         return {"dilewati": "Pembaruan chat sedang berjalan."}
     try:
-        if sender.state.running:
+        if _sibuk():
             return {"dilewati": "Pengiriman sedang berjalan."}
         if not worker.browser_open():
             return {"dilewati": "Jendela WhatsApp belum dibuka."}
+        if not db.get_setting("wa_otomatis", True):
+            return {"dilewati": "WhatsApp otomatis dimatikan."}
         since = schedule.tanggal_str((schedule.now() - timedelta(days=HARI_KE_BELAKANG)).date())
         nomor_list = store.to_refresh(since)
         diperbarui = 0
         for nomor in nomor_list:
-            if sender.state.running:  # pengiriman dimulai di tengah jalan -> mengalah
+            if _sibuk():  # pengiriman dimulai di tengah jalan -> mengalah
                 break
             info = worker.call(lambda b, n=nomor: actions.read_chat(b, n), timeout=120)
             if info.status == "belum_ada":
@@ -53,6 +62,12 @@ def refresh_once() -> dict:
                                    info.terakhir_masuk)
             diperbarui += 1
         events.publish("chat_diperbarui", jumlah=diperbarui)
+        try:
+            from . import komunikasi
+
+            komunikasi.sinkron_wa()
+        except Exception:
+            log.exception("Sinkron Log Komunikasi gagal")
         return {"diperbarui": diperbarui, "dicek": len(nomor_list)}
     except Exception as e:
         log.exception("Pembaruan chat gagal")
@@ -114,7 +129,7 @@ def pindai_awal() -> int:
     sisa = [n for n in semua if n not in sudah and not kontak.get(n, {}).get("terkirim")]
     tercatat = 0
     for n in sisa:
-        if sender.state.running:
+        if _sibuk():
             break
         try:
             _, rows = worker.call(lambda b, x=n: actions.read_thread(b, x), timeout=120)
@@ -136,7 +151,7 @@ def _pindai() -> None:
     if not _lock.acquire(blocking=False):
         return
     try:
-        if not sender.state.running and worker.browser_open():
+        if not _sibuk() and worker.browser_open() and db.get_setting("wa_otomatis", True):
             pindai_awal()
     except Exception:
         log.exception("Pindai awal gagal")
@@ -146,7 +161,8 @@ def _pindai() -> None:
 
 def _buka_wa() -> None:
     """WhatsApp yang pernah tertaut langsung dibuka saat aplikasi jalan, supaya chat bisa dicek tanpa menunggu."""
-    if os.environ.get("LKM_WA_OTOMATIS_OFF") == "1" or not db.get_setting("wa_terhubung", False):
+    if (os.environ.get("LKM_WA_OTOMATIS_OFF") == "1" or not db.get_setting("wa_terhubung", False)
+            or not db.get_setting("wa_otomatis", True)):
         return
     try:
         if not worker.browser_open():

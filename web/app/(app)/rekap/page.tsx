@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { RekapView } from "@/components/rekap/RekapView";
-
-export const metadata: Metadata = { title: "Rekap – LK Monitoring" };
+import { Pindah } from "@/components/app/Pindah";
 
 export default function RekapPage() {
-  return <RekapView />;
+  return <Pindah ke="/dashboard/" />;
 }

@@ -9,7 +9,7 @@ from .. import aktivitas, db, eskalasi, schedule
 from ..wa import actions
 from . import chat
 from ..access import Access
-from ..sheets import nomor_lk, normalize_petugas, read_lk, week_aktif
+from ..sheets import normalize_petugas
 from .deps import require_feature
 
 router = APIRouter(prefix="/api/eskalasi")
@@ -69,12 +69,12 @@ class CatatReq(BaseModel):
 
 @router.post("")
 def catat(req: CatatReq, _=Depends(wa_blast)) -> dict[str, Any]:
-    petugas = normalize_petugas(db.get_setting("nama_petugas") or "")
+    from .. import komunikasi
+
     try:
-        semua = read_lk(week_aktif())
+        milik = {s.npsn: s for s in komunikasi.sekolah_saya()}
     except Exception as e:
         raise HTTPException(502, f"LK tidak bisa dibaca: {e}") from e
-    milik = {s.npsn: s for s in semua if normalize_petugas(s.petugas) == petugas}
     for x in req.npsn:
         if x not in milik:
             raise HTTPException(403, f"NPSN {x} bukan sekolah binaan petugas ini.")
@@ -82,7 +82,7 @@ def catat(req: CatatReq, _=Depends(wa_blast)) -> dict[str, Any]:
     hasil = _jalan(eskalasi.catat, req.npsn, req.keterangan, req.permasalahan, req.tim, cadangan)
 
     sekolah = [milik[d["npsn"]] for d in hasil["ditulis"]]
-    nomors = nomor_lk(sekolah[0]) if sekolah else []
+    nomors = sekolah[0].nomor_fasil() if sekolah else []
     nama = ", ".join(s.nama for s in sekolah[:4]) + (f", +{len(sekolah) - 4} lagi" if len(sekolah) > 4 else "")
     aktivitas.catat(nomors[0] if nomors else f"nama:{sekolah[0].fasil}", "lk",
                     f"Eskalasi ke {', '.join(req.tim)}: {req.permasalahan or 'tanpa kelompok'} untuk {nama}",

@@ -245,3 +245,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.ketKecil { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+.linkBaris { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.linkBaris input { flex: 1 1 360px; }

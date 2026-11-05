@@ -180,7 +180,7 @@ def _sinkron_komunikasi(week: str, data, kol) -> int:
         return 0
 
 
-JEDA_MIN = 3 * 60  # paling sering sekali per 3 menit: tiap putaran membaca seluruh LK
+JEDA_MIN = 2 * 60  # paling sering sekali per 2 menit
 
 
 def _loop() -> None:
@@ -190,7 +190,12 @@ def _loop() -> None:
         # kumpulkan pemicu (mis. pindai chat banyak fasil) jadi sekali tulis
         time.sleep(max(5.0, JEDA_MIN - (time.monotonic() - terakhir)))
         _bangun.clear()
-        sinkron()
+        try:
+            from . import komunikasi
+
+            komunikasi.sinkron_wa()  # LK format baru: kode Log Komunikasi hari ini dari WhatsApp
+        except Exception:
+            log.exception("Sinkron Log Komunikasi gagal")
         terakhir = time.monotonic()
 
 

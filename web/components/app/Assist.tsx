@@ -7,12 +7,12 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
 import { LockIcon } from "./NoAccess";
 import { DaftarFasil, IzinDesktop, NotifList, useNotif, type Notif } from "./Notif";
-import { IconCutoff, IconHariIni, IconLog, IconPanduan, IconRekap, IconTanya } from "./Icons";
+import { IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconPanduan, IconTanya } from "./Icons";
 import s from "./app.module.css";
 
-type Jadwal = {
-  aktif: { no: number; sampai: string; sisa_detik: number } | null;
-  berikutnya: { no: number; mulai: string; hari_ini: boolean; dalam_detik: number } | null;
+type Bubble = {
+  blok_label: string; perlu: number; lengkap: number; fasil: number; dicatat: number; log_hari_ini: boolean;
+  blast: { berjalan: boolean; diproses: number; total: number; jeda: boolean };
 };
 
 type Posisi = { sisi: "kiri" | "kanan"; y: number };
@@ -21,17 +21,6 @@ const UKURAN = 56;
 const TEPI = 12;
 const KUNCI_POSISI = "lkm-tombol-bulat";
 
-function hms(detik: number) {
-  const h = Math.floor(detik / 3600);
-  const m = Math.floor((detik % 3600) / 60);
-  const d = detik % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(d).padStart(2, "0")}`;
-}
-
-function singkat(detik: number) {
-  const m = Math.ceil(detik / 60);
-  return m >= 60 ? `${Math.floor(m / 60)}j${m % 60 ? String(m % 60).padStart(2, "0") : ""}` : `${m}m`;
-}
 
 /** Area yang boleh ditempati tombol: tidak menutupi menu samping (laptop) atau bar atas/bawah (HP). */
 function area() {
@@ -51,48 +40,35 @@ function area() {
 
 const jepit = (v: number, a: number, b: number) => Math.min(Math.max(v, a), Math.max(a, b));
 
-function useJadwal() {
-  const [j, setJ] = useState<Jadwal | null>(null);
-  const [dasar, setDasar] = useState(0); // Date.now() saat data diambil
-  const [now, setNow] = useState(0);
-
+/** Ringkasan untuk lingkaran: isian sesi hari ini (atau progres blast bila sedang berjalan). */
+function useRingkas() {
+  const [b, setB] = useState<Bubble | null>(null);
   const muat = useCallback(async () => {
     try {
-      const data = await api<Jadwal>("/api/jadwal");
-      setJ(data);
-      setDasar(Date.now());
-      setNow(Date.now());
+      setB(await api<Bubble>("/api/lk2/bubble"));
     } catch {
-      /* hitung mundur hanya informasi */
+      /* lingkaran hanya informasi */
     }
   }, []);
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void muat();
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
   }, [muat]);
-  usePolling(muat, 60000, true);
+  usePolling(muat, b?.blast.berjalan ? 5000 : 120000, true);
 
-  const lewat = Math.max(0, Math.round((now - dasar) / 1000));
-  const berjalan = !!j?.aktif && j.aktif.sisa_detik - lewat > 0;
-  const detik = !j ? 0 : berjalan ? j.aktif!.sisa_detik - lewat : Math.max(0, (j.berikutnya?.dalam_detik ?? 0) - lewat);
-  const habis = !!j && detik === 0 && lewat > 1;
-
-  // Waktunya habis: ambil ulang supaya pindah ke sesi berikutnya
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (habis) void muat();
-  }, [habis, muat]);
-
-  const judul = !j ? "Memuat jadwal" : berjalan ? `Sesi ${j.aktif!.no} berjalan` : j.berikutnya
-    ? `Sesi ${j.berikutnya.no} ${j.berikutnya.hari_ini ? `mulai ${j.berikutnya.mulai}` : "berikutnya"}`
-    : "Tidak ada sesi";
-  const ket = !j ? "" : berjalan ? `Sisa waktu, sampai ${j.aktif!.sampai}` : j.berikutnya?.hari_ini
-    ? "Dimulai dalam" : "Hari kerja berikutnya, dalam";
-  const total = berjalan ? Math.max(detik, 2 * 3600) : 2 * 3600; // skala lingkaran 2 jam
-  return { ada: !!j, berjalan, detik, judul, ket, pct: Math.min(1, detik / total) };
+  if (!b) return { ada: false, berjalan: false, pct: 0, angka: "…", judul: "Memuat", ket: "", baris: [] as string[] };
+  if (b.blast.berjalan) {
+    const pct = b.blast.total ? b.blast.diproses / b.blast.total : 0;
+    return { ada: true, berjalan: true, pct, angka: `${b.blast.diproses}/${b.blast.total}`,
+      judul: b.blast.jeda ? "Blast dijeda" : "Blast berjalan", ket: `${b.blast.diproses} dari ${b.blast.total} pesan diproses`,
+      baris: [`Isian sesi ${b.blok_label}: ${b.lengkap}/${b.perlu} sekolah`] };
+  }
+  const pct = b.perlu ? b.lengkap / b.perlu : 1;
+  return {
+    ada: true, berjalan: false, pct, angka: `${Math.round(pct * 100)}%`,
+    judul: `Isian sesi ${b.blok_label}`, ket: `${b.lengkap} dari ${b.perlu} sekolah lengkap`,
+    baris: b.log_hari_ini ? [`Log komunikasi hari ini: ${b.dicatat}/${b.fasil} fasil`] : [],
+  };
 }
 
 type Props = { onPanduan: () => void; onTerkunci: () => void; bolehCutoff: boolean; adaBaru: boolean };
@@ -103,7 +79,7 @@ type Props = { onPanduan: () => void; onTerkunci: () => void; bolehCutoff: boole
  */
 export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Props) {
   const path = usePathname() ?? "";
-  const cd = useJadwal();
+  const cd = useRingkas();
   const [pos, setPos] = useState<Posisi | null>(null);
   const [geser, setGeser] = useState<{ x: number; y: number } | null>(null);
   const [, setUkuran] = useState(0); // render ulang saat jendela berubah ukuran
@@ -238,20 +214,20 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
           onClick={onClick}
           aria-haspopup="dialog"
           aria-expanded={menu}
-          aria-label={`Menu cepat${nf.baru ? `, ${nf.baru} notifikasi baru` : ""}. ${cd.judul}. ${cd.ket} ${hms(cd.detik)}`}
+          aria-label={`Menu cepat${nf.baru ? `, ${nf.baru} notifikasi baru` : ""}. ${cd.judul}: ${cd.ket}`}
         >
           <svg width={UKURAN} height={UKURAN} viewBox="0 0 56 56" aria-hidden="true">
             <circle cx="28" cy="28" r="24" className={s.cdTrack} />
             <circle cx="28" cy="28" r="24" className={s.cdBar} strokeDasharray={C} strokeDashoffset={C * (1 - cd.pct)} />
           </svg>
-          <span aria-hidden="true">{cd.ada ? singkat(cd.detik) : "…"}</span>
+          <span aria-hidden="true" className={cd.angka.length > 4 ? s.assistKecil : undefined}>{cd.angka}</span>
           {nf.baru > 0 && <i className={s.assistDot} aria-hidden="true">{nf.baru}</i>}
         </button>
         {!geser && cd.ada && (
           <div className={s.assistPop} role="status" aria-live="off">
             <b>{cd.judul}</b>
             <small>{cd.ket}</small>
-            <span className={s.cdTime}>{hms(cd.detik)}</span>
+            {cd.baris.map((x) => <small key={x}>{x}</small>)}
             {nf.baru > 0 && <strong className={s.assistPopNf}>{nf.baru} notifikasi baru</strong>}
             <em>Ketuk untuk notifikasi dan menu, seret untuk memindahkan</em>
           </div>
@@ -268,9 +244,9 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
               <div className={s.amHead}>
                 <div>
                   <b>{cd.judul}</b>
-                  <small>{cd.ket}</small>
+                  <small>{cd.ket}{cd.baris.length ? ` · ${cd.baris.join(" · ")}` : ""}</small>
                 </div>
-                <span className={s.cdTime}>{hms(cd.detik)}</span>
+                <span className={s.cdTime}>{cd.angka}</span>
               </div>
               <div className={s.amNotif}>
                 <h3>Notifikasi{nf.items.length > 0 && <span>{nf.items.length}</span>}<IzinDesktop /></h3>
@@ -278,9 +254,10 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
                   onDaftar={(x) => { setMenu(false); setDaftar(x); }} />
               </div>
               <div className={s.amGrid}>
-                <Tile href="/rekap/" label="Rekap" icon={<IconRekap />} current={kini("/rekap/")} onPick={tutupMenu}
-                  autoFocus />
-                <Tile href="/today/" label="Hari ini" icon={<IconHariIni />} current={kini("/today/")} onPick={tutupMenu} />
+                <Tile href="/lk/" label="LK" icon={<IconLk />} current={kini("/lk/")} onPick={tutupMenu} autoFocus />
+                <Tile href="/blast/" label="Blast" icon={<IconBlast />} current={kini("/blast/")} onPick={tutupMenu} />
+                <Tile href="/dashboard/" label="Dashboard" icon={<IconDashboard />} current={kini("/dashboard/")}
+                  onPick={tutupMenu} />
                 <Tile href="/log/" label="Log" icon={<IconLog />} current={kini("/log/")} onPick={tutupMenu}
                   titik={adaBaru} />
                 {bolehCutoff ? (
@@ -300,8 +277,8 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
       {daftar && (
         <DaftarFasil item={daftar} onClose={() => setDaftar(null)} onBuka={(n) => {
           setDaftar(null);
-          if (path.startsWith("/today")) window.dispatchEvent(new CustomEvent("lkm-buka-fasil", { detail: n }));
-          else router.push(`/today/?fasil=${encodeURIComponent(n)}`);
+          if (path.startsWith("/lk")) window.dispatchEvent(new CustomEvent("lkm-buka-fasil", { detail: n }));
+          else router.push(`/lk/?fasil=${encodeURIComponent(n)}`);
         }} />
       )}
     </>

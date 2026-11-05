@@ -7,13 +7,14 @@ import { useMe } from "@/lib/hooks";
 import type { Petugas } from "@/lib/types";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { NoAccess } from "@/components/app/NoAccess";
+import { LinkLk } from "./LinkLk";
 import s from "./admin.module.css";
 
 type Pengguna = { baris: number; email: string; nama_petugas: string; fitur: string[]; catatan: string };
 type Data = { pengguna: Pengguna[]; fitur: string[] };
 type Form = { email: string; nama_petugas: string; fitur: string[]; admin: boolean; email_lama: string };
 
-const LABEL_FITUR: Record<string, string> = { wa_blast: "Blast & LK", cutoff: "Tarik Cutoff" };
+const LABEL_FITUR: Record<string, string> = { wa_blast: "LK & Blast", cutoff: "Tarik Cutoff" };
 const KOSONG: Form = { email: "", nama_petugas: "", fitur: ["wa_blast"], admin: false, email_lama: "" };
 
 export function AdminView() {
@@ -98,6 +99,8 @@ export function AdminView() {
           <Button onClick={() => { setForm({ ...KOSONG }); setInfo(null); }} disabled={!!form}>Tambah pengguna</Button>
         </div>
       </header>
+
+      <LinkLk />
 
       {info && <Notice tone={info.tone} title={info.tone === "ok" ? "Tersimpan" : "Belum tersimpan"}>{info.teks}</Notice>}
 

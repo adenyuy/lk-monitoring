@@ -15,8 +15,10 @@ log = logging.getLogger(__name__)
 SIMPAN_HARI = 90
 
 LABEL = {
-    "kirim": "Broadcast terkirim",
-    "gagal": "Broadcast gagal",
+    "kirim": "Pesan terkirim",
+    "gagal": "Pesan gagal",
+    "blast": "Blast",
+    "kom": "Log komunikasi",
     "dibaca": "Dibaca",
     "dibalas": "Fasil membalas",
     "balas": "Chat dari aplikasi",
@@ -43,14 +45,10 @@ def _nama_map() -> dict[str, str]:
     out = {r["nomor"]: r["nama"] for r in db.query("SELECT nomor, nama FROM aktivitas WHERE nama != ''")}
     out.update({r["nomor"]: r["nama_fasil"] for r in db.query("SELECT nomor, nama_fasil FROM sends")})
     try:
-        from .sheets import nomor_lk, read_broadcast, read_lk, week_aktif
+        from . import komunikasi
 
-        for r in read_broadcast():
-            if r.nomor:
-                out.setdefault(r.nomor, r.nama_fasil)
-        for s in read_lk(week_aktif()):
-            for n in nomor_lk(s):
-                out.setdefault(n, s.fasil)
+        for n, x in komunikasi.nama_nomor().items():
+            out.setdefault(n, x)
     except Exception:
         pass
     return out
@@ -78,7 +76,7 @@ def daftar(tanggal: str | None = None, nomor: str | None = None) -> list[dict[st
         jenis = "kirim" if r["status"] == "terkirim" else "gagal"
         out.append({"id": f"s{r['id']}", "waktu": r["waktu"], "nomor": r["nomor"], "nama": r["nama_fasil"],
                     "jenis": jenis, "label": LABEL[jenis],
-                    "ringkasan": "Pesan Broadcast terkirim" if jenis == "kirim"
+                    "ringkasan": "Pesan terkirim" if jenis == "kirim"
                     else re.sub(r"\s*\([a-z_]+\)\s*$", "", r["keterangan"] or "") or "Gagal terkirim"})
     for r in lain:
         out.append({"id": f"a{r['id']}", "waktu": r["waktu"], "nomor": r["nomor"],
