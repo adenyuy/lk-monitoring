@@ -22,7 +22,7 @@ from google.auth.transport.requests import AuthorizedSession, Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-from . import komunikasi, lk_baru, paths, schedule, todo
+from . import db, komunikasi, lk_baru, paths, schedule, todo
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +59,7 @@ NAMA_HARI = ("Senin", "Selasa", "Rabu", "Kamis", "Jumat")
 SLIDE = (
     ("profil", "Profil sekolah binaan"),
     ("fasil", "Fasil binaan"),
+    ("progres", "Log progres"),
     ("komunikasi", "Distribusi komunikasi"),
     ("bottleneck", "Bottleneck"),
     ("masalah", "Fasil bermasalah"),
@@ -166,6 +167,7 @@ def hitung() -> dict[str, Any]:
                                      "maks_sekolah_per_fasil", "angkatan", "provinsi", "kab", "ptn")},
         "fasil": fasil,
         "komunikasi": komunikasi_mingguan(fasil_obj, logkom, schedule.now().date()),
+        "progres": log_progres(saya, sekolah, fasil_obj, lk["week"], lk.get("cutoff", "")),
         "bottleneck": {
             "posisi": [{"kode": p["kode"], "label": p["label"], "sekolah": p["sekolah"], "fasil": p["fasil"]}
                        for p in lk["posisi"]],
@@ -236,6 +238,128 @@ def _selisih(kini: int, lalu: int | None) -> str:
     return f"{'+' if s > 0 else '−'}{abs(s)} dari minggu lalu"
 
 
+Snap = dict[str, tuple[str, float | None]]  # {kode komponen: (status, persen progres)}
+
+_SKEMA = """
+CREATE TABLE IF NOT EXISTS paparan_jejak (
+    cutoff TEXT NOT NULL,
+    npsn   TEXT NOT NULL,
+    data   TEXT NOT NULL,
+    PRIMARY KEY (cutoff, npsn)
+);
+"""
+_skema_siap = False
+
+
+def _snap(s: lk_baru.Sekolah) -> Snap:
+    return {k: (v.status, v.persen) for k, v in todo.semua_status(s).items()}
+
+
+def _ringkas_komponen(snaps: list[Snap]) -> dict[str, float | None]:
+    """{kode: % sekolah selesai dari yang relevan}; untuk progres fisik: rata-rata persen."""
+    out: dict[str, float | None] = {}
+    for k in lk_baru.KOMPONEN:
+        if k.kode == "progres":
+            p = [x["progres"][1] for x in snaps if "progres" in x and x["progres"][1] is not None]
+            out[k.kode] = round(sum(p) / len(p), 1) if p else None
+            continue
+        st = [x[k.kode][0] for x in snaps if k.kode in x]
+        sel, rel = st.count("selesai"), sum(1 for v in st if v in ("selesai", "belum"))
+        out[k.kode] = round(sel / rel * 100, 1) if rel else None
+    return out
+
+
+def _jml_selesai(x: Snap) -> int:
+    return sum(1 for st, _p in x.values() if st == "selesai")
+
+
+def _simpan_jejak(label: str, snaps: dict[str, Snap]) -> None:
+    """Catat komponen per sekolah sekali per cutoff (isi komponen LK hanya berubah saat cutoff ditarik)."""
+    global _skema_siap
+    with db.tx() as c:
+        if not _skema_siap:
+            c.executescript(_SKEMA)
+            _skema_siap = True
+        c.executemany("INSERT OR IGNORE INTO paparan_jejak(cutoff, npsn, data) VALUES(?,?,?)",
+                      [(label, n, json.dumps(x)) for n, x in snaps.items()])
+
+
+def _jejak_lalu(label: str) -> tuple[str, dict[str, Snap] | None, dict[str, int]] | None:
+    """Pembanding dari cutoff sebelumnya di laptop ini: (label, snapshot per komponen | None, selesai per sekolah)."""
+    try:
+        r = db.query("SELECT cutoff FROM paparan_jejak WHERE cutoff != ? GROUP BY cutoff ORDER BY MAX(rowid) DESC "
+                     "LIMIT 1", (label,))
+        if r:
+            lalu = r[0]["cutoff"]
+            snaps = {x["npsn"]: {k: tuple(v) for k, v in json.loads(x["data"]).items()}
+                     for x in db.query("SELECT npsn, data FROM paparan_jejak WHERE cutoff = ?", (lalu,))}
+            return lalu, snaps, {n: _jml_selesai(x) for n, x in snaps.items()}
+        r = db.query("SELECT cutoff FROM lk_jejak WHERE cutoff != ? GROUP BY cutoff ORDER BY MAX(rowid) DESC LIMIT 1",
+                     (label,))
+        if r:
+            lalu = r[0]["cutoff"]
+            return lalu, None, {x["npsn"]: x["selesai"] for x in
+                                db.query("SELECT npsn, selesai FROM lk_jejak WHERE cutoff = ?", (lalu,))}
+    except Exception:
+        log.warning("Jejak cutoff tidak terbaca", exc_info=True)
+    return None
+
+
+def log_progres(saya: str, sekolah: list[lk_baru.Sekolah], fasil: dict[str, komunikasi.Fasil],
+                week: int, cutoff: str) -> dict[str, Any]:
+    """Kemajuan binaan sejak periode lalu. Pembanding: tab WEEK sebelumnya di LK; bila belum ada, cutoff
+    sebelumnya yang tercatat di laptop ini."""
+    kini = {s.npsn: _snap(s) for s in sekolah}
+    if cutoff:
+        try:
+            _simpan_jejak(cutoff, kini)
+        except Exception:
+            log.warning("Jejak paparan tidak tersimpan", exc_info=True)
+    lalu_week = max((w for w in lk_baru.daftar_week() if w < week), default=None)
+    if lalu_week is not None:
+        try:
+            lalu = {s.npsn: _snap(s) for s in lk_baru.baca_petugas(saya, lalu_week)}
+            return banding_progres(kini, lalu, {n: _jml_selesai(x) for n, x in lalu.items()}, fasil,
+                                   f"WEEK {week}", f"WEEK {lalu_week}")
+        except Exception:
+            log.warning("WEEK %s tidak terbaca untuk log progres", lalu_week, exc_info=True)
+    j = _jejak_lalu(cutoff) if cutoff else None
+    if j:
+        return banding_progres(kini, j[1], j[2], fasil, cutoff, j[0])
+    return {"ada": False, "label": f"WEEK {week}", "label_lalu": None}
+
+
+def banding_progres(kini: dict[str, Snap], lalu: dict[str, Snap] | None, lalu_selesai: dict[str, int],
+                    fasil: dict[str, komunikasi.Fasil], label: str, label_lalu: str) -> dict[str, Any]:
+    kini_k = _ringkas_komponen(list(kini.values()))
+    lalu_k = _ringkas_komponen([lalu[n] for n in kini if n in lalu]) if lalu else {}
+    komp = []
+    for k in lk_baru.KOMPONEN:
+        a, b = lalu_k.get(k.kode), kini_k.get(k.kode)
+        if a is None and b is None:
+            continue
+        komp.append({"kode": k.kode, "label": k.label, "lalu": a, "kini": b,
+                     "selisih": round(b - a, 1) if a is not None and b is not None else None})
+    per = []
+    for f in fasil.values():
+        ada = [s.npsn for s in f.sekolah if s.npsn in lalu_selesai and s.npsn in kini]
+        if not ada:
+            continue
+        tambah = sum(_jml_selesai(kini[n]) - lalu_selesai[n] for n in ada)
+        belum = any(st == "belum" for s in f.sekolah for st, _p in kini.get(s.npsn, {}).values())
+        per.append({"nama": f.nama, "tambah": tambah, "belum": belum})
+    naik = sorted([x for x in per if x["tambah"] > 0], key=lambda x: (-x["tambah"], x["nama"].casefold()))
+    diam = sorted([x for x in per if x["tambah"] <= 0 and x["belum"]], key=lambda x: x["nama"].casefold())
+    return {
+        "ada": True, "label": label, "label_lalu": label_lalu, "per_komponen": lalu is not None,
+        "komponen": komp,
+        "tambah": sum(x["tambah"] for x in per if x["tambah"] > 0),
+        "fasil": len(per), "fasil_naik": len(naik), "fasil_diam": len(diam),
+        "teratas": [{"nama": x["nama"], "tambah": x["tambah"]} for x in naik[:5]],
+        "diam": [x["nama"] for x in diam[:4]],
+    }
+
+
 def langkah_awal(d: dict[str, Any]) -> list[str]:
     """Usulan langkah berikutnya dari data; PIC bisa mengubahnya sebelum memaparkan."""
     out = []
@@ -252,10 +376,24 @@ def langkah_awal(d: dict[str, Any]) -> list[str]:
     r = d["bottleneck"]["reviu"]
     if r["lewat3"]:
         out.append(f"Ingatkan reviu: {r['lewat3']} laporan sekolah menunggu direviu lebih dari 3 hari.")
+    pg = d.get("progres") or {}
+    if pg.get("ada") and pg["fasil_diam"]:
+        out.append(f"Dampingi {pg['fasil_diam']} fasil yang laporannya belum bergerak sejak {pg['label_lalu']}.")
     macet = [f for f in d["masalah"] if any(a.startswith("Merespons") for a in f["masalah"])]
     if macet:
         out.append(f"Eskalasi ke koordinator untuk {len(macet)} fasil yang merespons tapi laporannya tidak bergerak.")
     return out or ["Pertahankan ritme komunikasi; semua fasil dalam kondisi baik."]
+
+
+def _catatan_progres(pg: dict[str, Any]) -> str:
+    if not pg.get("ada"):
+        return "Belum ada periode sebelumnya untuk dibandingkan."
+    naik = sorted([k for k in pg["komponen"] if k["selisih"]], key=lambda k: -k["selisih"])
+    teks = (f"Sejak {pg['label_lalu']}, bertambah {pg['tambah']} komponen selesai dari {pg['fasil_naik']} fasil. "
+            f"{pg['fasil_diam']} fasil belum bergerak.")
+    if naik:
+        teks += f" Kenaikan terbesar di {naik[0]['label'].lower()} (+{naik[0]['selisih']:.0f} poin)."
+    return teks
 
 
 def catatan_awal(d: dict[str, Any]) -> dict[str, str]:
@@ -289,6 +427,7 @@ def catatan_awal(d: dict[str, Any]) -> dict[str, str]:
                    + ", ".join(f"{k['fasil']} {k['label'].lower()}" for k in d["kategori"] if k["fasil"]) + "."
                    if d["masalah"]
                    else "Tidak ada fasil bermasalah minggu ini.",
+        "progres": _catatan_progres(d.get("progres") or {}),
         "langkah": "Rencana minggu depan dan dukungan yang dibutuhkan.",
         "lampiran": "Tabel lengkap untuk menjawab pertanyaan; tidak perlu dipaparkan.",
     }
@@ -402,6 +541,78 @@ def _lampiran_fasil(d, baris: list[dict], hal: str):
                        {"label": "Progres fisik", "w": 70, "align": "END"},
                        {"label": "Komunikasi", "w": 120}],
               "rows": rows})
+    return b
+
+
+def _poin(v: float | None) -> str:
+    if v is None:
+        return "-"
+    if abs(v) < 0.5:
+        return "0"
+    return f"{'+' if v > 0 else '−'}{abs(v):.0f}"
+
+
+def _nama_pendek(nama: str, maks: int = 24) -> str:
+    """Nama tanpa gelar di belakang koma, dipotong supaya muat satu baris."""
+    n = nama.split(",")[0].strip()
+    return n if len(n) <= maks else n[:maks - 1].rstrip() + "…"
+
+
+def _slide_progres(d):
+    pg = d.get("progres") or {}
+    if not pg.get("ada"):
+        b = _kepala("Log progres", d)
+        b.append(_teks(30, 150, 640, 60, "Belum ada pembanding. Slide ini terisi setelah ada tab WEEK sebelumnya "
+                                         "di LK atau setelah cutoff berikutnya ditarik.", 14, TINTA2))
+        return b
+    b = _kepala(f"Log progres sejak {pg['label_lalu']}", d)
+    b.append(_teks(30, 92, 420, 18, "Capaian per komponen (% sekolah selesai; progres fisik: rata-rata)",
+                   10.5, TINTA, True))
+    lbl, x0, w0, tinggi = 128, 36, 230, 20
+    for i, k in enumerate(pg["komponen"][:13]):
+        y = 114 + i * tinggi
+        b.append(_teks(x0, y, lbl, tinggi, k["label"], 9, TINTA2))
+        jalur = x0 + lbl
+        b.append(_kotak(jalur, y + tinggi / 2 - 4, w0, 8, LATAR, True))
+        if k["kini"]:
+            b.append(_kotak(jalur, y + tinggi / 2 - 4, max(4, w0 * k["kini"] / 100), 8, BIRU, True))
+        if k["lalu"] is not None:
+            b.append(_kotak(jalur + w0 * k["lalu"] / 100 - 1, y + tinggi / 2 - 7, 2, 14, TINTA))
+        b.append(_teks(jalur + w0 + 2, y, 40, tinggi, f"{k['kini']:.0f}%" if k["kini"] is not None else "-",
+                       9, TINTA, True, "END"))
+        s = k["selisih"]
+        b.append(_teks(jalur + w0 + 42, y, 40, tinggi, _poin(s), 9,
+                       "#1e5e3c" if (s or 0) >= 0.5 else (MERAH if (s or 0) <= -0.5 else REDUP), True, "END"))
+    b.append(_kotak(x0, 386 - 14, 14, 8, BIRU, True))
+    b.append(_teks(x0 + 10, 364, 120, 16, f"sekarang ({pg['label']})", 8, TINTA2))
+    if pg["per_komponen"]:
+        b.append(_kotak(x0 + 140, 386 - 17, 2, 14, TINTA))
+        b.append(_teks(x0 + 142, 364, 200, 16, f"posisi {pg['label_lalu']}", 8, TINTA2))
+    else:
+        b.append(_teks(x0 + 130, 364, 300, 16, "Perbandingan per komponen muncul mulai cutoff berikutnya.",
+                       8, REDUP))
+    b.append(_teks(x0 + lbl + w0 + 42, 94, 40, 16, "poin", 8, REDUP, rata="END"))
+
+    b.append(_kotak(486, 96, 1, 270, GARIS))
+    b += _angka_besar(494, 92, 100, f"+{_n(pg['tambah'])}", "komponen bertambah selesai", BIRU)
+    b += _angka_besar(596, 92, 90, f"{pg['fasil_naik']}/{pg['fasil']}", "fasil bergerak")
+    b.append(_teks(488, 158, 200, 18, "Kemajuan terbesar", 10.5, TINTA, True))
+    y = 178
+    if pg["teratas"]:
+        for x in pg["teratas"]:
+            b.append(_teks(494, y, 150, 18, _nama_pendek(x["nama"]), 9, TINTA2))
+            b.append(_teks(640, y, 44, 18, f"+{x['tambah']}", 9.5, "#1e5e3c", True, "END"))
+            y += 18
+    else:
+        b.append(_teks(494, y, 190, 18, "Belum ada kenaikan.", 9, REDUP))
+        y += 18
+    y += 10
+    b.append(_teks(488, y, 200, 18, f"Belum bergerak: {pg['fasil_diam']} fasil", 10.5,
+                   MERAH if pg["fasil_diam"] else TINTA, True))
+    if pg["diam"]:
+        lebih = pg["fasil_diam"] - len(pg["diam"])
+        b.append(_teks(494, y + 20, 190, 60, ", ".join(pg["diam"]) + (f", +{lebih} lainnya" if lebih > 0 else ""),
+                       9, TINTA2))
     return b
 
 
@@ -548,7 +759,8 @@ def susun(d: dict[str, Any], urutan: list[str] | None = None, langkah: list[str]
         elif k == "langkah":
             badan = [_slide_langkah(d, lk)]
         else:
-            badan = [{"profil": _slide_profil, "fasil": _slide_fasil, "komunikasi": _slide_komunikasi,
+            badan = [{"profil": _slide_profil, "fasil": _slide_fasil, "progres": _slide_progres,
+                      "komunikasi": _slide_komunikasi,
                       "bottleneck": _slide_bottleneck, "masalah": _slide_masalah}[k](d)]
         for i, bentuk in enumerate(badan):
             out.append({"kunci": k, "judul": SLIDE_JUDUL[k], "lanjutan": i > 0, "bentuk": bentuk,

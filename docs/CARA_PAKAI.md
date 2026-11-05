@@ -81,7 +81,7 @@ Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P
 
 ### Paparan
 
-Bahan paparan binaan kamu sendiri, disusun otomatis dari LK: **Profil sekolah binaan**, **Fasil binaan**, **Distribusi komunikasi** (dari Log Komunikasi: minggu ini sampai hari ini dibanding minggu-minggu sebelumnya pada hari yang sama, plus kendala komunikasinya), **Bottleneck**, **Fasil bermasalah**, dan **Langkah berikutnya**. **Lampiran** (tabel lengkap) bisa dicentang bila perlu.
+Bahan paparan binaan kamu sendiri, disusun otomatis dari LK: **Profil sekolah binaan**, **Fasil binaan**, **Log progres** (kemajuan sejak tab WEEK sebelumnya, atau sejak cutoff sebelumnya yang tercatat di laptop ini bila WEEK sebelumnya belum ada), **Distribusi komunikasi** (dari Log Komunikasi: minggu ini sampai hari ini dibanding minggu-minggu sebelumnya pada hari yang sama, plus kendala komunikasinya), **Bottleneck**, **Fasil bermasalah**, dan **Langkah berikutnya**. **Lampiran** (tabel lengkap) bisa dicentang bila perlu.
 
 - Centang slide yang dipaparkan dan geser urutannya dengan tombol ↑ ↓. Pilihan ini diingat per WEEK.
 - **Edit teks**: klik tombolnya, lalu klik teks atau sel tabel mana pun di pratinjau untuk mengubahnya. Isi slide **Langkah berikutnya** dan **catatan pembicara** diubah di bawah pratinjau. Semua ubahan ikut ke Google Slides dan diingat per WEEK.

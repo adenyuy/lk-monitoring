@@ -36,6 +36,11 @@ def _data(n_fasil=30, n_masalah=12, log=True):
             "sekolah_todo": 60, "sekolah": 150,
         },
         "masalah": masalah,
+        "progres": {"ada": True, "label": "WEEK 3", "label_lalu": "WEEK 2", "per_komponen": True, "tambah": 40, "fasil": n_fasil, "fasil_naik": 12,
+                    "fasil_diam": 6, "teratas": [{"nama": f"Fasil {i}", "tambah": 9 - i} for i in range(5)],
+                    "diam": ["Fasil 7", "Fasil 8", "Fasil 9", "Fasil 10"],
+                    "komponen": [{"kode": k.kode, "label": k.label, "lalu": 20.0, "kini": 35.0, "selisih": 15.0}
+                                 for k in lk_baru.KOMPONEN]},
         "kategori": [{"kode": k, "label": lbl, "fasil": len(masalah) if k == "reviu" else 0}
                      for k, lbl in paparan.KATEGORI],
         "sebaran_fasil": [{"nama": "0–24%", "jumlah": 10}, {"nama": "25–49%", "jumlah": 10},
@@ -46,7 +51,8 @@ def _data(n_fasil=30, n_masalah=12, log=True):
 
 def test_enam_slide_utama_satu_halaman():
     slides = paparan.susun(_data(), [k for k, _ in paparan.SLIDE if k not in paparan.BAWAAN_MATI])
-    assert [s["kunci"] for s in slides] == ["profil", "fasil", "komunikasi", "bottleneck", "masalah", "langkah"]
+    assert [s["kunci"] for s in slides] == ["profil", "fasil", "progres", "komunikasi", "bottleneck", "masalah",
+                                              "langkah"]
 
 
 def test_lampiran_dipecah_per_halaman():
@@ -141,3 +147,36 @@ def test_ubahan_teks_dan_sel_tabel():
     assert out[0]["bentuk"][i_judul + 1]["text"] != "diabaikan"
     assert out[1]["bentuk"][i_tabel]["rows"][0][0] == "Nama baru"
     assert out[1]["bentuk"][i_tabel]["cols"][1]["label"] == "Jml sekolah"
+
+
+def test_slide_progres_tanpa_week_lalu():
+    d = {**_data(), "progres": {"ada": False, "label": "WEEK 1", "label_lalu": None}}
+    s = paparan.susun(d, ["progres"])[0]
+    assert any("Belum ada pembanding" in b.get("text", "") for b in s["bentuk"])
+    assert "Belum ada periode" in paparan.catatan_awal(d)["progres"]
+
+
+def test_catatan_dan_langkah_progres():
+    d = _data()
+    assert "bertambah 40 komponen" in paparan.catatan_awal(d)["progres"]
+    assert any("belum bergerak sejak WEEK 2" in x for x in paparan.langkah_awal(d))
+
+
+def test_banding_progres_per_fasil_dan_komponen():
+    f = {"a": SimpleNamespace(nama="Ani", sekolah=[SimpleNamespace(npsn="1"), SimpleNamespace(npsn="2")]),
+         "b": SimpleNamespace(nama="Budi", sekolah=[SimpleNamespace(npsn="3")])}
+    lalu = {"1": {"lp": ("belum", None), "progres": ("belum", 20.0)}, "2": {"lp": ("selesai", None)},
+            "3": {"lp": ("belum", None)}}
+    kini = {"1": {"lp": ("selesai", None), "progres": ("belum", 40.0)}, "2": {"lp": ("selesai", None)},
+            "3": {"lp": ("belum", None)}}
+    pg = paparan.banding_progres(kini, lalu, {n: paparan._jml_selesai(x) for n, x in lalu.items()}, f,
+                                 "Cutoff 2 (05/11)", "Cutoff 1 (04/11)")
+    assert pg["tambah"] == 1 and pg["fasil_naik"] == 1 and pg["teratas"][0]["nama"] == "Ani"
+    assert pg["diam"] == ["Budi"]
+    lp = next(k for k in pg["komponen"] if k["kode"] == "lp")
+    assert round(lp["lalu"]) == 33 and round(lp["kini"]) == 67 and round(lp["selisih"]) == 33
+    pr = next(k for k in pg["komponen"] if k["kode"] == "progres")
+    assert pr["lalu"] == 20.0 and pr["kini"] == 40.0
+    # tanpa snapshot per komponen (hanya jumlah selesai): per fasil tetap jalan
+    pg2 = paparan.banding_progres(kini, None, {"1": 0, "2": 1, "3": 0}, f, "Cutoff 2", "Cutoff 1")
+    assert pg2["tambah"] == 1 and not pg2["per_komponen"] and all(k["lalu"] is None for k in pg2["komponen"])

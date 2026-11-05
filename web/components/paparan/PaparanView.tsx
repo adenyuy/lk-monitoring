@@ -51,7 +51,13 @@ export function PaparanView() {
       if (!siap.current) {
         const sv = bacaSimpanan(x);
         const semua = x.daftar.map((k) => k.kunci);
-        const urut = sv ? [...sv.urutan.filter((k) => semua.includes(k)), ...semua.filter((k) => !sv.urutan.includes(k))] : semua;
+        // slide baru (belum ada di urutan tersimpan) masuk tepat setelah slide sebelumnya di urutan bawaan
+        const urut = sv ? sv.urutan.filter((k) => semua.includes(k)) : [...semua];
+        semua.forEach((k, i) => {
+          if (urut.includes(k)) return;
+          const j = i === 0 ? -1 : urut.indexOf(semua[i - 1]);
+          urut.splice(j + 1, 0, k);
+        });
         setUrutan(urut);
         setMati(new Set(sv ? sv.mati : x.daftar.filter((k) => !k.aktif).map((k) => k.kunci)));
         setLangkah(sv?.langkah ?? null);
