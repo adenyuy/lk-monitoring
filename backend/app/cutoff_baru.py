@@ -22,7 +22,7 @@ from typing import Any
 import pandas as pd
 
 from . import lk_baru, schedule, todo
-from .lk_baru import BARIS_DATA, KOMPONEN, Sekolah
+from .lk_baru import BARIS_DATA, KOMPONEN, Sekolah, komponen_dari_judul
 from .sheets import cache, clean_petugas, col_letter
 
 log = logging.getLogger(__name__)
@@ -194,6 +194,9 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
     ss = lk_baru._ss()
     judul = ss.values_get(f"'{tab}'!A3:{col_letter(akhir - 1)}3").get("values", [[]])[0]
     judul += [""] * (akhir - len(judul))
+    # Judul komponen di LK bisa saja nama alternatif (mis. "Submit Laporan Pendahuluan"); pakai nama baku agar cocok
+    # dengan kunci hasil export.
+    judul = [k.judul if (k := komponen_dari_judul(h)) else h for h in judul]
     lama = ss.values_get(f"'{tab}'!A{BARIS_DATA}:{col_letter(akhir - 1)}",
                          params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
     i_npsn = t.identitas["npsn"]
@@ -217,7 +220,7 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
                     continue  # export kosong (mis. sekolah baru): data yang sudah ada tidak dihapus
                 if not _sama(r[j], v):
                     berubah[h] += 1
-                    k = next((k for k in KOMPONEN if k.judul == h), None)
+                    k = komponen_dari_judul(h)
                     if k and todo.status(k.kode, v).status == "selesai" and todo.status(k.kode, r[j]).status != "selesai":
                         naik[k.label] += 1
                 r[j] = v

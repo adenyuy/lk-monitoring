@@ -45,11 +45,32 @@ class Komponen:
     tahap: str          # pendahuluan | berkala | l50 | l100
     pelaku: str         # sekolah (mengirim/mengunggah) | fasil (mereviu)
     tunggu: str = ""    # judul kolom waktu tunggu reviu (hari)
+    alias: tuple[str, ...] = ()  # judul lain yang pernah dipakai di LK (baris 2 / 3)
+
+    def cocok(self, h: str) -> bool:
+        """Judul kolom komponen di baris 3 (boleh judul lama/alternatif)."""
+        return _kunci(h) in {_kunci(x) for x in (self.judul, *self.alias)}
+
+    def cocok_pasangan(self, h: str) -> bool:
+        """Nama pasangan Kendala/Tindak Lanjut di baris 2."""
+        return _kunci(h) in {_kunci(x) for x in (self.pasangan, self.judul, *self.alias)}
+
+
+def _kunci(v: Any) -> str:
+    """Pembanding judul: abaikan huruf besar/kecil, spasi ganda, dan spasi di tepi."""
+    return re.sub(r"\s+", " ", str(v if v is not None else "")).strip().casefold()
+
+
+_IDENTITAS_KUNCI = {_kunci(j): f for j, f in IDENTITAS.items()}
+
+
+def komponen_dari_judul(h: str) -> "Komponen | None":
+    return next((k for k in KOMPONEN if k.cocok(h)), None)
 
 
 KOMPONEN: tuple[Komponen, ...] = (
     Komponen("lp", "Status Laporan Pendahuluan", "Status Laporan Pendahuluan", "Lap. Pendahuluan", "pendahuluan",
-             "sekolah"),
+             "sekolah", alias=("Submit Laporan Pendahuluan", "Laporan Pendahuluan")),
     Komponen("lp_rev", "Reviu Laporan Pendahuluan", "Reviu Laporan Pendahuluan", "Reviu Lap. Pendahuluan",
              "pendahuluan", "fasil", "Waktu Tunggu Reviu Laporan Pendahuluan"),
     Komponen("progres", "Progres Fisik (%)", "Progres Fisik (%)", "Progres fisik", "berkala", "sekolah"),
@@ -210,12 +231,13 @@ def parse_tata(r1: list[Any], r2: list[Any], r3: list[Any]) -> Tata:
     awal_isian = sesi[0] if sesi else n
     for i in range(awal_isian):
         h = r3[i]
-        if h in IDENTITAS and IDENTITAS[h] not in ident:
-            ident[IDENTITAS[h]] = i
+        f = _IDENTITAS_KUNCI.get(_kunci(h))
+        if f and f not in ident:
+            ident[f] = i
         for k in KOMPONEN:
-            if h == k.judul and k.kode not in komp:
+            if k.cocok(h) and k.kode not in komp:
                 komp[k.kode] = i
-            if k.tunggu and h == k.tunggu and k.kode not in tunggu:
+            if k.tunggu and _kunci(h) == _kunci(k.tunggu) and k.kode not in tunggu:
                 tunggu[k.kode] = i
     hilang = [j for j, f in IDENTITAS.items() if f not in ident] + [k.judul for k in KOMPONEN if k.kode not in komp]
     if len(sesi) < 2:
@@ -225,8 +247,8 @@ def parse_tata(r1: list[Any], r2: list[Any], r3: list[Any]) -> Tata:
         akhir = sesi[b] if b < len(sesi) else n
         isian[b] = {}
         for k in KOMPONEN:
-            j = next((j for j in range(mulai, akhir) if r2[j] == k.pasangan and r3[j] == "Kendala"), None)
-            if j is None or j + 1 >= n or r3[j + 1] != "Tindak Lanjut":
+            j = next((j for j in range(mulai, akhir) if k.cocok_pasangan(r2[j]) and _kunci(r3[j]) == "kendala"), None)
+            if j is None or j + 1 >= n or _kunci(r3[j + 1]) != "tindak lanjut":
                 hilang.append(f"Kendala/Tindak Lanjut {k.pasangan} (sesi {b})")
                 continue
             isian[b][k.kode] = (j, j + 1)
