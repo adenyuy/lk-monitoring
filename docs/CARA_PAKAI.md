@@ -81,10 +81,10 @@ Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P
 
 ### Paparan
 
-Bahan paparan binaan kamu sendiri, disusun otomatis dari LK: **Profil sekolah binaan**, **Fasil binaan**, **Distribusi komunikasi**, **Bottleneck**, **Fasil bermasalah**, dan **Langkah berikutnya**. **Lampiran** (tabel lengkap) bisa dicentang bila perlu.
+Bahan paparan binaan kamu sendiri, disusun otomatis dari LK: **Profil sekolah binaan**, **Fasil binaan**, **Distribusi komunikasi** (dari Log Komunikasi: minggu ini sampai hari ini dibanding minggu-minggu sebelumnya pada hari yang sama, plus kendala komunikasinya), **Bottleneck**, **Fasil bermasalah**, dan **Langkah berikutnya**. **Lampiran** (tabel lengkap) bisa dicentang bila perlu.
 
 - Centang slide yang dipaparkan dan geser urutannya dengan tombol ↑ ↓. Pilihan ini diingat per WEEK.
-- Isi slide **Langkah berikutnya** dan **catatan pembicara** tiap slide bisa diubah di bawah pratinjau.
+- **Edit teks**: klik tombolnya, lalu klik teks atau sel tabel mana pun di pratinjau untuk mengubahnya. Isi slide **Langkah berikutnya** dan **catatan pembicara** diubah di bawah pratinjau. Semua ubahan ikut ke Google Slides dan diingat per WEEK.
 - **Presentasi**: layar penuh langsung dari aplikasi. Tombol panah untuk pindah slide, **N** untuk catatan, **Esc** untuk keluar.
 - **Buat Google Slides**: membuat file baru di Google Drive kamu, siap diedit dan dibagikan. Pertama kali, aplikasi meminta izin Google sekali saja (hanya untuk file yang dibuatnya sendiri).
 - Fasil masuk daftar **bermasalah** bila: sulit dihubungi (chat hanya dibaca/belum dibaca, atau perlu ditelepon), merespons tapi laporannya tidak bergerak sejak cutoff sebelumnya, punya reviu yang menunggu lebih dari 3 hari, atau capaian komponennya di bawah 25%.

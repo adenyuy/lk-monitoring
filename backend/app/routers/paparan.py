@@ -66,6 +66,7 @@ class SlidesIn(BaseModel):
     urutan: list[str] = Field(default_factory=list, max_length=12)
     langkah: list[str] = Field(default_factory=list, max_length=30)
     catatan: dict[str, str] = Field(default_factory=dict)
+    ubahan: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
 
 
 @router.post("/slides")
@@ -77,7 +78,7 @@ def buat(body: SlidesIn, _=Depends(require_access)) -> dict[str, Any]:
     d = _data()
     langkah = [" ".join(x.split())[:300] for x in body.langkah if x.strip()]
     catatan = {k: v[:3000] for k, v in body.catatan.items()}
-    slides = paparan.susun(d, body.urutan, langkah, catatan)
+    slides = paparan.terapkan_ubahan(paparan.susun(d, body.urutan, langkah, catatan), body.ubahan)
     try:
         return paparan.buat_slides(d, slides)
     except paparan.SlidesError as e:

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api, post } from "@/lib/api";
 import { Button, Notice, Spinner } from "@/components/ui";
-import { SlideKanvas, type Slide } from "./SlideKanvas";
+import { SlideKanvas, awalan, type Slide, type Ubahan } from "./SlideKanvas";
 import s from "./paparan.module.css";
 
 type Izin = { punya: boolean; status: string; error: string };
@@ -12,7 +12,8 @@ type Data = {
   daftar: { kunci: string; judul: string; aktif: boolean }[];
   langkah: string[]; catatan: Record<string, string>; slides: Slide[]; jumlah_masalah: number; izin: Izin;
 };
-type Simpanan = { urutan: string[]; mati: string[]; langkah: string[] | null; catatan: Record<string, string> };
+type Simpanan = { urutan: string[]; mati: string[]; langkah: string[] | null; catatan: Record<string, string>;
+  ubahan?: Ubahan };
 type Gs = { tahap: "idle" | "izin" | "menunggu_izin" | "membuat" | "selesai"; url?: string; judul?: string; galat?: string };
 
 const kunciSimpan = (d: Data) => `paparan:v1:${d.pic}:${d.week}`;
@@ -34,6 +35,8 @@ export function PaparanView() {
   const [mati, setMati] = useState<Set<string>>(new Set());
   const [langkah, setLangkah] = useState<string[] | null>(null);
   const [catatan, setCatatan] = useState<Record<string, string>>({});
+  const [ubahan, setUbahan] = useState<Ubahan>({});
+  const [edit, setEdit] = useState(false);
   const [pilih, setPilih] = useState(0);
   const [tampilkan, setTampilkan] = useState(false);
   const [gs, setGs] = useState<Gs>({ tahap: "idle" });
@@ -53,6 +56,7 @@ export function PaparanView() {
         setMati(new Set(sv ? sv.mati : x.daftar.filter((k) => !k.aktif).map((k) => k.kunci)));
         setLangkah(sv?.langkah ?? null);
         setCatatan(sv?.catatan ?? {});
+        setUbahan(sv?.ubahan ?? {});
         siap.current = true;
       }
     } catch (e) {
@@ -68,17 +72,28 @@ export function PaparanView() {
   useEffect(() => {
     if (!d || !siap.current) return;
     try {
-      localStorage.setItem(kunciSimpan(d), JSON.stringify({ urutan, mati: [...mati], langkah, catatan } satisfies Simpanan));
+      localStorage.setItem(kunciSimpan(d), JSON.stringify({ urutan, mati: [...mati], langkah, catatan, ubahan } satisfies Simpanan));
     } catch { /* penyimpanan browser tidak tersedia */ }
-  }, [d, urutan, mati, langkah, catatan]);
+  }, [d, urutan, mati, langkah, catatan, ubahan]);
 
   const isiLangkah = useMemo(() => langkah ?? d?.langkah ?? [], [langkah, d]);
   const catatanDari = useCallback((k: string) => catatan[k] ?? d?.catatan[k] ?? "", [catatan, d]);
   const tampil = useMemo(() => {
     if (!d) return [];
-    return urutan.filter((k) => !mati.has(k)).flatMap((k) => d.slides.filter((x) => x.kunci === k))
+    return urutan.filter((k) => !mati.has(k))
+      .flatMap((k) => d.slides.filter((x) => x.kunci === k).map((x, h) => ({ ...x, halaman: h })))
       .map((x) => (x.lanjutan ? x : { ...x, catatan: catatanDari(x.kunci) }));
   }, [d, urutan, mati, catatanDari]);
+  const ubah = useCallback((kunci: string, asli: string, baru: string) => {
+    setUbahan((u) => {
+      const v = { ...u };
+      if (baru === asli) delete v[kunci]; else v[kunci] = { asli, baru };
+      return v;
+    });
+  }, []);
+  const jumlahUbahan = Object.keys(ubahan).length;
+  const ubahanKini = kini0(tampil, pilih);
+  const nUbahKini = ubahanKini ? Object.keys(ubahan).filter((k) => k.startsWith(`${awalan(ubahanKini)}:`)).length : 0;
   const idx = Math.min(pilih, Math.max(tampil.length - 1, 0));
   const kini = tampil[idx];
 
@@ -110,6 +125,11 @@ export function PaparanView() {
       const r = await post<{ url: string; judul: string }>("/api/paparan/slides", {
         urutan: urut, langkah: isiLangkah,
         catatan: Object.fromEntries(urut.map((k) => [k, catatanDari(k)])),
+        ubahan: Object.entries(ubahan).map(([k, u]) => {
+          const [kunci, halaman, bentuk, r, c] = k.split(":");
+          return { kunci, halaman: Number(halaman), bentuk: Number(bentuk),
+            sel: r === undefined ? null : [Number(r), Number(c)], asli: u.asli, baru: u.baru };
+        }),
       });
       setGs({ tahap: "selesai", url: r.url, judul: r.judul });
     } catch (e) {
@@ -119,7 +139,7 @@ export function PaparanView() {
       }
       setGs({ tahap: "idle", galat: e instanceof Error ? e.message : String(e) });
     }
-  }, [d, urutan, mati, isiLangkah, catatanDari]);
+  }, [d, urutan, mati, isiLangkah, catatanDari, ubahan]);
 
   const mulaiGs = () => {
     if (!d) return;
@@ -199,7 +219,28 @@ export function PaparanView() {
         <section className={s.kerja}>
           {kini ? (
             <>
-              <div className={s.bingkai}><SlideKanvas slide={kini} langkah={isiLangkah} /></div>
+              <div className={s.alatEdit}>
+                <Button variant={edit ? "primary" : "secondary"} size="sm" onClick={() => setEdit((x) => !x)}
+                  aria-pressed={edit}>{edit ? "Selesai mengedit" : "Edit teks"}</Button>
+                <span>
+                  {edit ? "Klik teks atau sel tabel mana pun untuk mengubahnya. Esc untuk batal."
+                    : "Teks di slide bisa diubah; hasilnya ikut ke Google Slides."}
+                </span>
+                {nUbahKini > 0 && (
+                  <button type="button" className={s.tautan} onClick={() => setUbahan((u) => Object.fromEntries(
+                    Object.entries(u).filter(([k]) => !k.startsWith(`${awalan(kini)}:`))))}>
+                    Kembalikan teks slide ini ({nUbahKini})
+                  </button>
+                )}
+                {jumlahUbahan > nUbahKini && (
+                  <button type="button" className={s.tautan} onClick={() => setUbahan({})}>
+                    Kembalikan semua ({jumlahUbahan})
+                  </button>
+                )}
+              </div>
+              <div className={`${s.bingkai} ${edit ? s.bingkaiEdit : ""}`}>
+                <SlideKanvas slide={kini} langkah={isiLangkah} ubahan={ubahan} edit={edit} onUbah={ubah} />
+              </div>
               <div className={s.nav}>
                 <Button variant="ghost" size="sm" onClick={() => setPilih(Math.max(idx - 1, 0))} disabled={idx === 0}>Sebelumnya</Button>
                 <span>Slide {idx + 1} dari {tampil.length}</span>
@@ -210,7 +251,7 @@ export function PaparanView() {
                 {tampil.map((x, i) => (
                   <button key={i} type="button" role="listitem" className={`${s.mini} ${i === idx ? s.miniPilih : ""}`}
                     onClick={() => setPilih(i)} aria-label={`Slide ${i + 1}: ${x.judul}`}>
-                    <SlideKanvas slide={x} langkah={isiLangkah} />
+                    <SlideKanvas slide={x} langkah={isiLangkah} ubahan={ubahan} />
                     <span>{i + 1}</span>
                   </button>
                 ))}
@@ -250,7 +291,7 @@ export function PaparanView() {
       </div>
 
       {tampilkan && tampil.length > 0 && (
-        <Presentasi slides={tampil} langkah={isiLangkah} mulai={idx}
+        <Presentasi slides={tampil} langkah={isiLangkah} ubahan={ubahan} mulai={idx}
           onTutup={(i) => { setPilih(i); setTampilkan(false); }} />
       )}
 
@@ -298,8 +339,12 @@ export function PaparanView() {
   );
 }
 
-function Presentasi({ slides, langkah, mulai, onTutup }: {
-  slides: Slide[]; langkah: string[]; mulai: number; onTutup: (i: number) => void;
+function kini0(tampil: Slide[], pilih: number): Slide | undefined {
+  return tampil[Math.min(pilih, Math.max(tampil.length - 1, 0))];
+}
+
+function Presentasi({ slides, langkah, ubahan, mulai, onTutup }: {
+  slides: Slide[]; langkah: string[]; ubahan: Ubahan; mulai: number; onTutup: (i: number) => void;
 }) {
   const [i, setI] = useState(mulai);
   const [catat, setCatat] = useState(false);
@@ -338,7 +383,7 @@ function Presentasi({ slides, langkah, mulai, onTutup }: {
   return (
     <div ref={ref} className={s.layar} role="dialog" aria-modal="true" aria-label="Mode presentasi">
       <div className={s.layarSlide} onClick={() => setI((v) => Math.min(v + 1, slides.length - 1))}>
-        <SlideKanvas slide={x} langkah={langkah} muat />
+        <SlideKanvas slide={x} langkah={langkah} ubahan={ubahan} muat />
       </div>
       {catat && x.catatan && <div className={s.layarCatatan}>{x.catatan}</div>}
       <div className={s.layarBar}>

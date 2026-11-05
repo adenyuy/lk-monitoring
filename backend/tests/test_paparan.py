@@ -1,4 +1,15 @@
-from app import paparan
+from datetime import date
+from types import SimpleNamespace
+
+from app import lk_baru, paparan
+
+
+def _kom(n_fasil, log):
+    f = {f"f{i}": SimpleNamespace(nama=f"Fasil {i}", sekolah=[SimpleNamespace(npsn=str(i))]) for i in range(n_fasil)}
+    kode = {str(i): ({"2026-11-02": "T", "2026-10-27": "R"} if i % 3 == 0 else {"2026-11-03": "C"}) for i in range(n_fasil)}
+    tgl = {d: 4 + j for j, d in enumerate(["2026-10-26", "2026-10-27", "2026-10-28", "2026-11-02", "2026-11-03"])}
+    lk = lk_baru.LogKom(tgl if log else {}, {}, kode if log else {})
+    return paparan.komunikasi_mingguan(f, lk, date(2026, 11, 4))
 
 
 def _data(n_fasil=30, n_masalah=12, log=True):
@@ -16,13 +27,7 @@ def _data(n_fasil=30, n_masalah=12, log=True):
                    "provinsi": [{"nama": "Kepulauan Bangka Belitung", "jumlah": 150}],
                    "kab": [], "ptn": [{"nama": "Universitas Contoh Panjang Sekali", "jumlah": 150}]},
         "fasil": fasil,
-        "komunikasi": {
-            "status": [{"kode": k, "label": lbl, "warna": w, "jumlah": 2} for k, lbl, w in paparan.KOM],
-            "fasil": n_fasil,
-            "hari": [{"tanggal": f"2026-11-0{d}", "fasil": n_fasil,
-                      "grup": {"Terhubung": 10 if log else 0, "Menunggu": 3 if log else 0, "Tidak tersambung": 0}}
-                     for d in range(3, 8)],
-        },
+        "komunikasi": _kom(n_fasil, log),
         "bottleneck": {
             "posisi": [{"kode": "lp", "label": "Lap. Pendahuluan belum dikirim", "sekolah": 40, "fasil": 9},
                        {"kode": "mg", "label": "Lap. Mingguan", "sekolah": 12, "fasil": 4}],
@@ -101,3 +106,38 @@ def test_masalah_kategori():
     assert saran.startswith("Telepon")
     ok = {**x, "kom": "terhubung", "tanpa_progres": False, "tunggu_maks": 1.0}
     assert paparan._masalah(ok, 80) == ([], "", [])
+
+
+def test_komunikasi_mingguan_banding_hari_yang_sama():
+    k = _kom(9, True)
+    assert k["sampai"] == "Rabu"
+    ini, lalu = k["minggu"][0], k["minggu"][1]
+    assert ini["rentang"] == "02/11–04/11" and lalu["rentang"] == "26/10–28/10"
+    assert ini["grup"]["terhubung"] == 3 and ini["grup"]["centang"] == 6 and ini["dihubungi"] == 9
+    assert lalu["grup"]["dibaca"] == 3 and lalu["grup"]["belum"] == 6
+    centang = [x for x in k["kendala"] if x["kode"] == "centang"][0]
+    assert centang["jumlah"] == 6 and centang["lalu"] == 0 and len(centang["contoh"]) == 3
+
+
+def test_komunikasi_tanpa_log():
+    k = _kom(4, False)
+    assert len(k["minggu"]) == 1 and not k["minggu"][0]["ada_log"] and k["minggu"][0]["grup"]["belum"] == 4
+
+
+def test_ubahan_teks_dan_sel_tabel():
+    d = _data()
+    slides = paparan.susun(d, ["profil", "fasil"])
+    i_judul = next(i for i, b in enumerate(slides[0]["bentuk"]) if b["t"] == "text" and b["text"] == "Profil sekolah binaan")
+    i_tabel = next(i for i, b in enumerate(slides[1]["bentuk"]) if b["t"] == "table")
+    sel = slides[1]["bentuk"][i_tabel]["rows"][0][0]
+    out = paparan.terapkan_ubahan(slides, [
+        {"kunci": "profil", "halaman": 0, "bentuk": i_judul, "asli": "Profil sekolah binaan", "baru": "Profil binaan"},
+        {"kunci": "fasil", "halaman": 0, "bentuk": i_tabel, "sel": [0, 0], "asli": sel, "baru": "Nama baru"},
+        {"kunci": "fasil", "halaman": 0, "bentuk": i_tabel, "sel": [-1, 1], "asli": "Sekolah", "baru": "Jml sekolah"},
+        {"kunci": "profil", "halaman": 0, "bentuk": i_judul + 1, "asli": "teks lama", "baru": "diabaikan"},
+        {"kunci": "profil", "halaman": 5, "bentuk": 0, "asli": "x", "baru": "y"},
+    ])
+    assert out[0]["bentuk"][i_judul]["text"] == "Profil binaan"
+    assert out[0]["bentuk"][i_judul + 1]["text"] != "diabaikan"
+    assert out[1]["bentuk"][i_tabel]["rows"][0][0] == "Nama baru"
+    assert out[1]["bentuk"][i_tabel]["cols"][1]["label"] == "Jml sekolah"

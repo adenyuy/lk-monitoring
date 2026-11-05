@@ -32,6 +32,8 @@
 
 .kerja { display: flex; flex-direction: column; gap: 12px; }
 .bingkai { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08); }
+.alatEdit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--muted); }
+.bingkaiEdit { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .nav { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
 .strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; }
 .mini { position: relative; flex: 0 0 112px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; padding: 0;
@@ -55,6 +57,11 @@
 .halaman { position: absolute; left: 0; top: 0; width: 720px; height: 405px; transform-origin: 0 0; background: #fff;
   font-family: "IBM Plex Sans", var(--font-plex), system-ui, sans-serif; color: #172033; pointer-events: none; }
 .kotak { position: absolute; }
+.halamanEdit { pointer-events: auto; }
+.bisaEdit { cursor: text; outline: 1px dashed rgba(35, 70, 160, 0.35); outline-offset: -1px; }
+.bisaEdit:hover { outline-color: var(--primary); background: rgba(35, 70, 160, 0.05); }
+.bisaEdit:focus { outline: 1.5px solid var(--primary); background: #fff; }
+.tabel th.bisaEdit:focus { background: #1a3478; }
 .teks { position: absolute; padding: 3.6px 7.2px; line-height: 1.25; white-space: pre-wrap; overflow: hidden; }
 .poin { margin: 0; padding-left: 30px; list-style: disc; }
 .poin li { margin-bottom: 8px; line-height: 1.35; }

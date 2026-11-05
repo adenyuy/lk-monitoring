@@ -14,6 +14,7 @@ import re
 import threading
 from collections import Counter
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 
 from google.auth.exceptions import RefreshError
@@ -41,12 +42,19 @@ KOM = (
 )
 KOM_LABEL = {k: lbl for k, lbl, _ in KOM}
 KOM_WARNA = {k: w for k, _, w in KOM}
-# Kode Log Komunikasi harian dikelompokkan untuk grafik tren
-TREN = (
-    ("Terhubung", ("T", "TP"), "#2f8f5b"),
-    ("Menunggu", ("T1", "T2"), "#d9a23a"),
-    ("Tidak tersambung", ("R", "C", "N"), "#c8484b"),
+# Kode Log Komunikasi dikelompokkan, urut dari paling baik. Status fasil dalam seminggu = kode terbaiknya.
+GRUP_KOM = (
+    ("terhubung", "Terhubung", ("T", "TP"), "#2f8f5b"),
+    ("menunggu", "Menunggu / respon lambat", ("T1", "T2"), "#d9a23a"),
+    ("dibaca", "Hanya dibaca", ("R",), "#5673bf"),
+    ("centang", "Centang satu", ("C",), "#c8484b"),
+    ("tanpa_wa", "Tidak ada WA", ("N",), "#9b4a7f"),
+    ("belum", "Belum dihubungi", (), "#c4c9d2"),
 )
+_GRUP_DARI = {k: g for g, _l, ks, _w in GRUP_KOM for k in ks}
+_URUT_GRUP = [g for g, *_ in GRUP_KOM]
+KENDALA_KOM = ("dibaca", "centang", "tanpa_wa", "menunggu")
+NAMA_HARI = ("Senin", "Selasa", "Rabu", "Kamis", "Jumat")
 
 SLIDE = (
     ("profil", "Profil sekolah binaan"),
@@ -110,6 +118,10 @@ def hitung() -> dict[str, Any]:
     dash = dashboard.ambil(saya)
     sekolah = komunikasi.sekolah_saya()
     fasil_obj = komunikasi.kelompokkan(sekolah)
+    try:
+        logkom = lk_baru.baca_log_kom()
+    except Exception:
+        logkom = lk_baru.LogKom({}, {}, {})
     status = {s.npsn: todo.semua_status(s) for s in sekolah}
 
     # fasil binaan
@@ -141,7 +153,6 @@ def hitung() -> dict[str, Any]:
                     isi.add(" ".join(m.group(1).split()))
         kendala.update(isi)
 
-    total_kom = Counter(x["kom"] for x in lk["fasil"])
     masalah = [f for f in fasil if f["masalah"]]
     masalah.sort(key=lambda f: (-len(f["masalah"]), -(f["todo"]), f["nama"].casefold()))
     di = dash["distribusi"]
@@ -154,13 +165,7 @@ def hitung() -> dict[str, Any]:
         "profil": {k: di[k] for k in ("sekolah", "fasil", "koor", "jml_ptn", "jml_kab", "rata_sekolah_per_fasil",
                                      "maks_sekolah_per_fasil", "angkatan", "provinsi", "kab", "ptn")},
         "fasil": fasil,
-        "komunikasi": {
-            "status": [{"kode": k, "label": lbl, "warna": w, "jumlah": total_kom.get(k, 0)} for k, lbl, w in KOM],
-            "fasil": len(lk["fasil"]),
-            "hari": [{"tanggal": h["tanggal"], "fasil": h["fasil"],
-                      "grup": {g: sum(h["kode"].get(k, 0) for k in ks) for g, ks, _ in TREN}}
-                     for h in dash["komunikasi"]["hari"]],
-        },
+        "komunikasi": komunikasi_mingguan(fasil_obj, logkom, schedule.now().date()),
         "bottleneck": {
             "posisi": [{"kode": p["kode"], "label": p["label"], "sekolah": p["sekolah"], "fasil": p["fasil"]}
                        for p in lk["posisi"]],
@@ -178,6 +183,59 @@ def hitung() -> dict[str, Any]:
     }
 
 
+def _status_minggu(kode: dict[str, str], hari: list[str]) -> str:
+    grup = {_GRUP_DARI.get(kode.get(d, ""), "") for d in hari} - {""}
+    return min(grup, key=_URUT_GRUP.index) if grup else "belum"
+
+
+def _rentang(hari: list[str]) -> str:
+    a, b = date.fromisoformat(hari[0]), date.fromisoformat(hari[-1])
+    return f"{a:%d/%m}" if a == b else f"{a:%d/%m}–{b:%d/%m}"
+
+
+def komunikasi_mingguan(fasil: dict[str, komunikasi.Fasil], logkom: lk_baru.LogKom, hari_ini: date,
+                        maks_minggu: int = 3) -> dict[str, Any]:
+    """Distribusi status komunikasi fasil dari Log Komunikasi, minggu ini (Senin s.d. hari ini) dibanding minggu
+    sebelumnya pada rentang hari yang sama."""
+    ke = min(hari_ini.weekday(), 4)
+    senin = hari_ini - timedelta(days=hari_ini.weekday())
+    kode = {k: komunikasi.kode_fasil(f, logkom) for k, f in fasil.items()}
+    minggu = []
+    for i in range(maks_minggu):
+        s0 = senin - timedelta(weeks=i)
+        hari = [(s0 + timedelta(days=j)).isoformat() for j in range(ke + 1)]
+        if i and not any(d in logkom.tanggal for d in hari):
+            break
+        status = {k: _status_minggu(kode[k], hari) for k in fasil}
+        c = Counter(status.values())
+        minggu.append({
+            "label": "Minggu ini" if i == 0 else ("Minggu lalu" if i == 1 else f"{i} minggu lalu"),
+            "rentang": _rentang(hari), "ada_log": any(d in logkom.tanggal for d in hari),
+            "grup": {g: c.get(g, 0) for g in _URUT_GRUP},
+            "dihubungi": len(fasil) - c.get("belum", 0),
+            "contoh": {g: sorted((fasil[k].nama for k, v in status.items() if v == g), key=str.casefold)[:3]
+                       for g in KENDALA_KOM},
+        })
+    ini, lalu = minggu[0], (minggu[1] if len(minggu) > 1 else None)
+    return {
+        "fasil": len(fasil),
+        "sampai": NAMA_HARI[ke],
+        "minggu": minggu,
+        "grup": [{"kode": g, "label": lbl, "warna": w} for g, lbl, _ks, w in GRUP_KOM],
+        "kendala": [{"kode": g, "label": next(x[1] for x in GRUP_KOM if x[0] == g), "jumlah": ini["grup"][g],
+                     "lalu": lalu["grup"][g] if lalu else None, "contoh": ini["contoh"][g]} for g in KENDALA_KOM],
+    }
+
+
+def _selisih(kini: int, lalu: int | None) -> str:
+    if lalu is None:
+        return ""
+    s = kini - lalu
+    if s == 0:
+        return "sama dengan minggu lalu"
+    return f"{'+' if s > 0 else '−'}{abs(s)} dari minggu lalu"
+
+
 def langkah_awal(d: dict[str, Any]) -> list[str]:
     """Usulan langkah berikutnya dari data; PIC bisa mengubahnya sebelum memaparkan."""
     out = []
@@ -185,11 +243,12 @@ def langkah_awal(d: dict[str, Any]) -> list[str]:
     if pos and pos[0]["sekolah"]:
         out.append(f"Fokus {pos[0]['label'].lower()}: {pos[0]['sekolah']} sekolah dari {pos[0]['fasil']} fasil "
                    "masih tertahan.")
-    kom = {s["kode"]: s["jumlah"] for s in d["komunikasi"]["status"]}
-    if kom.get("telepon"):
-        out.append(f"Telepon {kom['telepon']} fasil yang sulit dihubungi lewat WhatsApp.")
-    if kom.get("belum"):
-        out.append(f"Hubungi {kom['belum']} fasil yang belum dihubungi minggu ini.")
+    g = d["komunikasi"]["minggu"][0]["grup"]
+    sulit = g["dibaca"] + g["centang"] + g["tanpa_wa"]
+    if sulit:
+        out.append(f"Telepon {sulit} fasil yang chatnya hanya dibaca, centang satu, atau tidak ada WA.")
+    if g["belum"]:
+        out.append(f"Hubungi {g['belum']} fasil yang belum dihubungi minggu ini.")
     r = d["bottleneck"]["reviu"]
     if r["lewat3"]:
         out.append(f"Ingatkan reviu: {r['lewat3']} laporan sekolah menunggu direviu lebih dari 3 hari.")
@@ -202,24 +261,30 @@ def langkah_awal(d: dict[str, Any]) -> list[str]:
 def catatan_awal(d: dict[str, Any]) -> dict[str, str]:
     """Catatan pembicara bawaan per slide."""
     p = d["profil"]
-    kom = {s["kode"]: s["jumlah"] for s in d["komunikasi"]["status"]}
-    nf = d["komunikasi"]["fasil"] or 1
+    km = d["komunikasi"]
+    ini = km["minggu"][0]
+    lalu = km["minggu"][1] if len(km["minggu"]) > 1 else None
+    ken = [k for k in km["kendala"] if k["jumlah"]]
     sel = sum(f["selesai"] for f in d["fasil"])
     rel = sum(f["relevan"] for f in d["fasil"])
     rendah = [f["nama"] for f in d["fasil"] if f["persen"] is not None][:3]
     pos = sorted(d["bottleneck"]["posisi"], key=lambda x: -x["sekolah"])
-    ken = d["bottleneck"]["kendala"]
+    ken_isian = d["bottleneck"]["kendala"]
     prov = p["provinsi"][0]["nama"] if p["provinsi"] else "-"
     return {
         "profil": f"Binaan saya {p['sekolah']} sekolah dengan {p['fasil']} fasil dan {p['koor']} koordinator, "
                   f"tersebar di {p['jml_kab']} kab/kota. Terbanyak di {prov}.",
         "fasil": f"Secara keseluruhan {_pct(sel, rel)}% komponen sudah selesai. "
                  + (f"Capaian terendah: {', '.join(rendah)}." if rendah else ""),
-        "komunikasi": f"{kom.get('terhubung', 0) + kom.get('perlu_balas', 0)} dari {nf} fasil sudah membalas minggu "
-                      f"ini. {kom.get('telepon', 0)} perlu ditelepon, {kom.get('belum', 0)} belum dihubungi.",
+        "komunikasi": f"Sampai {km['sampai']}, {ini['dihubungi']} dari {km['fasil']} fasil sudah dihubungi dan "
+                      f"{ini['grup']['terhubung']} terhubung"
+                      + (f" (minggu lalu pada hari yang sama: {lalu['dihubungi']} dihubungi, "
+                         f"{lalu['grup']['terhubung']} terhubung)" if lalu else "") + ". "
+                      + ("Kendala: " + ", ".join(f"{k['jumlah']} {k['label'].lower()}" for k in ken) + "."
+                         if ken else ""),
         "bottleneck": (f"Sekolah paling banyak tertahan di {pos[0]['label'].lower()} ({pos[0]['sekolah']} sekolah). "
                        if pos and pos[0]["sekolah"] else "")
-                      + (f"Kendala yang paling sering: {ken[0]['teks'].lower()}." if ken else ""),
+                      + (f"Kendala yang paling sering: {ken_isian[0]['teks'].lower()}." if ken_isian else ""),
         "masalah": f"{len(d['masalah'])} fasil perlu perhatian khusus: "
                    + ", ".join(f"{k['fasil']} {k['label'].lower()}" for k in d["kategori"] if k["fasil"]) + "."
                    if d["masalah"]
@@ -344,39 +409,58 @@ def _slide_komunikasi(d):
     k = d["komunikasi"]
     b = _kepala("Distribusi komunikasi", d)
     nf = k["fasil"] or 1
-    b.append(_teks(30, 94, 330, 18, f"Status {nf} fasil minggu ini", 10.5, TINTA, True))
-    b += _batang(36, 116, 320, [(s["label"], s["jumlah"], s["warna"]) for s in k["status"]],
-                 lebar_label=130, tinggi=28, maks=nf)
-    sudah = sum(s["jumlah"] for s in k["status"] if s["kode"] in ("terhubung", "perlu_balas"))
-    b.append(_teks(30, 318, 330, 40, f"{_pct(sudah, nf)}% fasil sudah membalas minggu ini", 12, BIRU, True))
+    ini = k["minggu"][0]
+    lalu = k["minggu"][1] if len(k["minggu"]) > 1 else None
+    kpi = [(f"{ini['dihubungi']}/{nf}", "fasil sudah dihubungi", "dihubungi", BIRU),
+           (_n(ini["grup"]["terhubung"]), "fasil terhubung", "terhubung", TINTA),
+           (_n(ini["grup"]["belum"]), "belum dihubungi", "belum", MERAH if ini["grup"]["belum"] else TINTA)]
+    for i, (angka, label, kunci, warna) in enumerate(kpi):
+        kini = ini["dihubungi"] if kunci == "dihubungi" else ini["grup"][kunci]
+        dulu = (lalu["dihubungi"] if kunci == "dihubungi" else lalu["grup"][kunci]) if lalu else None
+        b.append(_teks(30 + i * 140, 92, 136, 34, angka, 24, warna, True))
+        b.append(_teks(30 + i * 140, 124, 136, 16, label, 9, REDUP))
+        if dulu is not None:
+            b.append(_teks(30 + i * 140, 138, 136, 16, _selisih(kini, dulu), 8.5, TINTA2))
+    if not ini["ada_log"]:
+        b.append(_teks(30, 160, 420, 30, "Log Komunikasi minggu ini belum terisi.", 10, REDUP))
 
-    # tren harian dari Log Komunikasi: kolom bertumpuk per hari
-    hari = [h for h in k["hari"] if sum(h["grup"].values())][-8:]
-    x0, y0, w0, h0 = 392, 116, 292, 220
-    b.append(_teks(386, 94, 300, 18, "Log Komunikasi per hari", 10.5, TINTA, True))
-    if not hari:
-        b.append(_teks(386, 120, 300, 60, "Log Komunikasi minggu ini belum terisi. Grafik muncul setelah kode "
-                                          "komunikasi harian dicatat di LK.", 10, REDUP))
-        return b
-    maks = max(h["fasil"] for h in hari) or 1
-    lebar = w0 / len(hari)
-    b.append(_kotak(x0, y0 + h0, w0, 1, GARIS))
-    for i, h in enumerate(hari):
-        cx = x0 + i * lebar + lebar * 0.2
-        bw = lebar * 0.6
-        dasar = y0 + h0
-        for g, _ks, warna in TREN:
-            v = h["grup"].get(g, 0)
-            if v:
-                tinggi = h0 * v / maks
-                dasar -= tinggi
-                b.append(_kotak(cx, dasar, bw, max(tinggi - 1.5, 1), warna))
-        tgl = h["tanggal"][8:10] + "/" + h["tanggal"][5:7]
-        b.append(_teks(cx - 10, y0 + h0 + 2, bw + 20, 16, tgl, 8, REDUP, rata="CENTER"))
-    for i, (g, _ks, warna) in enumerate(TREN):
-        x = x0 + i * 100
-        b.append(_kotak(x, 366, 8, 8, warna, True))
-        b.append(_teks(x + 6, 360, 94, 18, g, 8.5, TINTA2))
+    # perbandingan per minggu: batang 100% bertumpuk
+    b.append(_teks(30, 166, 420, 18, f"Perbandingan per minggu, Senin s.d. {k['sampai']}", 10.5, TINTA, True))
+    x0, w0 = 150, 250
+    for i, m in enumerate(k["minggu"][:3]):
+        y = 190 + i * 42
+        b.append(_teks(30, y, 118, 16, m["label"], 9.5, TINTA, True))
+        b.append(_teks(30, y + 14, 118, 16, m["rentang"], 8.5, REDUP))
+        x = x0
+        for g in k["grup"]:
+            v = m["grup"][g["kode"]]
+            if not v:
+                continue
+            w = w0 * v / nf
+            b.append(_kotak(x, y + 6, max(w - 1.5, 1), 16, g["warna"]))
+            x += w
+        b.append(_teks(x0 + w0 + 2, y + 2, 50, 22, f"{_pct(m['dihubungi'], nf)}%", 10, TINTA, True, "END"))
+    for i, g in enumerate(k["grup"]):
+        x, y = 36 + (i % 3) * 140, 324 + (i // 3) * 18
+        b.append(_kotak(x, y + 5, 8, 8, g["warna"], True))
+        b.append(_teks(x + 6, y, 130, 18, g["label"], 8.5, TINTA2))
+
+    # kendala komunikasi minggu ini
+    b.append(_kotak(462, 96, 1, 270, GARIS))
+    b.append(_teks(470, 92, 220, 18, "Kendala komunikasi minggu ini", 10.5, TINTA, True))
+    for i, kd in enumerate(k["kendala"]):
+        y = 116 + i * 64
+        warna = next(g["warna"] for g in k["grup"] if g["kode"] == kd["kode"])
+        b.append(_kotak(476, y + 6, 8, 8, warna, True))
+        b.append(_teks(484, y, 150, 18, kd["label"], 9.5, TINTA, True))
+        b.append(_teks(634, y, 50, 18, _n(kd["jumlah"]), 10, TINTA, True, "END"))
+        sub = _selisih(kd["jumlah"], kd["lalu"])
+        if sub:
+            b.append(_teks(484, y + 15, 200, 15, sub, 8, REDUP))
+        if kd["contoh"]:
+            lebih = kd["jumlah"] - len(kd["contoh"])
+            b.append(_teks(484, y + 29, 200, 28, ", ".join(kd["contoh"]) + (f", +{lebih} lainnya" if lebih > 0 else ""),
+                           8, TINTA2))
     return b
 
 
@@ -470,6 +554,35 @@ def susun(d: dict[str, Any], urutan: list[str] | None = None, langkah: list[str]
             out.append({"kunci": k, "judul": SLIDE_JUDUL[k], "lanjutan": i > 0, "bentuk": bentuk,
                         "catatan": cat.get(k, "") if i == 0 else ""})
     return out
+
+
+def terapkan_ubahan(slides: list[dict[str, Any]], ubahan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Teks yang diedit PIC di pratinjau. Tiap ubahan menyebut slide (kunci + halaman), nomor bentuk, sel tabel
+    (baris -1 = judul kolom), teks asli, dan teks baru. Ubahan dilewati bila teks aslinya sudah berubah karena data
+    diperbarui, supaya tidak menimpa angka baru dengan angka lama."""
+    halaman: Counter[str] = Counter()
+    letak = {}
+    for s in slides:
+        letak[(s["kunci"], halaman[s["kunci"]])] = s
+        halaman[s["kunci"]] += 1
+    for u in ubahan:
+        s = letak.get((u.get("kunci"), u.get("halaman", 0)))
+        try:
+            b = s["bentuk"][int(u["bentuk"])] if s else None
+        except (IndexError, KeyError, TypeError, ValueError):
+            continue
+        baru = str(u.get("baru", ""))[:2000]
+        if not b or b.get("ubah"):
+            continue
+        if b["t"] == "text" and b["text"] == u.get("asli"):
+            b["text"] = baru
+        elif b["t"] == "table" and u.get("sel"):
+            r, c = u["sel"]
+            if r == -1 and 0 <= c < len(b["cols"]) and b["cols"][c]["label"] == u.get("asli"):
+                b["cols"][c]["label"] = baru
+            elif 0 <= r < len(b["rows"]) and 0 <= c < len(b["rows"][r]) and b["rows"][r][c] == u.get("asli"):
+                b["rows"][r][c] = baru
+    return slides
 
 
 # ---------- izin Google Slides (terpisah dari login utama) ----------
