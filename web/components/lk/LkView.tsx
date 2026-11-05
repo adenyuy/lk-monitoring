@@ -137,6 +137,7 @@ export function LkView() {
       )}
 
       <Papan data={data} onBuka={setBuka} onKode={(f, k) => void setKode(f, k)} />
+      <PapanKom data={data} onBuka={setBuka} onKode={(f, k) => void setKode(f, k)} />
 
       {buka && <FasilPanel kunci={buka} onClose={tutup} kodeLabel={data.kode} />}
     </div>
@@ -275,19 +276,90 @@ function Papan({ data, onBuka, onKode }: {
   );
 }
 
-function KartuFasil({ f, kolom, logAda, kode, onBuka, onKode }: {
+const TONE_KOM: Record<string, string> = {
+  perlu_balas: "ok", telepon: "bad", dibaca: "warn", terkirim: "info", menunggu: "info", terhubung: "ok", belum: "muted",
+};
+
+function jam(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"][d.getDay()]} ${String(d.getHours()).padStart(2, "0")}.${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Papan kedua: tiap fasil di satu kolom menurut status komunikasinya minggu ini (sudah membalas atau belum). */
+function PapanKom({ data, onBuka, onKode }: {
+  data: LkRingkasan; onBuka: (kunci: string) => void; onKode: (f: FasilLk, kode: string) => void;
+}) {
+  const [cari, setCari] = useState("");
+  const [hanyaTodo, setHanyaTodo] = useState(true);
+  const isi = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    const out: Record<string, FasilLk[]> = {};
+    for (const k of data.kom) out[k.kode] = [];
+    for (const f of data.fasil) {
+      if (hanyaTodo && !f.perlu) continue;
+      if (q && !f.nama.toLowerCase().includes(q) && !f.ptn.toLowerCase().includes(q)) continue;
+      (out[f.kom ?? "belum"] ??= []).push(f);
+    }
+    for (const k of Object.keys(out)) {
+      out[k].sort((a, b) => (b.waktu_balasan ?? "").localeCompare(a.waktu_balasan ?? "") || b.perlu - a.perlu
+        || a.nama.localeCompare(b.nama));
+    }
+    return out;
+  }, [data.fasil, data.kom, cari, hanyaTodo]);
+
+  return (
+    <section className={s.card} aria-labelledby="h-papan-kom">
+      <div className={s.papanHead}>
+        <div>
+          <h2 id="h-papan-kom">Status komunikasi minggu ini</h2>
+          <p>Tiap fasil ada di satu kolom: dari chat WhatsApp minggu ini dan kode Log Komunikasi hari ini.</p>
+        </div>
+        <div className={s.papanAlat}>
+          <label className={s.cek}><input type="checkbox" checked={hanyaTodo} onChange={(e) => setHanyaTodo(e.target.checked)} /> Hanya yang punya to-do</label>
+          <input type="search" placeholder="Cari nama fasil atau PTN" value={cari} aria-label="Cari fasil di papan komunikasi"
+            onChange={(e) => setCari(e.target.value)} />
+        </div>
+      </div>
+      <div className={s.board}>
+        {data.kom.map((k) => (
+          <div key={k.kode} className={`${s.col} ${k.kode === "perlu_balas" && isi[k.kode]?.length ? s.colSorot : ""}`}>
+            <div className={s.colHead}>
+              <b>{k.label}</b>
+              <span className={s.colN}>{isi[k.kode]?.length ?? 0}</span>
+              <small>{k.arti}</small>
+            </div>
+            <ul className={s.colList}>
+              {(isi[k.kode] ?? []).map((f) => (
+                <li key={f.kunci}>
+                  <KartuFasil f={f} kolom="" mode="kom" tone={TONE_KOM[k.kode]} logAda={data.log_hari_ini} kode={data.kode}
+                    onBuka={() => onBuka(f.kunci)} onKode={(x) => onKode(f, x)} />
+                </li>
+              ))}
+              {!(isi[k.kode] ?? []).length && <li className={s.colEmpty}>Kosong</li>}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KartuFasil({ f, kolom, logAda, kode, onBuka, onKode, mode = "komponen", tone }: {
   f: FasilLk; kolom: string; logAda: boolean; kode: { kode: string; arti: string }[];
-  onBuka: () => void; onKode: (k: string) => void;
+  onBuka: () => void; onKode: (k: string) => void; mode?: "komponen" | "kom"; tone?: string;
 }) {
   const info = KELOMPOK_INFO[f.kelompok];
   const n = f.posisi[kolom] ?? 0;
   return (
-    <div className={`${s.kartu} ${s[`kartu_${info.tone}`] ?? ""}`}>
+    <div className={`${s.kartu} ${s[`kartu_${tone ?? info.tone}`] ?? ""}`}>
       <button type="button" className={s.kartuUtama} onClick={onBuka} aria-label={`Buka ${f.nama}`}>
         <b>{f.nama}</b>
         <small>{f.ptn || "PTN belum tercatat"}</small>
         <span className={s.kartuPil}>
-          {kolom !== "hijau" && <em className={s.pilSekolah}>{n} sekolah</em>}
+          {mode === "komponen" && kolom !== "hijau" && <em className={s.pilSekolah}>{n} sekolah</em>}
+          {mode === "kom" && f.perlu > 0 && <em className={s.pilSekolah}>{f.perlu} sekolah to-do</em>}
           {f.perlu > 0 && (
             <em className={f.lengkap >= f.perlu ? s.pilOk : s.pilIsian} title="Sekolah yang isian Kendala & TL sesi ini sudah lengkap">
               Isian {f.lengkap}/{f.perlu}
@@ -298,10 +370,13 @@ function KartuFasil({ f, kolom, logAda, kode, onBuka, onKode }: {
           {f.belum_ditelepon && <em className={s.pilKuning} title="Berkali-kali hanya dibaca / tidak sampai, belum pernah ditelepon">Belum ditelepon</em>}
           {f.tag.map((x) => <em key={x} className={s.pilTag}>#{x}</em>)}
         </span>
+        {mode === "kom" && f.balasan && (
+          <span className={s.kartuBalasan} title={f.balasan}>{jam(f.waktu_balasan) && <i>{jam(f.waktu_balasan)}</i>}“{f.balasan}”</span>
+        )}
       </button>
       {logAda && (
         <div className={s.kartuKaki}>
-          <span>{info.label}</span>
+          <span>{mode === "kom" ? (f.kode_hari_ini ? "Log hari ini" : "Catat log hari ini") : info.label}</span>
           <KodePicker nilai={f.kode_hari_ini} kode={kode} onPilih={onKode}
             label={`Kode komunikasi hari ini untuk ${f.nama}`} />
         </div>

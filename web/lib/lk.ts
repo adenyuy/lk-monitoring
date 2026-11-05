@@ -40,6 +40,10 @@ export type FasilLk = {
   progres_naik: number | null;
   /** {kode kolom papan: jumlah sekolah yang tertahan di sana} */
   posisi: Record<string, number>;
+  /** status komunikasi minggu ini (papan kedua) */
+  kom?: string;
+  balasan?: string;
+  waktu_balasan?: string;
 };
 
 export type PosisiKolom = { kode: string; label: string; fasil: number; sekolah: number };
@@ -53,6 +57,7 @@ export type LkRingkasan = LkInfo & {
   fokus: { judul: string; jumlah: number }[];
   indikator: Indikator[];
   posisi: PosisiKolom[];
+  kom: { kode: string; label: string; arti: string; jumlah: number }[];
   tag: string[];
   fasil: FasilLk[];
 };

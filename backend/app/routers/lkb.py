@@ -75,6 +75,14 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
     dashboard.mulai_latar()  # siapkan dashboard di latar supaya langsung terbuka saat dipilih
     daftar = [komunikasi.ringkasan_fasil(f, k["rencana"], k["logkom"], k["hari"], k["blok"], k["tag"], k["delta"])
               for f in k["fasil"].values()]
+    from .. import tahap as _tahap
+
+    chat = komunikasi.peta_chat(_tahap.senin_iso())
+    for x in daftar:
+        c = chat.get(x["nomor"]) if x["nomor"] else None
+        x["kom"] = komunikasi.status_kom(x, c)
+        x["balasan"] = " ".join((c or {}).get("balasan", "").split())[:120]
+        x["waktu_balasan"] = (c or {}).get("waktu", "")
     urut = {kode: i for i, (kode, *_r) in enumerate(komunikasi.KELOMPOK)}
     daftar.sort(key=lambda x: (urut[x["kelompok"]], -(x["perlu"] - x["lengkap"]), x["nama"].casefold()))
     n = Counter(x["kelompok"] for x in daftar)
@@ -97,6 +105,8 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
         "fokus": [{"judul": j, "jumlah": v} for j, v in fokus.most_common(8)],
         "indikator": komunikasi.indikator(daftar),
         "posisi": posisi,
+        "kom": [{"kode": kode, "label": lbl, "arti": arti, "jumlah": sum(1 for x in daftar if x["kom"] == kode)}
+                for kode, lbl, arti in komunikasi.STATUS_KOM],
         "tag": semua_tag,
         "fasil": daftar,
     }

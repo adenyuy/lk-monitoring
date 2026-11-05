@@ -389,3 +389,57 @@ def nama_nomor() -> dict[str, str]:
         pass
     return out
 
+
+# ---------- status komunikasi minggu ini (papan kedua di LK) ----------
+
+STATUS_KOM = (
+    ("perlu_balas", "Sudah membalas, giliran Anda", "Fasil membalas dan belum dibalas lagi"),
+    ("telepon", "Perlu ditelepon", "Centang satu, tidak ada WA, atau berulang kali hanya dibaca"),
+    ("dibaca", "Dibaca, belum membalas", "Sapa lagi, atau telepon bila berulang"),
+    ("terkirim", "Terkirim, belum dibaca", "Tunggu dibaca"),
+    ("menunggu", "Menunggu konfirmasi", "Terhubung, tapi jawabannya belum tuntas atau lambat"),
+    ("terhubung", "Sudah membalas", "Respon baik lewat WhatsApp atau sudah ditelepon"),
+    ("belum", "Belum dihubungi", "Belum ada chat atau kode komunikasi minggu ini"),
+)
+
+
+def peta_chat(senin_iso: str) -> dict[str, dict[str, Any]]:
+    """{nomor: {status, perlu_balas, balasan, waktu}} dari chat yang dibaca/terkirim sejak Senin."""
+    out: dict[str, dict[str, Any]] = {}
+    try:
+        for r in db.query("SELECT nomor, status, balasan_terakhir, waktu_balasan, dicek, perlu_balas FROM chat_status "
+                          "WHERE dicek >= ? OR waktu_balasan >= ?", (senin_iso, senin_iso)):
+            out[r["nomor"]] = {"status": r["status"], "perlu_balas": bool(r["perlu_balas"]),
+                               "balasan": r["balasan_terakhir"] if (r["waktu_balasan"] or "") >= senin_iso else "",
+                               "waktu": r["waktu_balasan"] if (r["waktu_balasan"] or "") >= senin_iso else ""}
+        for r in db.query("SELECT DISTINCT nomor FROM sends WHERE coba = 0 AND status = 'terkirim' AND waktu >= ?",
+                          (senin_iso,)):
+            out.setdefault(r["nomor"], {"status": "terkirim", "perlu_balas": False, "balasan": "", "waktu": ""})
+    except Exception:
+        log.exception("Status chat tidak terbaca")
+    return out
+
+
+def status_kom(r: dict[str, Any], chat: dict[str, Any] | None) -> str:
+    """Satu status komunikasi per fasil: dari chat WhatsApp minggu ini dan kode Log Komunikasi hari ini."""
+    if chat and chat.get("perlu_balas"):
+        return "perlu_balas"
+    if r["kelompok"] == "perlu_telepon" or r["belum_ditelepon"]:
+        return "telepon"
+    k = r["kode_hari_ini"]
+    if k in TERHUBUNG:
+        return "terhubung"
+    if k in ("T1", "T2"):
+        return "menunggu"
+    if k == "R":
+        return "dibaca"
+    st = (chat or {}).get("status", "")
+    if st == "dibalas":
+        return "terhubung"
+    if st == "dibaca":
+        return "dibaca"
+    if st == "terkirim":
+        return "terkirim"
+    if any(d["kode"] in TERHUBUNG for d in r["kode_minggu"]):
+        return "terhubung"
+    return "belum"

@@ -51,7 +51,7 @@
   padding: 14px 18px 10px; }
 .papanHead h2 { font-size: 16px; font-weight: 600; }
 .papanHead p { font-size: 13px; color: var(--muted); margin-top: 2px; }
-.papanHead input { flex: 0 1 300px; height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 12px; font: inherit;
+.papanHead > input { flex: 0 1 300px; height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 12px; font: inherit;
   font-size: 14px; }
 
 .komponenBar { display: flex; gap: 6px; padding: 4px 18px 10px; overflow-x: auto; scrollbar-width: thin; }
@@ -289,3 +289,13 @@
   .seg i { display: none; }
   .kolomLk { padding: 14px 14px 40px; }
 }
+
+/* papan status komunikasi */
+.papanAlat { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.papanAlat input[type="search"] { width: 260px; height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 12px;
+  font: inherit; font-size: 14px; }
+.colSorot { border-color: #8fd4a8; background: #f3faf5; }
+.kartu_muted { border-left-color: #d0d5dd; }
+.kartuBalasan { display: block; margin-top: 4px; font-size: 12px; color: var(--ink-2); background: #f4f1ec; border-radius: 6px;
+  padding: 4px 7px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.kartuBalasan i { font-style: normal; color: var(--muted); margin-right: 6px; font-size: 11px; }
