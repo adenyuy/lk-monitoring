@@ -79,6 +79,18 @@ Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P
 
 **Tahap chat minggu ini**: papan berisi kolom Belum dihubungi → Sudah dihubungi → Dibaca → Membalas → Isian ditanyakan → LK lengkap. Tiap fasil ada di tahap terjauhnya minggu ini, lengkap dengan kontak terakhir. Klik fasil untuk lanjut chat dan isi LK. Bisa disaring P1/P2/P3 atau Di luar Broadcast.
 
+### Paparan
+
+Bahan paparan binaan kamu sendiri, disusun otomatis dari LK: **Profil sekolah binaan**, **Fasil binaan**, **Distribusi komunikasi**, **Bottleneck**, **Fasil bermasalah**, dan **Langkah berikutnya**. **Lampiran** (tabel lengkap) bisa dicentang bila perlu.
+
+- Centang slide yang dipaparkan dan geser urutannya dengan tombol ↑ ↓. Pilihan ini diingat per WEEK.
+- Isi slide **Langkah berikutnya** dan **catatan pembicara** tiap slide bisa diubah di bawah pratinjau.
+- **Presentasi**: layar penuh langsung dari aplikasi. Tombol panah untuk pindah slide, **N** untuk catatan, **Esc** untuk keluar.
+- **Buat Google Slides**: membuat file baru di Google Drive kamu, siap diedit dan dibagikan. Pertama kali, aplikasi meminta izin Google sekali saja (hanya untuk file yang dibuatnya sendiri).
+- Fasil masuk daftar **bermasalah** bila: sulit dihubungi (chat hanya dibaca/belum dibaca, atau perlu ditelepon), merespons tapi laporannya tidak bergerak sejak cutoff sebelumnya, punya reviu yang menunggu lebih dari 3 hari, atau capaian komponennya di bawah 25%.
+
+Untuk admin: tombol Buat Google Slides butuh **Google Slides API** aktif di project Google Cloud aplikasi (APIs & Services → Library → Google Slides API → Enable).
+
 ### Log
 
 - **Per hari**: pilih tanggal di kalender untuk melihat perubahan data Broadcast/LK dan aktivitas fasil hari itu, dikelompokkan per sesi.

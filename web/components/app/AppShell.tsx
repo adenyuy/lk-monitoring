@@ -13,7 +13,7 @@ import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
-import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconLogo } from "./Icons";
+import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconLogo, IconPaparan } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -104,6 +104,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Link>
       <Link href="/dashboard/" className={s.item} aria-current={aktif("/dashboard/")}>
         <span className={s.ico}><IconDashboard /></span><span className={s.lbl}>Dashboard</span>
+      </Link>
+      <Link href="/paparan/" className={s.item} aria-current={aktif("/paparan/")}>
+        <span className={s.ico}><IconPaparan /></span><span className={s.lbl}>Paparan</span>
       </Link>
       <Link href="/log/" className={s.item} aria-current={aktif("/log/")}>
         <span className={s.ico}><IconLog />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru" />}</span>

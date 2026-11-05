@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from . import chat_refresh, config, db, lk_otomatis, paths
-from .routers import admin, bimtek, blast, chat, core, cutoff, dashboard, eskalasi, lkb, log, rekap, send, today, wa
+from .routers import (admin, bimtek, blast, chat, core, cutoff, dashboard, eskalasi, lkb, log, paparan, rekap, send,
+                      today, wa)
 from .wa.browser import worker
 
 
@@ -79,6 +80,7 @@ app.include_router(today.router)
 app.include_router(lkb.router)
 app.include_router(blast.router)
 app.include_router(dashboard.router)
+app.include_router(paparan.router)
 app.include_router(chat.router)
 app.include_router(rekap.router)
 app.include_router(log.router)

@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
 import { LockIcon } from "./NoAccess";
 import { DaftarFasil, IzinDesktop, NotifList, useNotif, type Notif } from "./Notif";
-import { IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconPanduan, IconTanya } from "./Icons";
+import { IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconPanduan, IconPaparan, IconTanya } from "./Icons";
 import s from "./app.module.css";
 
 type Bubble = {
@@ -257,6 +257,8 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
                 <Tile href="/lk/" label="LK" icon={<IconLk />} current={kini("/lk/")} onPick={tutupMenu} autoFocus />
                 <Tile href="/blast/" label="Blast" icon={<IconBlast />} current={kini("/blast/")} onPick={tutupMenu} />
                 <Tile href="/dashboard/" label="Dashboard" icon={<IconDashboard />} current={kini("/dashboard/")}
+                  onPick={tutupMenu} />
+                <Tile href="/paparan/" label="Paparan" icon={<IconPaparan />} current={kini("/paparan/")}
                   onPick={tutupMenu} />
                 <Tile href="/log/" label="Log" icon={<IconLog />} current={kini("/log/")} onPick={tutupMenu}
                   titik={adaBaru} />
