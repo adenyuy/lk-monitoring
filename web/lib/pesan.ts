@@ -177,7 +177,7 @@ ${TERIMA_KASIH}` },
 
 Mohon bantuan Bapak/Ibu untuk mendorong fasilitator agar laporan sekolah segera lengkap. ${TERIMA_KASIH}` },
       { kode: "sulit", judul: "Fasil sulit dihubungi", bawaan: true,
-        ket: "Hanya koordinator yang punya fasil berkode R/C/N atau belum ditelepon di Log Komunikasi.",
+        ket: "Koordinator yang fasilnya hanya membaca chat, centang satu, atau tidak ada WA (dari WhatsApp minggu ini & Log Komunikasi).",
         teks: `${SALAM} Bapak/Ibu {nama}, mohon izin. Kami dari tim monitoring ingin menyampaikan bahwa fasilitator berikut belum dapat kami hubungi untuk konfirmasi progres pelaporan sekolah dampingan:
 
 {daftar_sulit}

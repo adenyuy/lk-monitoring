@@ -56,6 +56,11 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
         per: dict[str, dict[str, Any]] = {}
         ringkas = {f.kunci: komunikasi.ringkasan_fasil(f, rencana, k["logkom"], hari, blok, k["tag"], k["delta"])
                    for f in k["fasil"].values()}
+        from .. import tahap as _tahap
+
+        chat = komunikasi.peta_chat(_tahap.senin_iso())
+        kom = {kunci: komunikasi.status_kom(r, chat.get(r["nomor"]) if r["nomor"] else None)
+               for kunci, r in ringkas.items()}
         for f in k["fasil"].values():
             nomor = daftar_nomor(f.hp_koor)
             if not f.koor:
@@ -69,7 +74,9 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
             x["fasil"].append({"nama": f.nama, "kelompok": r["kelompok"], "sekolah": len(f.sekolah),
                                "perlu": r["perlu"], "todo": r["todo"], "todo_fasil": r["todo_fasil"],
                                "belum_ditelepon": r["belum_ditelepon"], "tanpa_progres": r["tanpa_progres"],
-                               "sulit": r["kelompok"] in ("perlu_telepon", "dibaca") or r["belum_ditelepon"]})
+                               # sulit: tidak sampai / hanya dibaca (Log Komunikasi) atau chat minggu ini hanya dibaca
+                               "sulit": r["perlu"] > 0 and (r["kelompok"] in ("perlu_telepon", "dibaca")
+                                                            or r["belum_ditelepon"] or kom[f.kunci] in ("telepon", "dibaca"))})
             x["kab"].update(s.kab for s in f.sekolah if s.kab)
             x["angkatan"].update(s.angkatan for s in f.sekolah if s.angkatan)
         for x in per.values():
