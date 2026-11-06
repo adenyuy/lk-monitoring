@@ -8,7 +8,10 @@ import json
 import re
 import os
 import threading
+import time
 from dataclasses import dataclass
+
+import requests
 
 import gspread
 from gspread.http_client import BackOffHTTPClient
@@ -184,6 +187,23 @@ def logout() -> None:
 
 # ---------- gspread ----------
 
+class _KlienUlang(BackOffHTTPClient):
+    """Selain batas kuota (dari BackOffHTTPClient), coba ulang juga bila koneksi ke Google putus di tengah jalan
+    (mis. 'Connection aborted' / 'RemoteDisconnected' saat mengirim data besar atau Wi-Fi sempat goyah)."""
+
+    _COBA_KONEKSI = 4
+
+    def request(self, *args, **kwargs):
+        for i in range(self._COBA_KONEKSI):
+            try:
+                return super().request(*args, **kwargs)
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+                    requests.exceptions.ChunkedEncodingError):
+                if i == self._COBA_KONEKSI - 1:
+                    raise
+                time.sleep(3 * 2 ** i)
+
+
 _gc_cache: dict[int, gspread.Client] = {}
 
 
@@ -193,5 +213,5 @@ def gspread_client() -> gspread.Client:
     if key not in _gc_cache:
         _gc_cache.clear()
         # Batas baca Google Sheets (60/menit/akun): coba ulang otomatis dengan jeda bertahap, bukan langsung gagal
-        _gc_cache[key] = gspread.authorize(creds, http_client=BackOffHTTPClient)
+        _gc_cache[key] = gspread.authorize(creds, http_client=_KlienUlang)
     return _gc_cache[key]

@@ -37,6 +37,7 @@ export function CutoffView() {
   const [file, setFile] = useState<File | null>(null);
   const [week, setWeek] = useState<number | null>(null);
   const [cek, setCek] = useState<Cek | null>(null);
+  const [tokenTerakhir, setTokenTerakhir] = useState("");
   const [busy, setBusy] = useState(false);
   const [aksiError, setAksiError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
@@ -83,12 +84,13 @@ export function CutoffView() {
     }
   }
 
-  async function tulis() {
-    if (!cek) return;
+  async function tulis(token = cek?.token) {
+    if (!token) return;
     setBusy(true);
     setAksiError(null);
+    setTokenTerakhir(token);
     try {
-      setStatus(await post<Status>("/api/cutoff/tulis", { token: cek.token }));
+      setStatus(await post<Status>("/api/cutoff/tulis", { token }));
       setAbaikan(false);
       setCek(null);
       setFile(null);
@@ -234,7 +236,15 @@ export function CutoffView() {
                 </Notice>
               )}
               {!jalan && status.error && <Notice tone="bad" title="Penulisan cutoff gagal">{status.error}</Notice>}
-              {!jalan && <div className={s.aksi}><Button variant="secondary" onClick={ulang}>Tarik cutoff lain</Button></div>}
+              {!jalan && status.error && aksiError && <Notice tone="bad">{aksiError}</Notice>}
+              {!jalan && (
+                <div className={s.aksi}>
+                  {status.error && tokenTerakhir && (
+                    <Button onClick={() => void tulis(tokenTerakhir)} loading={busy}>Coba tulis lagi</Button>
+                  )}
+                  <Button variant="secondary" onClick={ulang}>Tarik cutoff lain</Button>
+                </div>
+              )}
             </section>
           )}
         </div>

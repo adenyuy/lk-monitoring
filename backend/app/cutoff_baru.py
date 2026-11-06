@@ -29,6 +29,9 @@ log = logging.getLogger(__name__)
 TAB_PIC = "Log Progres PIC"
 TAB_LOG = "Log Tarik Data"
 RENCANA_DETIK = 30 * 60
+POTONG_BARIS = 1000
+KOLOM_BKU_BPP = ("Bulanan BKU Terkirim", "Bulanan BPP Terkirim", "BKU", "BPP", "BKU - Status Kirim",
+                 "BPP - Status Kirim")
 
 WAJIB = ("NPSN", "Nama Sekolah", "Pendahuluan - Status Kirim", "Capaian Progres (%)", "Mingguan Terkirim",
          "Mingguan Due", "Bulanan Terkirim", "Bulanan Due", "Laporan 50% - Status Kirim",
@@ -138,8 +141,12 @@ def olah(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
             "Waktu Tunggu Reviu Laporan 100%": angka(g(r, "Hari Verif 100%")),
             "Reviu Laporan 100%": REVIU_LAP.get(g(r, "Laporan 100% - Status Reviu"), g(r, "Laporan 100% - Status Reviu")),
         }
-        # BKU / BPP: diisi hanya bila export sudah punya kolomnya
+        # BKU / BPP: jumlah terkirim dibanding jumlah Lap. Bulanan yang sudah due, mis. '2/3'.
+        # Diisi hanya bila export sudah punya kolomnya.
         for k in ("BKU", "BPP"):
+            if f"Bulanan {k} Terkirim" in r:
+                x[k] = rasio(g(r, f"Bulanan {k} Terkirim"), g(r, "Bulanan Due"))
+                continue
             for nama in (f"{k} - Status Kirim", k):
                 if nama in r:
                     x[k] = KIRIM.get(g(r, nama), g(r, nama))
@@ -160,6 +167,8 @@ class Rencana:
     baris: list[list[Any]]                # isi baru A4.. (identitas + komponen), urut seperti di sheet
     tambah: list[list[Any]]               # sekolah baru (belum ada di WEEK)
     ringkasan: dict[str, Any] = field(default_factory=dict)
+    selesai: set[str] = field(default_factory=set)
+    label: str = ""  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
 
 
 _rencana: dict[str, Rencana] = {}
@@ -243,7 +252,7 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
         "tidak_di_file": hilang,
         "berubah": [{"kolom": k, "jumlah": v} for k, v in berubah.most_common()],
         "naik_selesai": [{"komponen": k, "jumlah": v} for k, v in naik.most_common()],
-        "bku_bpp": any(k in df.columns for k in ("BKU", "BPP", "BKU - Status Kirim", "BPP - Status Kirim")),
+        "bku_bpp": any(k in df.columns for k in KOLOM_BKU_BPP),
         "tab": lk_baru.tab_week(week),
     }
     with _lock:
@@ -276,7 +285,9 @@ def _tulis_aman(rc: Rencana, oleh: str) -> None:
             _rencana.pop(rc.token, None)
     except Exception as e:
         log.exception("Tulis cutoff gagal")
-        _status.update(error=str(e))
+        rc.dibuat = time.time()  # beri waktu untuk "Coba tulis lagi" tanpa unggah ulang
+        _status.update(error=f"{e}. Langkah yang sudah berhasil tidak diulang saat Coba tulis lagi."
+                       if rc.selesai else str(e))
     finally:
         _status["jalan"] = False
 
@@ -292,10 +303,17 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
     akhir = col_letter(len(rc.judul) - 1)
 
     _langkah("Memperbarui data sekolah", 10)
-    for i in range(0, len(rc.baris), 4000):
-        ss.values_update(f"'{tab}'!A{BARIS_DATA + i}:{akhir}{BARIS_DATA + i + len(rc.baris[i:i + 4000]) - 1}",
-                         params={"valueInputOption": "RAW"}, body={"values": rc.baris[i:i + 4000]})
-    if rc.tambah:
+    # potongan kecil: kiriman besar sekaligus bisa diputus Google ("Connection aborted")
+    for i in range(0, len(rc.baris), POTONG_BARIS):
+        if f"data:{i}" in rc.selesai:
+            continue
+        isi = rc.baris[i:i + POTONG_BARIS]
+        ss.values_update(f"'{tab}'!A{BARIS_DATA + i}:{akhir}{BARIS_DATA + i + len(isi) - 1}",
+                         params={"valueInputOption": "RAW"}, body={"values": isi})
+        rc.selesai.add(f"data:{i}")
+        _langkah(f"Memperbarui data sekolah ({min(i + POTONG_BARIS, len(rc.baris)):,} dari {len(rc.baris):,})"
+                 .replace(",", "."), 10 + round(15 * min(i + POTONG_BARIS, len(rc.baris)) / max(len(rc.baris), 1)))
+    if rc.tambah and "tambah" not in rc.selesai:
         _langkah(f"Menambahkan {len(rc.tambah)} sekolah baru", 25)
         mulai = BARIS_DATA + len(rc.baris)
         perlu = mulai + len(rc.tambah) + 5
@@ -310,6 +328,7 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
             "pasteType": t}} for t in ("PASTE_FORMAT", "PASTE_DATA_VALIDATION")]})
         ss.values_update(f"'{tab}'!A{mulai}:{akhir}{mulai + len(rc.tambah) - 1}", params={"valueInputOption": "RAW"},
                          body={"values": rc.tambah})
+        rc.selesai.add("tambah")
 
     _langkah("Mengurutkan per PIC", 40)
     t = lk_baru.tata(rc.week, refresh=True)
@@ -327,9 +346,14 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
     n_ket = tulis_keterangan(rc.week, semua)
 
     _langkah("Mengisi Log Progres", 80)
-    label = catat_log_progres(semua)
+    if "log" not in rc.selesai:
+        rc.label = catat_log_progres(semua)
+        rc.selesai.add("log")
+    label = rc.label
     catat_log_pic(semua, label)
-    _catat_tarik(ss, rc, oleh, total)
+    if "catat" not in rc.selesai:
+        _catat_tarik(ss, rc, oleh, total)
+        rc.selesai.add("catat")
     cache.clear()
     return {"tab": tab, "sekolah": total, "baru": len(rc.tambah), "keterangan": n_ket, "cutoff": label}
 
