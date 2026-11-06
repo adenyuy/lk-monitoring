@@ -52,16 +52,9 @@ def refresh_once() -> dict:
         for nomor in nomor_list:
             if _sibuk():  # pengiriman dimulai di tengah jalan -> mengalah
                 break
-            info, baris = worker.call(lambda b, n=nomor: actions.read_thread(b, n), timeout=120)
+            info = worker.call(lambda b, n=nomor: actions.read_chat(b, n), timeout=120)
             if info.status == "belum_ada":
                 continue
-            if info.status == "dibalas":
-                try:
-                    from . import kendala_auto
-
-                    kendala_auto.proses(nomor, baris)
-                except Exception:
-                    log.exception("Kendala otomatis dari balasan gagal")
             if info.status in ("dibaca", "dibalas") or info.centang in ("delivered", "read"):
                 tagging.tandai(nomor, "hijau")
             balasan = info.balasan[-1] if info.balasan else ""

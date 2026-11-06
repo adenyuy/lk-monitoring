@@ -84,7 +84,7 @@ Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P
 - **Saring per komponen**: baris tombol di langkah Target (Lap. Pendahuluan, Reviu, Mingguan, Bulanan, …) sama seperti papan LK. Bila satu komponen dipilih, pesan hanya memuat sekolah dan to-do komponen itu.
 - **Status chat**: tiap penerima ditandai Sudah membalas / Dibaca, belum dibalas / Terkirim, belum dibaca, dan bisa disaring lewat **Status chat**. **Lewati yang sudah di-chat hari ini** melewati fasil yang sudah dikirimi pesan hari ini, termasuk chat lewat HP yang terdeteksi aplikasi.
 - **Log Komunikasi** hari ini terisi otomatis begitu blast selesai, lalu diperbarui lagi saat fasil membaca atau membalas.
-- **Kendala otomatis**: bila fasil membalas template **Tanya kendala per sekolah** dengan format "1. … Kendala: … Tindak lanjut: …", isian Kendala dan Tindak Lanjut di LK (sesi hari ini) terisi sendiri saat chat diperbarui. Kendala dicocokkan ke pilihan dropdown bila mirip. Isian yang sudah kamu tulis sendiri tidak ditimpa.
+- **Kendala/TL otomatis**: sekolah yang belum mengirim Lap. Pendahuluan otomatis diberi keterangan "Menunggu Lap. Pendahuluan" di semua komponen sebelah kanannya (ditulis saat Tarik Cutoff). Kamu cukup mengisi Kendala/TL komponen yang jadi to-do.
 
 ### Blast admin (khusus akun dengan fitur blast_admin)
 
