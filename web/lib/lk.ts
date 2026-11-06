@@ -173,6 +173,10 @@ export type Penerima = {
   jumlah_sekolah: number;
   perlu: number;
   terakhir_blast: string;
+  /** Jam chat keluar terakhir hari ini (aplikasi atau terdeteksi di WhatsApp), '' bila belum. */
+  chat_hari_ini?: string;
+  /** Status chat minggu ini. */
+  chat?: "" | "terkirim" | "dibaca" | "dibalas";
   /** Komponen papan LK -> jumlah sekolah yang tertahan di situ. */
   posisi?: Record<string, number>;
   // fasil

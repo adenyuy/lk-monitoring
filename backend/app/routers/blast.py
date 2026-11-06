@@ -31,6 +31,20 @@ def _terakhir_blast(nomor: set[str]) -> dict[str, str]:
     return out
 
 
+def _chat_hari_ini(nomor: set[str]) -> dict[str, str]:
+    """{nomor: 'HH.MM'} chat keluar terakhir hari ini: kiriman aplikasi apa pun (blast, broadcast, balasan) atau
+    chat yang terdeteksi di WhatsApp (mis. dikirim lewat HP)."""
+    hari = schedule.now().date().isoformat()
+    out: dict[str, str] = {}
+    for r in db.query("SELECT nomor, waktu FROM sends WHERE coba = 0 AND status = 'terkirim' AND substr(waktu, 1, 10) = ? "
+                      "UNION ALL SELECT nomor, waktu FROM aktivitas WHERE jenis IN ('balas', 'blast') "
+                      "AND substr(waktu, 1, 10) = ?", (hari, hari)):
+        if r["nomor"] in nomor:
+            j = r["waktu"][11:16].replace(":", ".")
+            out[r["nomor"]] = max(out.get(r["nomor"], ""), j)
+    return out
+
+
 def _todo_json(r: todo.Rencana, pelaku: str | None = None) -> list[dict[str, Any]]:
     # posisi: komponen papan LK (lp, lp_rev, mg, ...) supaya pesan bisa dipersempit ke satu komponen
     return [{"judul": t.judul, "detail": t.detail, "pelaku": t.pelaku, "posisi": komunikasi.posisi_todo(t.kode)}
@@ -105,9 +119,19 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
             })
     else:
         raise HTTPException(400, "Jenis penerima tidak dikenal.")
-    terakhir = _terakhir_blast({x["nomor"] for x in out if x["nomor"]})
+    nomor = {x["nomor"] for x in out if x["nomor"]}
+    terakhir = _terakhir_blast(nomor)
+    hari_ini = _chat_hari_ini(nomor)
+    from .. import tahap as _tahap
+
+    chat = komunikasi.peta_chat(_tahap.senin_iso())
     for x in out:
         x["terakhir_blast"] = terakhir.get(x["nomor"], "")
+        x["chat_hari_ini"] = hari_ini.get(x["nomor"], "")
+        # status chat minggu ini: dibalas | dibaca | terkirim | '' (belum di-chat)
+        x["chat"] = (chat.get(x["nomor"]) or {}).get("status", "") if x["nomor"] else ""
+        if x["chat"] not in ("dibalas", "dibaca", "terkirim"):
+            x["chat"] = "terkirim" if x["chat_hari_ini"] else ""
         x["punya_nomor"] = bool(x.pop("nomor"))
     out.sort(key=lambda x: x["nama"].casefold())
     return out

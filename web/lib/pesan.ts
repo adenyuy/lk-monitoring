@@ -255,6 +255,7 @@ export function bacaBalasan(teks: string): JawabanSekolah[] {
     if (a) { cur.kendala = bersih(a[1]); isian = "kendala"; continue; }
     if (b) { cur.tl = bersih(b[1]); isian = "tl"; continue; }
     const lanjut = bersih(baris);
+    if (!baris.trim()) { isian = null; continue; } // baris kosong mengakhiri isian (mis. paragraf penutup)
     if (isian && lanjut && !/^[•]/.test(baris.trim())) cur[isian] = `${cur[isian]} ${lanjut}`.trim();
   }
   return out.filter((x) => x.kendala || x.tl);

@@ -221,6 +221,13 @@ class Mesin:
             st.berikutnya_pada = st.istirahat_sampai = None
             st.selesai = time.time()
             events.publish("kirim_selesai", **self.snapshot())
+            if st.terkirim and not st.coba:
+                try:  # langsung isi Log Komunikasi hari ini untuk penerima yang baru dikirimi
+                    from . import komunikasi
+
+                    komunikasi.sinkron_wa()
+                except Exception:
+                    log.exception("Sinkron Log Komunikasi setelah blast gagal")
 
     def _proses(self, p: Penerima, coba: bool) -> tuple[str, str]:
         from .undangan_wag import isi_salam

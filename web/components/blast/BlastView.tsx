@@ -19,6 +19,18 @@ type StateResp = { state: BlastState; aturan: Aturan; wa_terbuka: boolean; wa_ot
   template: TemplateSaya[] };
 type Langkah = 1 | 2 | 3;
 
+const CHAT_INFO = {
+  dibalas: { label: "Sudah membalas", tone: "ok" },
+  dibaca: { label: "Dibaca, belum dibalas", tone: "warn" },
+  terkirim: { label: "Terkirim, belum dibaca", tone: "info" },
+} as const;
+const CHAT_PILIH = [
+  { k: "belum", label: "Belum di-chat minggu ini" },
+  { k: "terkirim", label: CHAT_INFO.terkirim.label },
+  { k: "dibaca", label: CHAT_INFO.dibaca.label },
+  { k: "dibalas", label: CHAT_INFO.dibalas.label },
+];
+
 const JENIS: { k: JenisPenerima; label: string; ket: string }[] = [
   { k: "fasil", label: "Fasilitator", ket: "Fasil binaan Anda. Pesan menyebut sekolah dan to-do masing-masing." },
   { k: "koor", label: "Koordinator", ket: "Koordinator dari fasil binaan. Pesan berisi rekap per fasil." },
@@ -53,6 +65,7 @@ export function BlastView() {
   const [angkatan, setAngkatan] = useState("");
   const [kab, setKab] = useState("");
   const [komp, setKomp] = useState("");
+  const [statChat, setStatChat] = useState("");
   const [hanyaTodo, setHanyaTodo] = useState(true);
   const [lewatiHariIni, setLewatiHariIni] = useState(true);
   const [cari, setCari] = useState("");
@@ -124,14 +137,16 @@ export function BlastView() {
     const q = cari.trim().toLowerCase();
     return data.penerima.filter((p) => (!kel.length || kel.includes(p.kelompok)) && (!tag || p.tag.includes(tag))
       && (!angkatan || p.angkatan.includes(angkatan)) && (!kab || p.kab.includes(kab))
-      && (!hanyaTodo || p.perlu > 0) && (!q || p.nama.toLowerCase().includes(q)));
-  }, [data, kel, tag, angkatan, kab, hanyaTodo, cari]);
+      && (!hanyaTodo || p.perlu > 0) && (!statChat || (p.chat ?? "") === (statChat === "belum" ? "" : statChat))
+      && (!q || p.nama.toLowerCase().includes(q)));
+  }, [data, kel, tag, angkatan, kab, hanyaTodo, statChat, cari]);
   const terpilih = useMemo(() => dasar.map((p) => persempit(p, komp)).filter((p): p is Penerima => !!p),
     [dasar, komp]);
   const labelKomp = data?.komponen?.find((k) => k.kode === komp)?.label;
 
   const alasanTarget = (p: Penerima) => !p.punya_nomor ? "Nomor kosong"
-    : lewatiHariIni && p.terakhir_blast ? `Sudah diblast ${p.terakhir_blast}` : "";
+    : lewatiHariIni && (p.chat_hari_ini || p.terakhir_blast)
+      ? `Sudah di-chat hari ini ${p.chat_hari_ini || p.terakhir_blast}` : "";
   const target = terpilih.filter((p) => !alasanTarget(p) && !buang.has(p.kunci));
   const siap = target.filter((p) => !kosong(teks, p).length);
   const tanpaIsi = target.filter((p) => kosong(teks, p).length);
@@ -319,7 +334,13 @@ export function BlastView() {
                     </select>
                   )}
                   <label className={s.cek}><input type="checkbox" checked={hanyaTodo} onChange={(e) => setHanyaTodo(e.target.checked)} /> Hanya yang punya to-do</label>
-                  <label className={s.cek}><input type="checkbox" checked={lewatiHariIni} onChange={(e) => setLewatiHariIni(e.target.checked)} /> Lewati yang sudah diblast hari ini</label>
+                  <select value={statChat} onChange={(e) => setStatChat(e.target.value)} aria-label="Status chat minggu ini">
+                    <option value="">Semua status chat</option>
+                    {CHAT_PILIH.map((c) => (
+                      <option key={c.k} value={c.k}>{c.label} ({data.penerima.filter((p) => (p.chat ?? "") === (c.k === "belum" ? "" : c.k)).length})</option>
+                    ))}
+                  </select>
+                  <label className={s.cek}><input type="checkbox" checked={lewatiHariIni} onChange={(e) => setLewatiHariIni(e.target.checked)} /> Lewati yang sudah di-chat hari ini</label>
                 </div>
               </div>
 
@@ -346,9 +367,10 @@ export function BlastView() {
                             : jenis === "koor" ? `${p.tersamar || "tanpa nomor"} · ${p.fasil?.length ?? 0} fasil, ${p.jumlah_sekolah} sekolah`
                             : `${p.tersamar || "tanpa nomor"} · ${p.jumlah_sekolah} sekolah${p.perlu ? `, ${p.perlu} ${labelKomp ? `di ${labelKomp}` : "punya to-do"}` : ""}`}</small>
                         </span>
-                        {jenis === "fasil" && KELOMPOK_INFO[p.kelompok as Kelompok] && (
-                          <Chip tone={KELOMPOK_INFO[p.kelompok as Kelompok].tone}>{KELOMPOK_INFO[p.kelompok as Kelompok].label}</Chip>
-                        )}
+                        {p.chat ? <Chip tone={CHAT_INFO[p.chat].tone}>{CHAT_INFO[p.chat].label}</Chip>
+                          : jenis === "fasil" && KELOMPOK_INFO[p.kelompok as Kelompok] ? (
+                            <Chip tone={KELOMPOK_INFO[p.kelompok as Kelompok].tone}>{KELOMPOK_INFO[p.kelompok as Kelompok].label}</Chip>
+                          ) : <Chip tone="muted">Belum di-chat</Chip>}
                         {ket && <small className={s.alasan}>{ket}</small>}
                       </label>
                     </li>
@@ -516,10 +538,10 @@ export function AturanDialog({ awal, onSimpan, onClose }: { awal: Aturan; onSimp
         <fieldset className={s.field}>
           <legend>Jeda antar pesan</legend>
           <div className={s.angkaBaris}>
-            <Angka label="paling cepat" nilai={a.jeda_min} min={5} max={600} satuan="detik"
+            <Angka label="paling cepat" nilai={a.jeda_min} min={5} max={600} langkah={5} satuan="detik"
               onChange={(v) => setA({ ...a, jeda_min: v, jeda_max: Math.max(v, a.jeda_max) })} />
             <span>sampai</span>
-            <Angka label="paling lama" nilai={a.jeda_max} min={a.jeda_min} max={900} satuan="detik"
+            <Angka label="paling lama" nilai={a.jeda_max} min={a.jeda_min} max={900} langkah={5} satuan="detik"
               onChange={(v) => setA({ ...a, jeda_max: v })} />
           </div>
         </fieldset>
@@ -547,15 +569,31 @@ export function AturanDialog({ awal, onSimpan, onClose }: { awal: Aturan; onSimp
   );
 }
 
-function Angka({ label, nilai, min, max, satuan, onChange }: {
-  label: string; nilai: number; min: number; max: number; satuan: string; onChange: (v: number) => void;
+function Angka({ label, nilai, min, max, satuan, langkah = 1, onChange }: {
+  label: string; nilai: number; min: number; max: number; satuan: string; langkah?: number; onChange: (v: number) => void;
 }) {
+  // Ketikan disimpan apa adanya dan baru dirapikan (batas min/max) saat kolom ditinggalkan,
+  // supaya mengetik "30" tidak berubah jadi "5" di tengah jalan.
+  const [teks, setTeks] = useState<string | null>(null);
+  const pakai = (v: number) => onChange(Math.max(min, Math.min(max, Math.round(v))));
+  const selesai = () => { if (teks !== null && teks !== "") pakai(Number(teks)); setTeks(null); };
+  const geser = (arah: 1 | -1) => { const dasar = teks ? Number(teks) : nilai; setTeks(null); pakai(dasar + arah * langkah); };
   return (
-    <label className={s.angka}>
-      <input type="number" inputMode="numeric" min={min} max={max} value={nilai} aria-label={label}
-        onChange={(e) => onChange(Math.max(min, Math.min(max, Number(e.target.value) || 0)))} />
-      <span>{satuan}</span>
-    </label>
+    <div className={s.angka} role="group" aria-label={label}>
+      <button type="button" tabIndex={-1} aria-label={`Kurangi ${label}`} disabled={nilai <= min} onClick={() => geser(-1)}>−</button>
+      <label>
+        <input type="text" inputMode="numeric" value={teks ?? String(nilai)} aria-label={label}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => setTeks(e.target.value.replace(/\D/g, "").slice(0, 3))}
+          onBlur={selesai}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            else if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); geser(e.key === "ArrowUp" ? 1 : -1); }
+          }} />
+        <span>{satuan}</span>
+      </label>
+      <button type="button" tabIndex={-1} aria-label={`Tambah ${label}`} disabled={nilai >= max} onClick={() => geser(1)}>+</button>
+    </div>
   );
 }
 
