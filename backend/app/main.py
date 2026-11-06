@@ -129,6 +129,10 @@ def web(path: str):
         )
     found = _resolve_static(path)
     if found:
-        return FileResponse(found)
+        # File di _next/static ber-hash, aman di-cache lama. Halaman (HTML/txt) harus dicek ulang
+        # supaya setelah update browser tidak memakai tampilan lama.
+        tetap = path.startswith("_next/static/")
+        return FileResponse(found, headers={
+            "Cache-Control": "public, max-age=31536000, immutable" if tetap else "no-cache"})
     not_found = paths.WEB_OUT_DIR / "404.html"
     return FileResponse(not_found, status_code=404) if not_found.exists() else HTMLResponse("Tidak ditemukan", 404)
