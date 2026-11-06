@@ -146,3 +146,46 @@
 .picDetail summary { cursor: pointer; color: var(--primary); font-size: 12.5px; }
 .picDetail ul { margin: 6px 0 0 18px; font-size: 12.5px; max-height: 160px; overflow: auto; }
 .picAksi { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- status cutoff minggu ini ---------- */
+.minggu { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px 16px;
+  display: flex; flex-direction: column; gap: 10px; }
+.mingguHead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+.mingguHead h2 { font-size: 15px; font-weight: 600; }
+.mingguHead span { font-size: 13px; color: var(--muted); }
+.mingguHari { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.mingguHari li { position: relative; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 10px; display: flex;
+  flex-direction: column; gap: 2px; min-width: 0; background: #fafbfc; }
+.mingguHari b { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mingguHari small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; }
+.hariNama { font-size: 12px; color: var(--muted); font-weight: 500; }
+.hariIkon { position: absolute; top: 9px; right: 10px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; }
+.h_sudah { background: var(--ok-bg) !important; border-color: #bfe0cb !important; }
+.h_sudah .hariIkon { background: var(--ok-fg); color: #fff; }
+.h_sudah b { color: var(--ok-fg) !important; }
+.h_tarik { background: var(--warn-bg) !important; border-color: #f0d9a8 !important; }
+.h_tarik .hariIkon { background: var(--warn-fg); color: #fff; }
+.h_hari_ini { background: var(--surface) !important; border: 1.5px dashed var(--primary) !important; }
+.h_hari_ini .hariIkon { background: var(--primary); color: #fff; }
+.h_hari_ini b { color: var(--primary) !important; }
+.h_lewat b, .h_nanti b { color: var(--muted) !important; font-weight: 500 !important; }
+.h_nanti { opacity: 0.7; }
+
+/* ---------- log cutoff ---------- */
+.logCut { list-style: none; display: flex; flex-direction: column; }
+.logCut > li { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 4px 16px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.logCut > li:first-child { border-top: 0; padding-top: 2px; }
+.logCutHead { display: flex; flex-direction: column; gap: 2px; }
+.logCutHead b { font-size: 14px; font-weight: 600; }
+.logCutHead span { font-size: 12.5px; color: var(--muted); }
+.logCut ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.logCut ul li { display: grid; grid-template-columns: 44px minmax(0, auto) minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: 13px; color: var(--ink-2); }
+.logCut ul small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.logJam { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); }
+.linkBtnCut { align-self: flex-start; border: 0; background: none; color: var(--primary); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
+
+@media (max-width: 900px) {
+  .mingguHari { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .logCut > li { grid-template-columns: 1fr; }
+}

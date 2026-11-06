@@ -21,7 +21,14 @@ type Info = {
   riwayat: { waktu: string; week: string; file: string; sekolah: string; baru: string; oleh: string }[];
   log_progres: { cutoff: string[]; baris: LogBaris[] };
   status: Status; kolom_wajib: string[];
+  log_cutoff: LogCutoff[]; minggu: HariCutoff[];
 };
+type Tarikan = { jam: string; oleh: string; file: string; week: string; sekolah: string; baru: string };
+type LogCutoff = { cutoff: string; tanggal: string; sekolah: string; tarikan: Tarikan[] };
+type HariCutoff = { tanggal: string; hari: string; label: string; status: "sudah" | "tarik" | "hari_ini" | "lewat" | "nanti";
+  cutoff: string; jam: string; oleh: string };
+
+const namaOleh = (email: string) => (email.split("@")[0] || "").replace(/[._\d]+/g, " ").trim();
 type Cek = { token: string; file: string; week: number; tab: string; sekolah_file: number; sekolah_lk: number; cocok: number;
   baru: number; tidak_di_file: number; berubah: { kolom: string; jumlah: number }[];
   naik_selesai: { komponen: string; jumlah: number }[]; bku_bpp: boolean };
@@ -131,6 +138,8 @@ export function CutoffView() {
           <div><dt>Cutoff terakhir</dt><dd>{info.cutoff_terakhir || "belum ada"}</dd></div>
         </dl>
       </header>
+
+      <StatusMinggu hari={info.minggu} />
 
       <div className={s.layout}>
         <div className={s.utama}>
@@ -259,25 +268,13 @@ export function CutoffView() {
               )}
             </section>
           )}
+
+          <LogCutoffView data={info.log_cutoff} />
         </div>
 
         <aside className={s.samping}>
           <WeekBaru info={info} onSelesai={muat} />
           <PicBaru />
-          {info.riwayat.length > 0 && (
-            <section className={s.card}>
-              <div className={s.cardHead}><h2>Riwayat tarikan</h2></div>
-              <ul className={s.riwayat}>
-                {info.riwayat.slice(0, 8).map((r, i) => (
-                  <li key={i}>
-                    <b>{r.week} · {fmt(r.sekolah)} sekolah{Number(r.baru) ? `, ${r.baru} baru` : ""}</b>
-                    <span>{r.waktu} · {r.oleh}</span>
-                    <small title={r.file}>{r.file}</small>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
         </aside>
       </div>
 
@@ -349,6 +346,75 @@ function WeekBaru({ info, onSelesai }: { info: Info; onSelesai: () => void }) {
         <Button variant="secondary" size="sm" onClick={() => setKonfirmasi(true)}>Buat WEEK {berikut}</Button>
       )}
       {hasil && <p className={hasil.tone === "ok" ? s.ok : s.bad}>{hasil.teks}</p>}
+    </section>
+  );
+}
+
+// ---------- status cutoff minggu ini ----------
+
+const STATUS_HARI: Record<HariCutoff["status"], string> = {
+  sudah: "Sudah cutoff", tarik: "Ditarik, belum masuk Log Progres", hari_ini: "Belum ditarik hari ini",
+  lewat: "Tidak ada cutoff", nanti: "Belum",
+};
+
+function StatusMinggu({ hari }: { hari: HariCutoff[] }) {
+  if (!hari?.length) return null;
+  const ini = hari.find((h) => h.tanggal === new Date().toLocaleDateString("sv-SE"));
+  const sudah = hari.filter((h) => h.status === "sudah").length;
+  return (
+    <section className={s.minggu} aria-label="Status cutoff minggu ini">
+      <div className={s.mingguHead}>
+        <h2>Cutoff minggu ini</h2>
+        <span>{sudah} dari 5 hari{ini ? ` · hari ini ${ini.status === "sudah" ? `sudah ditarik pukul ${ini.jam || "–"}` : "belum ditarik"}` : ""}</span>
+      </div>
+      <ol className={s.mingguHari}>
+        {hari.map((h) => (
+          <li key={h.tanggal} className={s[`h_${h.status}`]} aria-label={`${h.label}: ${STATUS_HARI[h.status]}`}>
+            <span className={s.hariNama}>{h.label}</span>
+            <span className={s.hariIkon} aria-hidden="true">{h.status === "sudah" ? "✓" : h.status === "hari_ini" ? "!" : h.status === "tarik" ? "…" : ""}</span>
+            <b>{h.cutoff ? h.cutoff.replace(/\s*\(.*\)$/, "") : STATUS_HARI[h.status]}</b>
+            <small>{h.jam ? `${h.jam}${h.oleh ? ` · ${namaOleh(h.oleh)}` : ""}` : h.status === "sudah" ? "tercatat di Log Progres" : " "}</small>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function LogCutoffView({ data }: { data: LogCutoff[] }) {
+  const [semua, setSemua] = useState(false);
+  if (!data?.length) return null;
+  const tampil = semua ? data : data.slice(0, 5);
+  return (
+    <section className={s.card}>
+      <div className={s.cardHead}><h2>Log cutoff</h2><span>{data.filter((x) => x.cutoff).length} cutoff tercatat</span></div>
+      <ol className={s.logCut}>
+        {tampil.map((x) => (
+          <li key={x.tanggal}>
+            <div className={s.logCutHead}>
+              <b>{x.cutoff || "Tarikan tanpa kolom Log Progres"}</b>
+              <span>{new Date(`${x.tanggal}T00:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
+                {x.sekolah ? ` · ${x.sekolah} sekolah` : ""}</span>
+            </div>
+            {x.tarikan.length ? (
+              <ul>
+                {x.tarikan.map((r, i) => (
+                  <li key={i}>
+                    <span className={s.logJam}>{r.jam}</span>
+                    <span>{namaOleh(r.oleh) || r.oleh}{Number(r.baru) ? ` · ${r.baru} sekolah baru` : ""}</span>
+                    <small title={r.file}>{r.file}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className={s.muted}>Catatan tarikannya tidak ada (hanya tercatat di Log Progres).</p>}
+          </li>
+        ))}
+      </ol>
+      {data.length > 5 && (
+        <button type="button" className={s.linkBtnCut} onClick={() => setSemua(!semua)}>
+          {semua ? "Tampilkan 5 terakhir" : `Tampilkan semua (${data.length})`}
+        </button>
+      )}
     </section>
   );
 }

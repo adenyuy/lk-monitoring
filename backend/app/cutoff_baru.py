@@ -561,8 +561,9 @@ def catat_log_pic(semua: list[Sekolah], label: str) -> None:
             {"repeatCell": {"range": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": 1},
                             "cell": {"userEnteredFormat": {"textFormat": {"bold": True, "foregroundColor": {
                                 "red": 1, "green": 1, "blue": 1}}}}, "fields": "userEnteredFormat.textFormat"}},
-            {"updateSheetProperties": {"properties": {"sheetId": w.id, "gridProperties": {"frozenRowCount": 1}},
-                                       "fields": "gridProperties.frozenRowCount"}}]})
+            {"updateSheetProperties": {"properties": {"sheetId": w.id, "hidden": True,
+                                                      "gridProperties": {"frozenRowCount": 1}},
+                                       "fields": "hidden,gridProperties.frozenRowCount"}}]})
     lama = ss.values_get(f"'{TAB_PIC}'!A2:{col_letter(len(JUDUL_PIC) - 1)}").get("values", [])
     sisa = [r for r in lama if r and r[0] != label]
     per: dict[str, list[Sekolah]] = defaultdict(list)
@@ -624,15 +625,115 @@ def _catat_tarik(ss, rc: Rencana, oleh: str, total: int) -> None:
                                        total, len(rc.tambah), oleh]]})
 
 
-def riwayat() -> list[dict[str, Any]]:
+_RE_LABEL = re.compile(r"^Cutoff\s+(\d+)\s*\((\d{1,2})/(\d{1,2})\)")
+
+
+def _tanggal_label(label: str, acuan: date) -> date | None:
+    """'Cutoff 2 (06/11)' -> date(…, 11, 6), tahun terdekat dari acuan."""
+    m = _RE_LABEL.match(str(label).strip())
+    if not m:
+        return None
+    try:
+        return lk_baru._tahun_untuk(int(m.group(3)), int(m.group(2)), acuan)
+    except ValueError:
+        return None
+
+
+def _riwayat_tarik() -> list[dict[str, Any]]:
     try:
         v = lk_baru._ss().values_get(f"'{TAB_LOG}'!A2:F").get("values", [])
     except Exception:
         return []
-    out = [{"waktu": r[0], "week": r[1] if len(r) > 1 else "", "file": r[2] if len(r) > 2 else "",
-            "sekolah": r[3] if len(r) > 3 else "", "baru": r[4] if len(r) > 4 else "", "oleh": r[5] if len(r) > 5 else ""}
-           for r in v if r]
-    return list(reversed(out))[:30]
+    return [{"waktu": r[0], "week": r[1] if len(r) > 1 else "", "file": r[2] if len(r) > 2 else "",
+             "sekolah": r[3] if len(r) > 3 else "", "baru": r[4] if len(r) > 4 else "", "oleh": r[5] if len(r) > 5 else ""}
+            for r in v if r and r[0]]
+
+
+def gabung_riwayat(tarik: list[dict[str, Any]], log_cutoff: list[str], jumlah_sekolah: list[str],
+                   acuan: date) -> list[dict[str, Any]]:
+    """Satu entri per cutoff di Log Progres (terbaru dulu), berisi semua tarikan pada tanggalnya.
+    Cutoff yang catatan tarikannya hilang tetap tampil dari Log Progres."""
+    per_tgl: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for x in tarik:
+        per_tgl[str(x["waktu"])[:10]].append(x)
+    out, terpakai = [], set()
+    for i, label in enumerate(log_cutoff):
+        d = _tanggal_label(label, acuan)
+        if not d:
+            continue
+        kunci = d.isoformat()
+        terpakai.add(kunci)
+        xs = sorted(per_tgl.get(kunci, []), key=lambda x: x["waktu"])
+        out.append({"cutoff": label, "tanggal": kunci, "sekolah": jumlah_sekolah[i] if i < len(jumlah_sekolah) else "",
+                    "tarikan": [{"jam": str(x["waktu"])[11:16].replace(":", "."), "oleh": x["oleh"], "file": x["file"],
+                                 "week": x["week"], "sekolah": x["sekolah"], "baru": x["baru"]} for x in xs]})
+    for kunci, xs in per_tgl.items():  # tarikan yang tidak punya kolom Log Progres (mis. gagal di tengah)
+        if kunci in terpakai:
+            continue
+        out.append({"cutoff": "", "tanggal": kunci, "sekolah": "",
+                    "tarikan": [{"jam": str(x["waktu"])[11:16].replace(":", "."), "oleh": x["oleh"], "file": x["file"],
+                                 "week": x["week"], "sekolah": x["sekolah"], "baru": x["baru"]}
+                                for x in sorted(xs, key=lambda x: x["waktu"])]})
+    out.sort(key=lambda x: x["tanggal"], reverse=True)
+    return out
+
+
+def riwayat() -> list[dict[str, Any]]:
+    """Tarikan terbaru dulu (format lama, untuk kompatibilitas)."""
+    return list(reversed(_riwayat_tarik()))[:30]
+
+
+def log_cutoff() -> list[dict[str, Any]]:
+    lp = baca_log_progres()
+    jml = next((b["nilai"] for b in lp["baris"] if b["komponen"] == "Jumlah sekolah"), [])
+    return gabung_riwayat(_riwayat_tarik(), lp["cutoff"], jml, schedule.now().date())
+
+
+def status_minggu(riw: list[dict[str, Any]], hari_ini: date) -> list[dict[str, Any]]:
+    """Senin–Jumat minggu ini: sudah ada cutoff atau belum pada tiap hari."""
+    senin = hari_ini - timedelta(days=hari_ini.weekday())
+    per = {x["tanggal"]: x for x in riw}
+    out = []
+    for i in range(5):
+        d = senin + timedelta(days=i)
+        x = per.get(d.isoformat())
+        out.append({"tanggal": d.isoformat(), "hari": HARI[i], "label": f"{HARI[i]} {d:%d/%m}",
+                    "status": "sudah" if x and x["cutoff"] else ("tarik" if x else
+                              ("hari_ini" if d == hari_ini else ("lewat" if d < hari_ini else "nanti"))),
+                    "cutoff": x["cutoff"] if x else "",
+                    "jam": x["tarikan"][-1]["jam"] if x and x["tarikan"] else "",
+                    "oleh": x["tarikan"][-1]["oleh"] if x and x["tarikan"] else ""})
+    return out
+
+
+_POLA_TREN = {
+    "lp": ("Laporan Pendahuluan", "Sudah mengirim"), "lp_rev": ("Laporan Pendahuluan", "Sudah direviu"),
+    "progres": ("Progres Fisik", "Rata-rata progres"), "mg": ("Laporan Mingguan", "Kelengkapan unggah"),
+    "mg_rev": ("Laporan Mingguan", "Sudah direviu"), "bl": ("Laporan Bulanan", "Kelengkapan unggah"),
+    "bl_rev": ("Laporan Bulanan", "Sudah direviu"), "l50": ("Laporan 50%", "Sudah unggah"),
+    "l50_rev": ("Laporan 50%", "Sudah direviu"), "l100": ("Laporan 100%", "Sudah unggah"),
+}
+
+
+def persen_teks(v: str) -> float | None:
+    """'11.117 / 18.743 (59,3%)' atau '32,6%' -> angka persen."""
+    m = re.search(r"([\d.,]+)\s*%", str(v))
+    if not m:
+        return None
+    try:
+        return float(m.group(1).replace(".", "").replace(",", ".")) if "," in m.group(1) else float(m.group(1))
+    except ValueError:
+        return None
+
+
+def tren_nasional() -> dict[str, Any]:
+    """{cutoff: [...], seri: {kode: [persen per cutoff]}} dari tab Log Progres."""
+    lp = baca_log_progres()
+    seri: dict[str, list[float | None]] = {}
+    for kode, (kel, awal) in _POLA_TREN.items():
+        b = next((x for x in lp["baris"] if x["kelompok"] == kel and x["komponen"].startswith(awal)), None)
+        seri[kode] = [persen_teks(v) for v in b["nilai"]] if b else [None] * len(lp["cutoff"])
+    return {"cutoff": lp["cutoff"], "seri": seri}
 
 
 # ---------- Log Komunikasi: sekolah baru & PIC ----------

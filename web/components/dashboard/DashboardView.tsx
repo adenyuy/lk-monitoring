@@ -22,7 +22,8 @@ type Dash = {
   lengkap: number;
   komunikasi: { hari: { tanggal: string; kode: Record<string, number>; tercatat: number; fasil: number }[];
     total: Record<string, number>; kode: { kode: string; arti: string }[] };
-  tren: { cutoff: string[]; seri: { kode: string; label: string; nilai: (number | null)[] }[]; rata_pic: Record<string, number | null> };
+  tren: { cutoff: string[]; seri: { kode: string; label: string; nilai: (number | null)[] }[]; rata_pic: Record<string, number | null>;
+    sumber?: "pic" | "nasional" };
   fasil: { nama: string; ptn: string; sekolah: number; lengkap: number; belum: number; progres: number | null;
     terhubung: number; lambat: number; tidak: number; telepon: number; hari_tercatat: number; kode_hari_ini: string;
     tunggu_maks: number | null }[];
@@ -147,7 +148,10 @@ export function DashboardView() {
       <section className={s.card}>
         <div className={s.cardHead}>
           <h2>Tren per cutoff</h2>
-          <span>{d.tren.cutoff.length ? `${d.tren.cutoff.length} cutoff tercatat di Log Progres PIC` : "belum ada riwayat"}</span>
+          <span>{!d.tren.cutoff.length ? "belum ada riwayat"
+            : d.tren.sumber === "nasional" && !d.nasional
+              ? `${d.tren.cutoff.length} cutoff · angka nasional (riwayat per PIC belum cukup)`
+              : `${d.tren.cutoff.length} cutoff${d.nasional ? " · nasional" : ""}`}</span>
         </div>
         <Tren tren={d.tren} />
       </section>

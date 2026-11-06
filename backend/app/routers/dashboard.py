@@ -117,6 +117,25 @@ def _komunikasi(fasil: dict[str, komunikasi.Fasil], logkom: lk_baru.LogKom) -> d
 
 
 def _tren(pic: str | None) -> dict[str, Any]:
+    """Tren per cutoff. Per PIC dari tab Log Progres PIC; bila riwayat PIC kurang dari 2 cutoff (atau dashboard
+    nasional), tren nasional dari tab Log Progres dipakai supaya grafik tetap terisi."""
+    out = _tren_pic(pic)
+    try:
+        nas = cutoff_baru.tren_nasional()
+    except Exception:
+        nas = {"cutoff": [], "seri": {}}
+    out["nasional"] = {"cutoff": nas["cutoff"],
+                       "seri": [{"kode": k, "label": KOLOM_TREN[k].replace(" (%)", ""), "nilai": nas["seri"].get(k, [])}
+                                for k in KOLOM_TREN]}
+    out["sumber"] = "pic"
+    if pic is None or len(out["cutoff"]) < 2:
+        if len(nas["cutoff"]) >= len(out["cutoff"]):
+            out["sumber"] = "nasional"
+            out["cutoff"], out["seri"] = out["nasional"]["cutoff"], out["nasional"]["seri"]
+    return out
+
+
+def _tren_pic(pic: str | None) -> dict[str, Any]:
     rows = cutoff_baru.baca_log_pic()
     cut = list(dict.fromkeys(r["Cutoff"] for r in rows if r.get("Cutoff")))
     per: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))

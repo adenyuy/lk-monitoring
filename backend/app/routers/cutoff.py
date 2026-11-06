@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import cutoff_baru, db, google_auth, komunikasi, lk_baru, pic_baru
+from .. import cutoff_baru, db, google_auth, komunikasi, lk_baru, pic_baru, schedule
 from .deps import require_feature
 from .lkb import _jalan
 
@@ -23,11 +23,20 @@ def info(_=Depends(admin)) -> dict[str, Any]:
         "week_aktif": weeks[-1] if weeks else None,
         "senin_baru": cutoff_baru.senin_berikutnya().isoformat(),
         "riwayat": cutoff_baru.riwayat(),
+        **_log_cutoff(),
         "log_progres": _jalan(cutoff_baru.baca_log_progres),
         "status": cutoff_baru.status(),
         "kolom_wajib": list(cutoff_baru.WAJIB),
         "cutoff_terakhir": _cutoff_terakhir(),
     }
+
+
+def _log_cutoff() -> dict[str, Any]:
+    try:
+        log = cutoff_baru.log_cutoff()
+    except Exception:
+        log = []
+    return {"log_cutoff": log, "minggu": cutoff_baru.status_minggu(log, schedule.now().date())}
 
 
 def _cutoff_terakhir() -> str:
