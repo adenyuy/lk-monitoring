@@ -158,7 +158,8 @@ export function inisial(nama: string) {
 
 export type JenisPenerima = "fasil" | "koor" | "sekolah";
 
-export type TodoRingkas = { judul: string; detail: string; pelaku: "sekolah" | "fasil"; posisi?: string };
+export type TodoRingkas = { judul: string; detail: string; pelaku: "sekolah" | "fasil"; posisi?: string; kode?: string;
+  tunggu?: number | null };
 
 export type Penerima = {
   kunci: string;
@@ -181,7 +182,7 @@ export type Penerima = {
   /** Komponen papan LK -> jumlah sekolah yang tertahan di situ. */
   posisi?: Record<string, number>;
   // fasil
-  sekolah?: { nama: string; tahap: Tahap; todo: TodoRingkas[] }[];
+  sekolah?: { nama: string; npsn?: string; kab?: string; angkatan?: string; tahap: Tahap; todo: TodoRingkas[] }[];
   // koor
   fasil?: { nama: string; kelompok: Kelompok; sekolah: number; perlu: number; todo: number; todo_fasil: number;
     belum_ditelepon: boolean; tanpa_progres: boolean; sulit: boolean; posisi?: Record<string, number> }[];

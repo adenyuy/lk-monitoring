@@ -47,7 +47,8 @@ def _chat_hari_ini(nomor: set[str]) -> dict[str, str]:
 
 def _todo_json(r: todo.Rencana, pelaku: str | None = None) -> list[dict[str, Any]]:
     # posisi: komponen papan LK (lp, lp_rev, mg, ...) supaya pesan bisa dipersempit ke satu komponen
-    return [{"judul": t.judul, "detail": t.detail, "pelaku": t.pelaku, "posisi": komunikasi.posisi_todo(t.kode)}
+    return [{"kode": t.kode, "judul": t.judul, "detail": t.detail, "pelaku": t.pelaku, "tunggu": t.tunggu,
+             "posisi": komunikasi.posisi_todo(t.kode)}
             for t in r.todo if pelaku is None or t.pelaku == pelaku]
 
 
@@ -64,7 +65,8 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
                 "angkatan": sorted({s.angkatan for s in f.sekolah if s.angkatan}),
                 "kab": sorted({s.kab for s in f.sekolah if s.kab}),
                 "jumlah_sekolah": len(f.sekolah), "perlu": r["perlu"], "posisi": r["posisi"],
-                "sekolah": [{"nama": s.nama, "tahap": rencana[s.npsn].tahap, "todo": _todo_json(rencana[s.npsn])}
+                "sekolah": [{"nama": s.nama, "npsn": s.npsn, "kab": s.kab, "angkatan": s.angkatan,
+                             "tahap": rencana[s.npsn].tahap, "todo": _todo_json(rencana[s.npsn])}
                             for s in sorted(f.sekolah, key=lambda s: s.nama) if rencana[s.npsn].todo],
             })
     elif jenis == "koor":

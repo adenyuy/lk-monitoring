@@ -13,6 +13,17 @@ export function salamSekarang(d = new Date()) {
 }
 
 const TERIMA_KASIH = "Terima kasih atas perhatian dan kerja samanya 🙏";
+const LINK_APLIKASI = "https://revitsd.kemendikdasmen.go.id/rolelogin";
+const KOP = "📌 *INFORMASI & PENGINGAT RESMI | TIM MONITORING*\nSubdit Sarpras – Direktorat SD, Kemendikdasmen";
+const PENUTUP_BC = `🔗 *Akses Aplikasi Revitalisasi SD:*
+${LINK_APLIKASI}
+
+Apabila terdapat kendala teknis di lapangan, mohon segera dikoordinasikan dengan Tim Monitoring.
+
+Terima kasih atas perhatian, pendampingan, dan kerja samanya. 🙏🏻
+
+Salam,
+Tim Monitoring`;
 
 /** Variabel yang bisa dipakai di pesan, per jenis penerima. */
 export const VARIABEL: Record<JenisPenerima, { kode: string; arti: string }[]> = {
@@ -23,6 +34,10 @@ export const VARIABEL: Record<JenisPenerima, { kode: string; arti: string }[]> =
     { kode: "{daftar_tanya}", arti: "Daftar sekolah + to-do + baris Kendala/Tindak lanjut" },
     { kode: "{daftar_todo}", arti: "Daftar sekolah + to-do (tanpa isian)" },
     { kode: "{daftar_reviu}", arti: "Laporan yang menunggu reviu fasil" },
+    { kode: "{daftar_sekolah}", arti: "Sekolah yang punya to-do: nama (NPSN) - kab/kota | angkatan" },
+    { kode: "{sekolah_lp_belum}", arti: "Sekolah yang belum submit Lap. Pendahuluan (NPSN, kab/kota, angkatan)" },
+    { kode: "{sekolah_lp_revisi}", arti: "Sekolah yang Lap. Pendahuluannya berstatus Revisi" },
+    { kode: "{sekolah_lp_reviu}", arti: "Sekolah yang Lap. Pendahuluannya menunggu reviu fasil, dengan waktu tunggu" },
     { kode: "{petugas}", arti: "Nama Anda" },
   ],
   koor: [
@@ -71,6 +86,25 @@ function daftarReviu(p: Penerima) {
     .join("\n\n");
 }
 
+type SekolahTodo = NonNullable<Penerima["sekolah"]>[number];
+
+function barisSekolah(x: SekolahTodo, i: number, tambahan = "") {
+  const kab = x.kab ? ` - ${x.kab}` : "";
+  const ak = x.angkatan ? ` | Angkatan ${x.angkatan}` : "";
+  return `${i + 1}. ${x.nama}${x.npsn ? ` (NPSN: ${x.npsn})` : ""}${kab}${ak}${tambahan}`;
+}
+
+/** Daftar sekolah (format BC) yang punya to-do cocok dengan `pilih`. */
+function daftarBc(p: Penerima, pilih: (t: TodoRingkas) => boolean, tambahan?: (t: TodoRingkas) => string) {
+  const xs = sekolahTodo(p).map((x) => ({ x, t: x.todo.find(pilih) })).filter((y) => y.t);
+  return xs.map(({ x, t }, i) => barisSekolah(x, i, tambahan && t ? tambahan(t) : "")).join("\n");
+}
+
+const LP_BELUM = (t: TodoRingkas) => t.kode === "lp";
+const LP_REVISI = (t: TodoRingkas) => t.kode === "lp_rev" && /revisi/i.test(t.detail);
+const LP_REVIU = (t: TodoRingkas) => t.kode === "lp_rev" && !/revisi/i.test(t.detail);
+const TUNGGU = (t: TodoRingkas) => (t.tunggu != null ? ` | Waktu tunggu reviu: ${Math.round(t.tunggu)} hari` : "");
+
 function daftarSulit(p: Penerima) {
   return (p.fasil ?? []).filter((f) => f.sulit)
     .map((f, i) => `${i + 1}. ${f.nama} (${f.sekolah} sekolah dampingan)`).join("\n");
@@ -110,6 +144,10 @@ export function isi(teks: string, p: Penerima, petugas: string, salamNanti = tru
     "{daftar_tanya}": () => daftarTanya(p),
     "{daftar_todo}": () => (p.todo ? p.todo.map((t) => poin(t, false)).join("\n") : daftarTodo(p)),
     "{daftar_reviu}": () => daftarReviu(p),
+    "{daftar_sekolah}": () => sTodo.map((x, i) => barisSekolah(x, i)).join("\n"),
+    "{sekolah_lp_belum}": () => daftarBc(p, LP_BELUM),
+    "{sekolah_lp_revisi}": () => daftarBc(p, LP_REVISI),
+    "{sekolah_lp_reviu}": () => daftarBc(p, LP_REVIU, TUNGGU),
     "{daftar_sulit}": () => daftarSulit(p),
     "{daftar_fasil}": () => daftarFasil(p),
     "{sekolah}": () => p.nama,
@@ -126,6 +164,10 @@ export function kosong(teks: string, p: Penerima) {
     "{daftar_tanya}": () => !sekolahTodo(p).length,
     "{daftar_todo}": () => (p.todo ? !p.todo.length : !sekolahTodo(p).length),
     "{daftar_reviu}": () => !daftarReviu(p),
+    "{daftar_sekolah}": () => !sekolahTodo(p).length,
+    "{sekolah_lp_belum}": () => !daftarBc(p, LP_BELUM),
+    "{sekolah_lp_revisi}": () => !daftarBc(p, LP_REVISI),
+    "{sekolah_lp_reviu}": () => !daftarBc(p, LP_REVIU),
     "{daftar_sulit}": () => !daftarSulit(p),
     "{daftar_fasil}": () => !daftarFasil(p),
   };
@@ -172,6 +214,63 @@ ${TERIMA_KASIH}` },
 Mohon izin, agar data dapat kami rekap dengan tepat, mohon informasi tersebut *dikirim ulang sesuai format* berikut (diisi per sekolah):
 
 {daftar_tanya}` },
+      { kode: "bc_lp_belum", judul: "BC LP belum submit", bawaan: true,
+        ket: "Broadcast resmi: daftar sekolah yang belum submit Laporan Pendahuluan (NPSN, kab/kota, angkatan).",
+        teks: `${KOP}
+
+{salam}, Bapak/Ibu {nama}. 🙏🏻
+
+Perkenalkan, saya {petugas} dari Tim Monitoring Direktorat SD.
+
+Berdasarkan hasil pemantauan pada sistem Aplikasi Revitalisasi SD, sekolah dampingan Bapak/Ibu dari seluruh angkatan yang telah menyelesaikan penandatanganan PKS berikut tercatat belum melakukan submit Laporan Pendahuluan:
+
+🏫 *Daftar Sekolah Binaan:*
+{sekolah_lp_belum}
+
+Mengingat Laporan Pendahuluan merupakan persyaratan administrasi penting untuk kelanjutan pelaksanaan dan tahapan berikutnya, mohon bantuan Bapak/Ibu Fasilitator untuk segera:
+1. Mengingatkan dan mendampingi sekolah dalam menyusun berkas Laporan Pendahuluan.
+2. Memastikan sekolah mengunggah dokumen dan menekan tombol Submit pada Aplikasi Revitalisasi SD.
+3. Melakukan verifikasi terhadap dokumen yang telah diunggah oleh sekolah.
+
+${PENUTUP_BC}` },
+      { kode: "bc_lp_revisi", judul: "BC LP perlu revisi", bawaan: true,
+        ket: "Broadcast resmi: sekolah yang sudah submit Laporan Pendahuluan tapi hasil reviunya Revisi.",
+        teks: `${KOP}
+
+{salam}, Bapak/Ibu {nama}. 🙏🏻
+
+Perkenalkan, saya {petugas} dari Tim Monitoring Direktorat SD.
+
+Berdasarkan pemantauan pada Aplikasi Revitalisasi SD, sekolah dampingan Bapak/Ibu dari seluruh angkatan berikut sudah melakukan submit Laporan Pendahuluan, tetapi hasil reviunya masih berstatus *Revisi*:
+
+🏫 *Daftar Sekolah yang Perlu Revisi:*
+{sekolah_lp_revisi}
+
+Mohon bantuan Bapak/Ibu Fasilitator untuk:
+1. Meninjau kembali catatan hasil reviu Laporan Pendahuluan dan menyampaikan perbaikan yang diperlukan kepada sekolah dampingan.
+2. Mendampingi sekolah agar memperbaiki atau melengkapi dokumen sesuai catatan, kemudian mengunggah dan melakukan submit ulang Laporan Pendahuluan.
+3. Memastikan dokumen hasil perbaikan ditindaklanjuti dan diperiksa kembali sesuai alur reviu pada aplikasi.
+
+${PENUTUP_BC.replace("kendala teknis di lapangan, mohon segera dikoordinasikan dengan", "kendala teknis atau administrasi, mohon segera berkoordinasi dengan")}` },
+      { kode: "bc_lp_reviu", judul: "BC LP menunggu reviu", bawaan: true,
+        ket: "Broadcast resmi: sekolah yang sudah submit Laporan Pendahuluan tapi belum direviu fasil, dengan waktu tunggu.",
+        teks: `${KOP}
+
+{salam}, Bapak/Ibu {nama}. 🙏🏻
+
+Perkenalkan, saya {petugas} dari Tim Monitoring Direktorat SD.
+
+Berdasarkan hasil pemantauan pada Aplikasi Revitalisasi SD, sekolah dampingan Bapak/Ibu dari seluruh angkatan berikut telah melakukan submit Laporan Pendahuluan, namun status reviu Fasilitator masih tercatat *Belum*:
+
+🏫 *Daftar Sekolah Menunggu Reviu:*
+{sekolah_lp_reviu}
+
+Mohon bantuan Bapak/Ibu Fasilitator untuk segera:
+1. Memeriksa dan mereviu Laporan Pendahuluan yang telah disubmit oleh masing-masing sekolah dampingan.
+2. Memberikan hasil reviu melalui aplikasi. Apabila diperlukan perbaikan dokumen, mohon cantumkan catatan revisi yang jelas agar sekolah dapat segera menindaklanjuti.
+3. Memastikan hasil dan status reviu tercatat pada aplikasi serta mengoordinasikan tindak lanjut dengan sekolah terkait.
+
+${PENUTUP_BC.replace("kendala teknis di lapangan, mohon segera dikoordinasikan dengan", "kendala teknis dalam proses reviu, mohon segera berkoordinasi dengan")}` },
       { kode: "info", judul: "Info / pengumuman", bawaan: true,
         ket: "Pesan bebas, mis. undangan grup atau link survei. Ganti isinya sesuai kebutuhan.",
         teks: `${SALAM} Bapak/Ibu {nama},
@@ -185,6 +284,31 @@ ${TERIMA_KASIH}` },
   }
   if (jenis === "koor") {
     return [
+      { kode: "bc_koor_lp", judul: "BC Koordinator: Laporan Pendahuluan", bawaan: true,
+        ket: "Broadcast resmi ke Koordinator PTN tentang pendampingan dan verifikasi Laporan Pendahuluan.",
+        teks: `📌 *INFORMASI RESMI | TIM MONITORING*
+Subdit Sarpras – Direktorat SD, Kemendikdasmen
+
+{salam},
+Yth. Bapak/Ibu {nama} selaku Koordinator PTN.
+
+Perkenalkan, saya {petugas} dari Tim Monitoring Direktorat SD.
+
+Mohon izin menyampaikan informasi terkait pendampingan penyusunan dan verifikasi Laporan Pendahuluan pada Aplikasi Revitalisasi SD:
+
+1. 📄 *Kewajiban Laporan Pendahuluan:* Sekolah penerima bantuan diwajibkan menyusun dan mengunggah Laporan Pendahuluan (termasuk foto kondisi 0% dan jadwal pelaksanaan) sebagai syarat mutlak sebelum pekerjaan fisik dilanjutkan.
+
+2. 🤝 *Pendampingan & Verifikasi:* Mohon bantuan Bapak/Ibu Koordinator untuk mengarahkan rekan-rekan Fasilitator agar memastikan sekolah dampingannya segera mengunggah dokumen serta melakukan verifikasi secara berkala di aplikasi.
+
+3. 🔗 *Akses Sistem:* Pemantauan dan progres pelaporan dapat dipantau langsung melalui Aplikasi Revitalisasi SD pada tautan:
+${LINK_APLIKASI}
+
+Mohon kerja sama Bapak/Ibu untuk bersama-sama memantau dan mendampingi ketepatan waktu pelaporan di wilayah masing-masing.
+
+Terima kasih atas perhatian dan kerja samanya. 🙏🏻
+
+Salam,
+Tim Monitoring` },
       { kode: "rekap", judul: "Rekap to-do fasil binaan", bawaan: true,
         ket: "Ringkasan per fasil: berapa sekolah yang laporannya belum lengkap.",
         teks: `${SALAM} Bapak/Ibu {nama}, izin menyampaikan rekap progres pelaporan sekolah dampingan fasilitator binaan Bapak/Ibu:
