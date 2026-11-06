@@ -8,6 +8,7 @@ import { KELOMPOK_INFO, TAHAP_LABEL, type Aturan, type BlastState, type JenisPen
 import { SALAM, VARIABEL, isi as isiTemplate, kosong, persempit, templateBawaan, type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { formatWa } from "@/components/today/WaPanel";
+import { GantiWa, WaKartu } from "./GantiWa";
 import s from "./blast.module.css";
 
 type DataPenerima = {
@@ -77,6 +78,7 @@ export function BlastView() {
   const [lihat, setLihat] = useState(0);
   const [aturan, setAturan] = useState<Aturan>({ jeda_min: 20, jeda_max: 45, istirahat_setiap: 20, istirahat_menit: 5 });
   const [aturanBuka, setAturanBuka] = useState(false);
+  const [gantiWa, setGantiWa] = useState(false);
   const [mulai, setMulai] = useState<{ busy: boolean; error?: string; konfirmasi?: boolean }>({ busy: false });
   const teksRef = useRef<HTMLTextAreaElement>(null);
   const atasRef = useRef<HTMLDivElement>(null);
@@ -231,11 +233,15 @@ export function BlastView() {
           <h1>Blast</h1>
           <p>Kirim satu pesan ke banyak penerima sekaligus. Isinya menyesuaikan to-do tiap penerima.</p>
         </div>
-        <button type="button" className={s.aturanBtn} onClick={() => setAturanBuka(true)} aria-haspopup="dialog">
+        <div className={s.adminAlat}>
+          <WaKartu jalan={!!st?.state.running} onGanti={() => setGantiWa(true)} />
+          <button type="button" className={s.aturanBtn} onClick={() => setAturanBuka(true)} aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
           <span><b>Aturan kirim</b><small>jeda {aturan.jeda_min}–{aturan.jeda_max} dtk{aturan.istirahat_setiap ? ` · istirahat ${aturan.istirahat_menit} mnt / ${aturan.istirahat_setiap} pesan` : " · tanpa istirahat"}</small></span>
-        </button>
+          </button>
+        </div>
       </header>
+      {gantiWa && <GantiWa onTutup={() => { setGantiWa(false); void muatState(); }} />}
 
       {st && !st.wa_otomatis && (
         <Notice tone="warn" title="WhatsApp otomatis sedang mati">
