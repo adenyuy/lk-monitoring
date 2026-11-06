@@ -42,6 +42,9 @@ export const IconLk = () => (
 export const IconBlast = () => (
   <Svg><path d="M21.5 2.5 10.5 13.5" /><path d="m21.5 2.5-7 19-4-8-8-4z" /></Svg>
 );
+export const IconBlastAdmin = () => (
+  <Svg><path d="M3 10v4h3l5 4V6L6 10z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" /></Svg>
+);
 export const IconPaparan = () => (
   <Svg><rect x="3" y="4" width="18" height="12" rx="1.5" /><path d="M12 16v4" /><path d="M8 20h8" /><path d="M7.5 12.5 10.5 9l2.5 2.5 3.5-4" /></Svg>
 );

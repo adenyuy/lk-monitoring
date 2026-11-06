@@ -537,7 +537,7 @@ function Angka({ label, nilai, min, max, satuan, onChange }: {
   );
 }
 
-function Progres({ state, onUbah }: { state: BlastState; onUbah: () => void }) {
+export function Progres({ state, onUbah, dasar = "/api/blast" }: { state: BlastState; onUbah: () => void; dasar?: string }) {
   const hitung = useCountdown(state.istirahat_sampai ?? state.berikutnya_pada);
   const [busy, setBusy] = useState(false);
   const pct = state.total ? Math.round((state.diproses / state.total) * 100) : 0;
@@ -558,10 +558,10 @@ function Progres({ state, onUbah }: { state: BlastState; onUbah: () => void }) {
         </div>
         {state.running && (
           <div className={s.progresAksi}>
-            <Button variant="secondary" size="sm" loading={busy} onClick={() => void aksi("/api/blast/jeda", { aktif: !state.paused })}>
+            <Button variant="secondary" size="sm" loading={busy} onClick={() => void aksi(`${dasar}/jeda`, { aktif: !state.paused })}>
               {state.paused ? "Lanjutkan" : "Jeda"}
             </Button>
-            <Button variant="danger" size="sm" loading={busy} onClick={() => void aksi("/api/blast/stop")}>Hentikan</Button>
+            <Button variant="danger" size="sm" loading={busy} onClick={() => void aksi(`${dasar}/stop`)}>Hentikan</Button>
           </div>
         )}
       </div>

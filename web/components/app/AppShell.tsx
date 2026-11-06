@@ -13,7 +13,7 @@ import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
-import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconLogo, IconPaparan } from "./Icons";
+import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconLogo, IconPaparan, IconBlastAdmin } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -88,7 +88,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const bolehCutoff = !!me.access?.fitur.includes("cutoff");
-  const aktif = (href: string) => (path.startsWith(href.slice(0, -1)) ? "page" : undefined);
+  const bolehBlastAdmin = !!me.access?.fitur.includes("blast_admin");
+  const aktif = (href: string) => (path.startsWith(href) || path === href.slice(0, -1) ? "page" : undefined);
   const waLabel = wa?.state === "logged_in" ? `WhatsApp ${wa.nomor_tersamar || "terhubung"}`
     : wa?.state === "closed" ? "WhatsApp belum dibuka" : wa ? "WhatsApp menunggu" : "Memeriksa WhatsApp";
   const waDot = WA_WARNA[wa?.state ?? ""] ?? "#98a2b3";
@@ -102,6 +103,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Link href="/blast/" className={s.item} aria-current={aktif("/blast/")}>
         <span className={s.ico}><IconBlast /></span><span className={s.lbl}>Blast</span>
       </Link>
+      {bolehBlastAdmin && (
+        <Link href="/blast-admin/" className={s.item} aria-current={aktif("/blast-admin/")}>
+          <span className={s.ico}><IconBlastAdmin /></span><span className={s.lbl}>Blast admin</span>
+        </Link>
+      )}
       <Link href="/dashboard/" className={s.item} aria-current={aktif("/dashboard/")}>
         <span className={s.ico}><IconDashboard /></span><span className={s.lbl}>Dashboard</span>
       </Link>

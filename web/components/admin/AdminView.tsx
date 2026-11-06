@@ -14,7 +14,7 @@ type Pengguna = { baris: number; email: string; nama_petugas: string; fitur: str
 type Data = { pengguna: Pengguna[]; fitur: string[] };
 type Form = { email: string; nama_petugas: string; fitur: string[]; admin: boolean; email_lama: string };
 
-const LABEL_FITUR: Record<string, string> = { wa_blast: "LK & Blast", cutoff: "Tarik Cutoff" };
+const LABEL_FITUR: Record<string, string> = { wa_blast: "LK & Blast", cutoff: "Tarik Cutoff", blast_admin: "Blast admin" };
 const KOSONG: Form = { email: "", nama_petugas: "", fitur: ["wa_blast"], admin: false, email_lama: "" };
 
 export function AdminView() {

@@ -79,6 +79,16 @@ Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P
 
 **Tahap chat minggu ini**: papan berisi kolom Belum dihubungi → Sudah dihubungi → Dibaca → Membalas → Isian ditanyakan → LK lengkap. Tiap fasil ada di tahap terjauhnya minggu ini, lengkap dengan kontak terakhir. Klik fasil untuk lanjut chat dan isi LK. Bisa disaring P1/P2/P3 atau Di luar Broadcast.
 
+### Blast admin (khusus akun dengan fitur blast_admin)
+
+Kirim dari nomor WhatsApp kamu ke **seluruh koordinator, fasil, atau kepala sekolah** di LK. Admin memberi akses lewat halaman **Admin** (centang **Blast admin**) atau menulis `blast_admin` di kolom *fitur* sheet Akses.
+
+1. **Target**: pilih Koordinator / Fasilitator / Kepala sekolah, lalu saring per PIC, PTN, provinsi, atau angkatan bila perlu. Nomor yang dobel hanya dikirimi sekali.
+2. **Pesan**: tulis pesan dengan variabel seperti `{salam}`, `{nama}`, `{ptn}`, `{pic}`, `{jumlah_sekolah}` (sekolah: `{sekolah}`, `{fasil}`). Contoh untuk penerima pertama tampil di kanan.
+3. **Tinjau & kirim**: atur jeda dan istirahat, coba 3 pesan dulu (mode coba), lalu ketik **risiko ditanggung sendiri** untuk mengirim.
+
+Pengiriman berhenti sendiri di luar jam 07.00–22.00 atau bila 2 pesan gagal beruntun. Tekan Mulai lagi dengan target dan pesan yang sama: penerima yang sudah menerima pesan itu dilewati otomatis. Ribuan pesan dari satu nomor berisiko diblokir WhatsApp, jadi pakai jeda yang wajar dan nomor khusus bila bisa.
+
 ### Paparan
 
 Bahan paparan binaan kamu sendiri, disusun otomatis dari LK: **Profil sekolah binaan**, **Fasil binaan**, **Log progres** (kemajuan sejak tab WEEK sebelumnya, atau sejak cutoff sebelumnya yang tercatat di laptop ini bila WEEK sebelumnya belum ada), **Distribusi komunikasi** (dari Log Komunikasi: minggu ini sampai hari ini dibanding minggu-minggu sebelumnya pada hari yang sama, plus kendala komunikasinya), **Bottleneck**, **Fasil bermasalah**, dan **Langkah berikutnya**. **Lampiran** (tabel lengkap) bisa dicentang bila perlu.

@@ -165,3 +165,28 @@
 @media (max-width: 640px) {
   .stepper { grid-template-columns: 1fr; }
 }
+
+/* ---------- blast admin ---------- */
+.saringAdmin { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pilih { position: relative; }
+.pilih summary { list-style: none; cursor: pointer; height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px;
+  border: 1px solid #d0d5dd; border-radius: 8px; background: #fff; font-size: 13.5px; color: var(--ink-2); max-width: 260px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pilih summary::-webkit-details-marker { display: none; }
+.pilih summary::after { content: "▾"; color: var(--muted); font-size: 11px; }
+.pilih[open] summary { border-color: var(--primary); color: var(--primary); }
+.pilihPanel { position: absolute; z-index: 20; top: 40px; left: 0; width: 280px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 12px 30px rgba(16, 24, 40, 0.16); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.pilihPanel input[type="search"] { height: 32px; border: 1px solid #d0d5dd; border-radius: 6px; padding: 0 8px; font: inherit; font-size: 13px; }
+.pilihPanel ul { list-style: none; max-height: 240px; overflow: auto; display: flex; flex-direction: column; }
+.pilihPanel label { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.pilihPanel label:hover { background: var(--primary-soft); }
+.pilihPanel input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--primary); flex: none; }
+.pilihPanel > button { align-self: flex-end; border: 0; background: none; color: var(--primary); font: inherit; font-size: 12.5px; cursor: pointer; }
+.ringkasAdmin { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; background: var(--primary-soft); border-radius: 10px;
+  padding: 12px 16px; font-size: 14px; color: var(--ink-2); }
+.ringkasAdmin b { font-size: 22px; color: var(--primary); font-variant-numeric: tabular-nums; }
+.ringkasAdmin small { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+.areaAdmin { border: 1px solid #d0d5dd; border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5;
+  resize: vertical; color: var(--ink); min-height: 220px; }
+.areaAdmin:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }

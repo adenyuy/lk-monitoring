@@ -14,6 +14,7 @@ const UMUM: Langkah[] = [
 export const PANDUAN: Record<string, Langkah[]> = {
   "/lk/": [...UMUM],
   "/blast/": [...UMUM],
+  "/blast-admin/": [...UMUM],
   "/dashboard/": [...UMUM],
   "/paparan/": [...UMUM],
   "/faq/": [...UMUM],

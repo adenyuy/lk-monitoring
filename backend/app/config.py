@@ -46,7 +46,7 @@ LK_FIRST_ROW = 3
 # Sheet Akses (milik admin, "LK Monitoring - Akses"). Kolom: email | nama_petugas | fitur
 # Hanya akun yang diberi akses baca oleh admin yang bisa membukanya.
 ACCESS_TAB = "Akses"
-FEATURES = ("wa_blast", "cutoff")
+FEATURES = ("wa_blast", "cutoff", "blast_admin")
 
 # Cache baca sheet (detik)
 BROADCAST_CACHE_SECONDS = 300

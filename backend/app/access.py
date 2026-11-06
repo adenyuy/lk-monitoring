@@ -1,6 +1,6 @@
 """Daftar akses pengguna dari sheet Akses (milik admin).
 
-Kolom: email | nama_petugas | fitur | catatan   (fitur dipisah koma: wa_blast, cutoff; catatan "admin" = admin)
+Kolom: email | nama_petugas | fitur | catatan   (fitur dipisah koma: wa_blast, cutoff, blast_admin; catatan "admin" = admin)
 """
 
 from dataclasses import dataclass
