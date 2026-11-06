@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import { useEvents, usePolling } from "@/lib/hooks";
 import type { Aturan, BlastState } from "@/lib/lk";
+import type { WaStatus } from "@/lib/types";
 import { salamSekarang } from "@/lib/pesan";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { formatWa } from "@/components/today/WaPanel";
-import { Progres } from "./BlastView";
+import { AturanDialog, Progres } from "./BlastView";
 import s from "./blast.module.css";
 
 type Jenis = "koor" | "fasil" | "sekolah";
@@ -62,6 +63,8 @@ export function AdminBlastView() {
   const [busy, setBusy] = useState(false);
   const [pesanAksi, setPesanAksi] = useState<{ tone: "bad" | "ok"; teks: string } | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const [aturanBuka, setAturanBuka] = useState(false);
+  const [gantiWa, setGantiWa] = useState(false);
 
   useEffect(() => {
     api<Opsi>(`${DASAR}/opsi`).then(setOpsi).catch((e) => setError(e instanceof Error ? e.message : String(e)));
@@ -146,7 +149,17 @@ export function AdminBlastView() {
           <h1>Blast admin</h1>
           <p>Kirim dari nomor WhatsApp kamu ke seluruh koordinator, fasil, atau kepala sekolah di LK.</p>
         </div>
+        <div className={s.adminAlat}>
+          <WaKartu jalan={jalan} onGanti={() => setGantiWa(true)} />
+          <button type="button" className={s.aturanBtn} onClick={() => setAturanBuka(true)} aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
+            <span><b>Aturan kirim</b><small>jeda {aturan.jeda_min}–{aturan.jeda_max} dtk{aturan.istirahat_setiap ? ` · istirahat ${aturan.istirahat_menit} mnt / ${aturan.istirahat_setiap} pesan` : " · tanpa istirahat"}</small></span>
+          </button>
+        </div>
       </header>
+      {aturanBuka && <AturanDialog awal={aturan} onSimpan={(a) => { setAturan(a); setAturanBuka(false); }}
+        onClose={() => setAturanBuka(false)} />}
+      {gantiWa && <GantiWa onTutup={() => { setGantiWa(false); void muatState(); }} />}
 
       <Notice tone="warn" title="Dikirim dari satu nomor">
         Ribuan pesan dari satu nomor berisiko membuat nomor diblokir WhatsApp. Coba 3 pesan dulu, pakai jeda yang wajar,
@@ -327,5 +340,83 @@ function PilihBanyak({ label, pilihan, nilai, onUbah, tampil }: {
         {nilai.length > 0 && <button type="button" onClick={() => onUbah([])}>Kosongkan</button>}
       </div>
     </details>
+  );
+}
+
+function WaKartu({ jalan, onGanti }: { jalan: boolean; onGanti: () => void }) {
+  const [wa, setWa] = useState<WaStatus | null>(null);
+  const muat = useCallback(async () => {
+    try { setWa(await api<WaStatus>("/api/wa/status")); } catch { /* status diperbarui berkala */ }
+  }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void muat(); }, [muat]);
+  usePolling(muat, 15000, true);
+  const label = wa?.state === "logged_in" ? (wa.nomor_tersamar || "Terhubung")
+    : wa?.state === "qr" ? "Menunggu scan QR" : wa?.state === "closed" ? "Jendela WhatsApp tertutup" : "Memeriksa…";
+  return (
+    <div className={s.waKartu}>
+      <span className={`${s.waTitik} ${wa?.state === "logged_in" ? s.waOn : ""}`} aria-hidden="true" />
+      <span><small>WhatsApp pengirim</small><b>{label}</b></span>
+      <button type="button" onClick={onGanti} disabled={jalan} title={jalan ? "Hentikan blast dulu" : undefined}>
+        Ganti
+      </button>
+    </div>
+  );
+}
+
+function GantiWa({ onTutup }: { onTutup: () => void }) {
+  const [tahap, setTahap] = useState<"tanya" | "keluar" | "scan" | "selesai" | "gagal">("tanya");
+  const [ket, setKet] = useState("");
+  const [cara, setCara] = useState("");
+  const [nomor, setNomor] = useState("");
+
+  async function mulai() {
+    setTahap("keluar");
+    try {
+      const r = await post<WaStatus & { cara: string }>("/api/wa/keluar");
+      setCara(r.cara);
+      await post("/api/wa/connect");
+      setTahap("scan");
+      for (let i = 0; i < 120; i++) {
+        await new Promise((res) => setTimeout(res, 2500));
+        const st = await api<WaStatus>("/api/wa/status");
+        if (st.state === "logged_in") { setNomor(st.nomor_tersamar); setTahap("selesai"); return; }
+      }
+      setKet("QR belum di-scan. Tutup dialog ini, lalu scan QR di jendela WhatsApp kapan saja.");
+      setTahap("gagal");
+    } catch (e) {
+      setKet(e instanceof Error ? e.message : String(e));
+      setTahap("gagal");
+    }
+  }
+
+  return (
+    <div className={s.scrim} role="presentation">
+      <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="ganti-wa">
+        <h2 id="ganti-wa">Ganti nomor WhatsApp</h2>
+        {tahap === "tanya" && (
+          <>
+            <p>Nomor yang tertaut sekarang akan dikeluarkan dari aplikasi ini, lalu jendela WhatsApp menampilkan QR baru.
+              Scan dengan HP nomor yang ingin dipakai (WhatsApp → Perangkat tertaut → Tautkan perangkat).</p>
+            <p className={s.ket}>Riwayat kirim dan status chat di aplikasi tetap tersimpan.</p>
+          </>
+        )}
+        {tahap === "keluar" && <p className={s.tunggu}><Spinner /> Mengeluarkan nomor lama…</p>}
+        {tahap === "scan" && (
+          <>
+            <p className={s.tunggu}><Spinner /> Scan QR di jendela Chrome WhatsApp yang terbuka dengan HP nomor baru.</p>
+            {cara === "profil" && <p className={s.ket}>Nomor lama dikeluarkan dari aplikasi ini. Di HP lama, hapus juga
+              perangkat ini dari WhatsApp → Perangkat tertaut supaya rapi.</p>}
+          </>
+        )}
+        {tahap === "selesai" && <Notice tone="ok" title="WhatsApp tersambung">Sekarang mengirim dari {nomor || "nomor baru"}.</Notice>}
+        {tahap === "gagal" && <Notice tone="warn">{ket}</Notice>}
+        <div className={s.dialogAksi}>
+          {tahap === "tanya" && <Button variant="ghost" onClick={onTutup}>Batal</Button>}
+          {tahap === "tanya" && <Button variant="danger" onClick={() => void mulai()}>Keluarkan & scan nomor baru</Button>}
+          {(tahap === "selesai" || tahap === "gagal" || tahap === "scan") && <Button variant="secondary" onClick={onTutup}>Tutup</Button>}
+        </div>
+      </div>
+    </div>
   );
 }

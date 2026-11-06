@@ -80,3 +80,34 @@ def wa_connect(_: str = Depends(require_login)) -> dict[str, Any]:
             f"Chrome tidak bisa dibuka: {e}. Pastikan Google Chrome terpasang dan jendela WhatsApp app sebelumnya sudah ditutup.",
         ) from e
     return _snapshot()
+
+
+@router.post("/keluar")
+def wa_keluar(_: str = Depends(require_login)) -> dict[str, Any]:
+    """Keluar dari nomor WhatsApp yang tertaut supaya bisa scan QR dengan nomor lain.
+    Dicoba lewat menu WhatsApp Web; bila gagal, sesi WhatsApp di aplikasi ini dihapus."""
+    import shutil
+    import time
+
+    from .. import paths
+
+    if _sibuk():
+        raise HTTPException(409, "Pengiriman sedang berjalan. Hentikan dulu sebelum mengganti WhatsApp.")
+
+    def run(b) -> str:
+        if b.is_open and wa_status.state(b.page) == "logged_in" and wa_status.keluar_lewat_menu(b.page):
+            return "menu"
+        b.close()
+        time.sleep(1.5)  # beri waktu Chrome melepas file profil
+        if paths.CHROME_PROFILE_DIR.exists():
+            shutil.rmtree(paths.CHROME_PROFILE_DIR, ignore_errors=True)
+        paths.ensure_dirs()
+        return "profil"
+
+    try:
+        cara = worker.call(run, timeout=90)
+    except Exception as e:
+        raise HTTPException(500, f"WhatsApp tidak bisa dikeluarkan: {e}") from e
+    db.delete_setting("wa_terhubung")
+    db.delete_setting("wa_nomor")
+    return {"cara": cara, **_snapshot()}

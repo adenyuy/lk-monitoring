@@ -473,7 +473,7 @@ function Pratinjau({ siap, lihat, setLihat, contoh, teks, petugas }: {
   );
 }
 
-function AturanDialog({ awal, onSimpan, onClose }: { awal: Aturan; onSimpan: (a: Aturan) => void; onClose: () => void }) {
+export function AturanDialog({ awal, onSimpan, onClose }: { awal: Aturan; onSimpan: (a: Aturan) => void; onClose: () => void }) {
   const [a, setA] = useState(awal);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {

@@ -82,3 +82,12 @@ STATUS_KEYWORDS = (
 
 # localStorage berisi nomor akun yang login, mis. "6281234567890:12@c.us"
 LOCALSTORAGE_WID_KEYS = ("last-wid-md", "last-wid")
+
+# Menu utama (⋮) di panel kiri, dan item "Keluar" di menu / dialog konfirmasi
+MENU = (
+    'span[data-icon="menu"]',
+    '[aria-label="Menu"]',
+    '[title="Menu"]',
+    'button[aria-label="Menu" i]',
+)
+KELUAR_TEKS = r"^\s*(Log out|Logout|Keluar)\s*$"

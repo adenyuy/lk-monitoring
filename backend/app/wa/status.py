@@ -74,3 +74,26 @@ def wait_logged_in(b: Browser, timeout: float = 180) -> dict:
         b.page.wait_for_timeout(1500)
         snap = snapshot(b)
     return snap
+
+
+def keluar_lewat_menu(page: Page, tunggu: float = 25) -> bool:
+    """Keluar dari WhatsApp Web lewat Menu > Keluar > Keluar. True bila layar QR muncul."""
+    sel = first_visible(page, S.MENU)
+    if not sel:
+        return False
+    try:
+        page.click(sel, timeout=5000)
+        pola = re.compile(S.KELUAR_TEKS, re.I)
+        page.get_by_text(pola).first.click(timeout=5000)
+        page.wait_for_timeout(800)
+        tombol = page.get_by_role("button", name=pola)
+        if tombol.count():
+            tombol.last.click(timeout=5000)
+    except Exception:
+        return False
+    end = time.time() + tunggu
+    while time.time() < end:
+        if state(page) == "qr":
+            return True
+        page.wait_for_timeout(1000)
+    return False
