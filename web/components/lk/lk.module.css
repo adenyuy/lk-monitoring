@@ -237,7 +237,13 @@
 .pelakuFasil { background: #f3ecfa; color: #5b3a8a; }
 .lama { color: var(--bad-fg) !important; font-weight: 500; }
 .isian { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 8px; }
-.isian label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.isian > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.isianLabel { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px;
+  font-size: 12px; color: var(--muted); }
+.salinLain { font: inherit; font-size: 12px; color: var(--primary); background: none; border: 0; padding: 2px 4px;
+  border-radius: 4px; cursor: pointer; }
+.salinLain:hover { text-decoration: underline; }
+.salinLain:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .isian input, .isian textarea { font: inherit; font-size: 13px; color: var(--ink); border: 1px solid #d0d5dd; border-radius: 8px;
   padding: 7px 10px; min-height: 36px; resize: vertical; background: #fff; }
 .isian input:focus, .isian textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(35, 70, 160, 0.12); }

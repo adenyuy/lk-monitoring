@@ -420,8 +420,9 @@ def opsi_kendala(week: int | None = None) -> dict[str, list[str]]:
     return cache.get(f"lk2_opsi:{week}", 1800, load)
 
 
-def tulis_isian(week: int, isi: list[tuple[Sekolah, int, str, str, str]]) -> None:
+def tulis_isian(week: int, isi: list[tuple[Sekolah, int, str, str, str]], hanya_tl: bool = False) -> None:
     """Tulis Kendala/Tindak Lanjut. `isi` = [(sekolah, blok, kode komponen, kendala, tindak lanjut)].
+    `hanya_tl`: hanya kolom Tindak Lanjut yang ditulis (Kendala di sheet tidak disentuh).
     Baris dicek lewat NPSN dulu supaya tidak menulis ke sekolah lain bila urutan sheet berubah."""
     if not isi:
         return
@@ -441,12 +442,16 @@ def tulis_isian(week: int, isi: list[tuple[Sekolah, int, str, str, str]]) -> Non
     data = []
     for s, blok, kode, kendala, tl in isi:
         a, c = t.isian[blok][kode]
-        data.append({"range": f"'{tab}'!{col_letter(a)}{s.baris}:{col_letter(c)}{s.baris}",
-                     "values": [[kendala, tl]]})
+        if hanya_tl:
+            data.append({"range": f"'{tab}'!{col_letter(c)}{s.baris}", "values": [[tl]]})
+        else:
+            data.append({"range": f"'{tab}'!{col_letter(a)}{s.baris}:{col_letter(c)}{s.baris}",
+                         "values": [[kendala, tl]]})
     ss.values_batch_update({"valueInputOption": "RAW", "data": data})
     # Perbarui objek sekolah yang ada di cache supaya tampilan langsung benar tanpa membaca ulang sheet.
     for s, blok, kode, kendala, tl in isi:
-        s.isian.setdefault(blok, {})[kode] = (kendala, tl)
+        lama = s.isian.setdefault(blok, {}).get(kode, ("", ""))
+        s.isian[blok][kode] = (lama[0] if hanya_tl else kendala, tl)
 
 
 # ---------- Log Komunikasi ----------

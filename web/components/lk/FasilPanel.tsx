@@ -93,6 +93,27 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
     setKotor((k) => new Set(k).add(npsn));
   }
 
+  /** Salin Kendala/TL satu to-do ke to-do yang sama di sekolah lain fasil ini yang isiannya masih kosong. */
+  function salinKeLain(npsn: string, kode: string, field: "kendala" | "tl") {
+    if (!data) return;
+    const v = (draf[npsn]?.[kode]?.[field] ?? "").trim();
+    if (!v) return;
+    const target = data.sekolah_detail.filter((x) => x.npsn !== npsn && x.todo.some((t) => t.kode === kode)
+      && !(draf[x.npsn]?.[kode]?.[field] ?? "").trim()).map((x) => x.npsn);
+    const nama = field === "kendala" ? "Kendala" : "Tindak lanjut";
+    if (!target.length) {
+      setSimpan({ busy: null, pesan: { tone: "ok", teks: `Tidak ada sekolah lain dengan to-do ini yang ${nama.toLowerCase()}-nya masih kosong.` } });
+      return;
+    }
+    setDraf((d) => {
+      const baru = { ...d };
+      for (const n of target) baru[n] = { ...baru[n], [kode]: { ...(baru[n]?.[kode] ?? { kendala: "", tl: "" }), [field]: v } };
+      return baru;
+    });
+    setKotor((k) => { const b = new Set(k); target.forEach((n) => b.add(n)); return b; });
+    setSimpan({ busy: null, pesan: { tone: "ok", teks: `${nama} disalin ke ${target.length} sekolah lain. Periksa lalu tekan Simpan semua.` } });
+  }
+
   function toggle(npsn: string) {
     setBuka((b) => { const n = new Set(b); if (n.has(npsn)) n.delete(npsn); else n.add(npsn); return n; });
   }
@@ -270,7 +291,9 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
                 {daftarSekolah.map((x) => (
                   <SekolahCard key={x.npsn} x={x} draf={draf[x.npsn] ?? {}} opsi={opsi} kotor={kotor.has(x.npsn)}
                     terbuka={buka.has(x.npsn)} onToggle={() => toggle(x.npsn)}
-                    onUbah={(kode, f, v) => ubah(x.npsn, kode, f, v)} onSimpan={() => void simpanIsian(x.npsn)}
+                    onUbah={(kode, f, v) => ubah(x.npsn, kode, f, v)} onSalin={(kode, f) => salinKeLain(x.npsn, kode, f)}
+                    bisaSalin={(kode) => data.sekolah_detail.some((y) => y.npsn !== x.npsn && y.todo.some((t) => t.kode === kode))}
+                    onSimpan={() => void simpanIsian(x.npsn)}
                     busy={simpan.busy === x.npsn} />
                 ))}
                 {!daftarSekolah.length && <p className={s.hijauBesar}>Semua sekolah binaan fasil ini sudah hijau.</p>}
@@ -334,7 +357,7 @@ function Legenda() {
   );
 }
 
-function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSimpan, busy }: {
+function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSalin, bisaSalin, onSimpan, busy }: {
   x: SekolahDetail;
   draf: Record<string, { kendala: string; tl: string }>;
   opsi: OpsiLk | null;
@@ -342,6 +365,8 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSimpan
   terbuka: boolean;
   onToggle: () => void;
   onUbah: (kode: string, f: "kendala" | "tl", v: string) => void;
+  onSalin: (kode: string, f: "kendala" | "tl") => void;
+  bisaSalin: (kode: string) => boolean;
   onSimpan: () => void;
   busy: boolean;
 }) {
@@ -384,6 +409,7 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSimpan
               const v = draf[t.kode] ?? { kendala: "", tl: "" };
               const pil = opsi?.kendala[t.komponen[0]] ?? [];
               const id = `k-${x.npsn}-${t.kode}`;
+              const salin = bisaSalin(t.kode);
               return (
                 <li key={t.kode} className={i === 0 ? s.todoFokus : undefined}>
                   <div className={s.todoJudul}>
@@ -398,17 +424,33 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSimpan
                     )}
                   </div>
                   <div className={s.isian}>
-                    <label>
-                      <span>Kendala</span>
-                      <input list={`${id}-opsi`} value={v.kendala} placeholder="Pilih atau ketik kendala"
+                    <div>
+                      <div className={s.isianLabel}>
+                        <label htmlFor={`${id}-k`}>Kendala</label>
+                        {salin && v.kendala.trim() && (
+                          <button type="button" className={s.salinLain} onClick={() => onSalin(t.kode, "kendala")}
+                            title="Isi Kendala yang sama di sekolah lain dengan to-do ini (yang masih kosong)">
+                            Salin ke sekolah lain
+                          </button>
+                        )}
+                      </div>
+                      <input id={`${id}-k`} list={`${id}-opsi`} value={v.kendala} placeholder="Pilih atau ketik kendala"
                         onChange={(e) => onUbah(t.kode, "kendala", e.target.value)} />
                       <datalist id={`${id}-opsi`}>{pil.map((o) => <option key={o} value={o} />)}</datalist>
-                    </label>
-                    <label>
-                      <span>Tindak lanjut</span>
-                      <textarea rows={1} value={v.tl} placeholder="Apa yang sudah / akan dilakukan"
+                    </div>
+                    <div>
+                      <div className={s.isianLabel}>
+                        <label htmlFor={`${id}-t`}>Tindak lanjut</label>
+                        {salin && v.tl.trim() && (
+                          <button type="button" className={s.salinLain} onClick={() => onSalin(t.kode, "tl")}
+                            title="Isi Tindak lanjut yang sama di sekolah lain dengan to-do ini (yang masih kosong)">
+                            Salin ke sekolah lain
+                          </button>
+                        )}
+                      </div>
+                      <textarea id={`${id}-t`} rows={1} value={v.tl} placeholder="Apa yang sudah / akan dilakukan"
                         onChange={(e) => onUbah(t.kode, "tl", e.target.value)} />
-                    </label>
+                    </div>
                   </div>
                 </li>
               );
