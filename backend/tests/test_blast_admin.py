@@ -6,18 +6,24 @@ from fastapi import HTTPException
 from app.routers import blast_admin as ba
 
 
+@pytest.fixture(autouse=True)
+def _belum_palsu(monkeypatch):
+    ba._SIMPAN.clear()
+    monkeypatch.setattr(ba, "komponen_belum", lambda s: frozenset(s.belum))
+
+
 def _s(npsn, pic, fasil, hp_fasil, koor="Koor A", hp_koor="0812000001", ptn="Univ A", prov="Prov. Aceh",
-       angkatan="1", kepsek="Pak Kepsek", hp_kepsek="0813000001"):
+       angkatan="1", kepsek="Pak Kepsek", hp_kepsek="0813000001", belum=()):
     s = SimpleNamespace(npsn=npsn, petugas=pic, nama=f"SD {npsn}", fasil=fasil, hp_fasil=hp_fasil, koor=koor,
                         hp_koor=hp_koor, ptn=ptn, provinsi=prov, angkatan=angkatan, kepsek=kepsek,
-                        hp_kepsek=hp_kepsek, kab="Kab X")
+                        hp_kepsek=hp_kepsek, kab="Kab X", belum=belum)
     s.nomor_fasil = lambda: [hp_fasil] if hp_fasil else []
     return s
 
 
 SEKOLAH = [
-    _s("1", "Ani", "Fasil Satu", "6281111"),
-    _s("2", "Ani", "Fasil Satu", "6281111"),
+    _s("1", "Ani", "Fasil Satu", "6281111", belum=("lp",)),
+    _s("2", "Ani", "Fasil Satu", "6281111", belum=("lp", "mg")),
     _s("3", "Budi", "Fasil Dua", "6282222", koor="Koor B", hp_koor="0812000002", ptn="Univ B", prov="Prov. Riau",
        angkatan="2", hp_kepsek=""),
 ]
@@ -67,3 +73,13 @@ def test_start_mengirim_ke_nomor_unik(monkeypatch):
     r = ba.start(ba.StartReq(jenis="fasil", pesan="{salam} {nama}", konfirmasi="Risiko ditanggung sendiri"))
     assert r["jumlah"] == 2
     assert sorted(p.pesan for p in dikirim["daftar"]) == ["{salam} Fasil Dua", "{salam} Fasil Satu"]
+
+
+def test_saring_komponen_belum():
+    fasil = ba.saring(ba.target("fasil", SEKOLAH), ba.Saring(belum=["lp"]))
+    assert [t.nama for t in fasil] == ["Fasil Satu"]
+    assert ba.rakit("{jumlah_belum} sekolah: {sekolah_belum}", fasil[0]) == "2 sekolah: SD 1, SD 2"
+    sek = ba.saring(ba.target("sekolah", SEKOLAH), ba.Saring(belum=["mg"]))
+    assert [t.nilai["sekolah"] for t in sek] == ["SD 2"]
+    assert ba.rakit("{belum}", sek[0]) == "Lap. Mingguan"
+    assert len(ba.saring(ba.target("sekolah", SEKOLAH), ba.Saring())) == 3  # tanpa saringan komponen: semua

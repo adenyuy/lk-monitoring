@@ -8,13 +8,13 @@ tengah jalan, Mulai lagi dengan pesan yang sama melewati penerima yang sudah men
 
 import re
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import blast, db, komunikasi, lk_baru
+from .. import blast, db, komunikasi, lk_baru, todo
 from ..sheets import daftar_nomor, message_hash, normalize_petugas
 from ..wa.browser import worker
 from .deps import require_feature
@@ -28,11 +28,16 @@ Jenis = Literal["koor", "fasil", "sekolah"]
 
 VARIABEL = {
     "koor": [("{salam}", "Salam sesuai jam"), ("{nama}", "Nama koordinator"), ("{ptn}", "PTN"),
-             ("{jumlah_fasil}", "Jumlah fasil binaan"), ("{jumlah_sekolah}", "Jumlah sekolah binaan")],
+             ("{jumlah_fasil}", "Jumlah fasil binaan"), ("{jumlah_sekolah}", "Jumlah sekolah binaan"),
+             ("{jumlah_belum}", "Jumlah sekolah yang belum (sesuai saringan komponen)"),
+             ("{sekolah_belum}", "Nama sekolah yang belum (maks. 10)")],
     "fasil": [("{salam}", "Salam sesuai jam"), ("{nama}", "Nama fasil"), ("{ptn}", "PTN"),
-              ("{koor}", "Nama koordinator"), ("{pic}", "Nama PIC"), ("{jumlah_sekolah}", "Jumlah sekolah binaan")],
+              ("{koor}", "Nama koordinator"), ("{pic}", "Nama PIC"), ("{jumlah_sekolah}", "Jumlah sekolah binaan"),
+              ("{jumlah_belum}", "Jumlah sekolah yang belum (sesuai saringan komponen)"),
+              ("{sekolah_belum}", "Nama sekolah yang belum (maks. 10)")],
     "sekolah": [("{salam}", "Salam sesuai jam"), ("{nama}", "Nama kepala sekolah"), ("{sekolah}", "Nama sekolah"),
-                ("{fasil}", "Nama fasil"), ("{ptn}", "PTN"), ("{pic}", "Nama PIC")],
+                ("{fasil}", "Nama fasil"), ("{ptn}", "PTN"), ("{pic}", "Nama PIC"),
+                ("{belum}", "Komponen yang belum (sesuai saringan komponen)")],
 }
 
 
@@ -46,13 +51,23 @@ class Target:
     ptn: set[str] = field(default_factory=set)
     provinsi: set[str] = field(default_factory=set)
     angkatan: set[str] = field(default_factory=set)
+    sekolah: list[tuple[str, frozenset[str]]] = field(default_factory=list)  # (nama sekolah, kode komponen belum)
 
 
 def _prov(v: str) -> str:
     return v.replace("Prov. ", "").strip()
 
 
+_BELUM: dict[str, frozenset[str]] = {}
+
+
+def komponen_belum(s: lk_baru.Sekolah) -> frozenset[str]:
+    """Kode komponen yang masih 'belum' (sudah due tapi belum selesai) di sekolah ini."""
+    return frozenset(k for k, v in todo.semua_status(s).items() if v.status == "belum")
+
+
 def _ikut(t: Target, s: lk_baru.Sekolah) -> None:
+    t.sekolah.append((s.nama, _BELUM[s.npsn] if s.npsn in _BELUM else komponen_belum(s)))
     if s.petugas.strip():
         t.pic.add(s.petugas.strip())
     if s.ptn:
@@ -63,7 +78,22 @@ def _ikut(t: Target, s: lk_baru.Sekolah) -> None:
         t.angkatan.add(s.angkatan)
 
 
+_SIMPAN: dict[tuple[int, str], list[Target]] = {}
+
+
 def target(jenis: str, sekolah: list[lk_baru.Sekolah]) -> list[Target]:
+    """Penerima per jenis. Disimpan selama daftar sekolah (dari cache LK) masih objek yang sama."""
+    kunci = (id(sekolah), jenis)
+    if kunci not in _SIMPAN:
+        if not any(k[0] == id(sekolah) for k in _SIMPAN):
+            _SIMPAN.clear()
+            _BELUM.clear()
+            _BELUM.update({s.npsn: komponen_belum(s) for s in sekolah})
+        _SIMPAN[kunci] = _target(jenis, sekolah)
+    return _SIMPAN[kunci]
+
+
+def _target(jenis: str, sekolah: list[lk_baru.Sekolah]) -> list[Target]:
     out: dict[str, Target] = {}
     if jenis == "sekolah":
         for s in sekolah:
@@ -109,14 +139,32 @@ class Saring(BaseModel):
     ptn: list[str] = Field(default_factory=list, max_length=100)
     provinsi: list[str] = Field(default_factory=list, max_length=100)
     angkatan: list[str] = Field(default_factory=list, max_length=20)
+    belum: list[str] = Field(default_factory=list, max_length=20)  # kode komponen yang belum selesai
 
 
 def saring(ts: list[Target], f: Saring) -> list[Target]:
+    """Penerima yang cocok. Saringan komponen: sekolah ikut bila belum menyelesaikan salah satu komponen pilihan;
+    fasil/koordinator ikut bila punya minimal satu sekolah seperti itu. Variabel {jumlah_belum}, {sekolah_belum},
+    dan {belum} diisi sesuai saringan itu."""
     def cocok(nilai: set[str], pilih: list[str]) -> bool:
         return not pilih or bool(nilai & set(pilih))
 
-    return [t for t in ts if cocok(t.pic, f.pic) and cocok(t.ptn, f.ptn) and cocok(t.provinsi, f.provinsi)
-            and cocok(t.angkatan, f.angkatan)]
+    pilih = set(f.belum)
+    out = []
+    for t in ts:
+        if not (cocok(t.pic, f.pic) and cocok(t.ptn, f.ptn) and cocok(t.provinsi, f.provinsi)
+                and cocok(t.angkatan, f.angkatan)):
+            continue
+        kena = [(n, b & pilih if pilih else b) for n, b in t.sekolah if (b & pilih if pilih else b)]
+        if pilih and not kena:
+            continue
+        label = sorted({lk_baru.KOMP[k].label for _, b in kena for k in b}, key=str.casefold)
+        nama = [n for n, _ in kena]
+        out.append(replace(t, nilai={**t.nilai, "jumlah_belum": str(len(kena)),
+                                     "sekolah_belum": ", ".join(nama[:10]) + (f", dan {len(nama) - 10} lainnya"
+                                                                             if len(nama) > 10 else ""),
+                                     "belum": ", ".join(label)}))
+    return out
 
 
 def rakit(teks: str, t: Target) -> str:
@@ -158,6 +206,7 @@ def opsi(_=Depends(admin_blast)) -> dict[str, Any]:
         "ptn": sorted({s.ptn for s in sekolah if s.ptn}, key=str.casefold),
         "provinsi": sorted({_prov(s.provinsi) for s in sekolah if s.provinsi}, key=str.casefold),
         "angkatan": sorted({s.angkatan for s in sekolah if s.angkatan}),
+        "komponen": [{"kode": k.kode, "label": k.label} for k in lk_baru.KOMPONEN],
         "variabel": {j: [{"kode": k, "arti": a} for k, a in v] for j, v in VARIABEL.items()},
         "konfirmasi": KONFIRMASI,
     }

@@ -12,9 +12,10 @@ import { AturanDialog, Progres } from "./BlastView";
 import s from "./blast.module.css";
 
 type Jenis = "koor" | "fasil" | "sekolah";
-type Saring = { pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[] };
+type Saring = { pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[]; belum: string[] };
 type Opsi = {
   jumlah: Record<Jenis, number>; pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[];
+  komponen: { kode: string; label: string }[];
   variabel: Record<Jenis, { kode: string; arti: string }[]>; konfirmasi: string;
 };
 type Hitung = {
@@ -29,11 +30,11 @@ const JENIS: { k: Jenis; label: string; ket: string }[] = [
   { k: "fasil", label: "Fasilitator", ket: "Semua fasil di LK, dari seluruh PIC." },
   { k: "sekolah", label: "Kepala sekolah", ket: "Nomor kepala sekolah di LK." },
 ];
-const SARING: { k: keyof Saring; label: string }[] = [
+const SARING: { k: "pic" | "ptn" | "provinsi" | "angkatan"; label: string }[] = [
   { k: "pic", label: "PIC" }, { k: "ptn", label: "PTN" }, { k: "provinsi", label: "Provinsi" },
   { k: "angkatan", label: "Angkatan" },
 ];
-const KOSONG: Saring = { pic: [], ptn: [], provinsi: [], angkatan: [] };
+const KOSONG: Saring = { pic: [], ptn: [], provinsi: [], angkatan: [], belum: [] };
 const LANGKAH = [{ n: 1, label: "Target" }, { n: 2, label: "Pesan" }, { n: 3, label: "Tinjau & kirim" }] as const;
 const fmt = (n: number) => n.toLocaleString("id-ID");
 
@@ -203,6 +204,9 @@ export function AdminBlastView() {
             ))}
           </div>
           <div className={s.saringAdmin}>
+            <PilihBanyak label="Komponen belum" pilihan={opsi.komponen.map((k) => k.kode)} nilai={saring.belum}
+              tampil={(v) => opsi.komponen.find((k) => k.kode === v)?.label ?? v}
+              onUbah={(v) => setSaring({ ...saring, belum: v })} />
             {SARING.map((x) => (
               <PilihBanyak key={x.k} label={x.label} pilihan={opsi[x.k]} nilai={saring[x.k]}
                 tampil={x.k === "angkatan" ? (v) => `Angkatan ${v}` : undefined}
@@ -216,6 +220,7 @@ export function AdminBlastView() {
                 <b>{fmt(hitung.nomor_unik)}</b> nomor akan dikirimi
                 <small>
                   {fmt(hitung.jumlah)} {jenisInfo.label.toLowerCase()} cocok
+                  {saring.belum.length ? ` (belum ${saring.belum.map((k) => opsi.komponen.find((x) => x.kode === k)?.label ?? k).join(" / ")})` : ""}
                   {hitung.tanpa_nomor ? `, ${fmt(hitung.tanpa_nomor)} tanpa nomor` : ""}
                   {hitung.punya_nomor > hitung.nomor_unik ? `, ${fmt(hitung.punya_nomor - hitung.nomor_unik)} nomor dobel dikirimi sekali` : ""}
                   {hitung.contoh_nama.length ? `. Contoh: ${hitung.contoh_nama.slice(0, 4).join(", ")}…` : ""}
@@ -328,7 +333,8 @@ function PilihBanyak({ label, pilihan, nilai, onUbah, tampil }: {
   return (
     <details className={s.pilih}>
       <summary aria-label={`Saring ${label}`}>
-        {label}: {nilai.length === 0 ? "semua" : nilai.length === 1 ? t(nilai[0]) : `${nilai.length} dipilih`}
+        {label}: {nilai.length === 0 ? (label === "Komponen belum" ? "tidak disaring" : "semua")
+          : nilai.length === 1 ? t(nilai[0]) : `${nilai.length} dipilih`}
       </summary>
       <div className={s.pilihPanel}>
         {pilihan.length > 8 && <input type="search" placeholder={`Cari ${label}`} value={cari} onChange={(e) => setCari(e.target.value)} />}

@@ -83,7 +83,7 @@ Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P
 
 Kirim dari nomor WhatsApp kamu ke **seluruh koordinator, fasil, atau kepala sekolah** di LK. Admin memberi akses lewat halaman **Admin** (centang **Blast admin**) atau menulis `blast_admin` di kolom *fitur* sheet Akses.
 
-1. **Target**: pilih Koordinator / Fasilitator / Kepala sekolah, lalu saring per PIC, PTN, provinsi, atau angkatan bila perlu. Nomor yang dobel hanya dikirimi sekali.
+1. **Target**: pilih Koordinator / Fasilitator / Kepala sekolah, lalu saring per **komponen yang belum** (mis. belum Lap. Pendahuluan), PIC, PTN, provinsi, atau angkatan. Dengan saringan komponen, fasil/koordinator ikut bila punya minimal satu sekolah yang belum, dan variabel `{jumlah_belum}`, `{sekolah_belum}` (fasil/koor) atau `{belum}` (sekolah) menyebut sekolah/komponennya. Nomor yang dobel hanya dikirimi sekali.
 2. **Pesan**: tulis pesan dengan variabel seperti `{salam}`, `{nama}`, `{ptn}`, `{pic}`, `{jumlah_sekolah}` (sekolah: `{sekolah}`, `{fasil}`). Contoh untuk penerima pertama tampil di kanan.
 3. **Tinjau & kirim**: atur jeda dan istirahat, coba 3 pesan dulu (mode coba), lalu ketik **risiko ditanggung sendiri** untuk mengirim.
 
