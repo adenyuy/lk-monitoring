@@ -45,6 +45,12 @@ POSISI = (
     ("l100", "Laporan 100%", ("l100", "l100_rev")),
 )
 _POSISI_DARI = {t: k for k, _, ts in POSISI for t in ts}
+
+
+def posisi_todo(kode: str) -> str:
+    """Kolom papan LK untuk satu kode to-do ('' bila tidak masuk papan)."""
+    return _POSISI_DARI.get(kode, "")
+
 TERHUBUNG = {"T", "TP"}
 TIDAK_TERSAMBUNG = {"C", "N"}
 

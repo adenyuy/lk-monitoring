@@ -5,7 +5,7 @@ import { api, post } from "@/lib/api";
 import { useCountdown, useEvents, usePolling } from "@/lib/hooks";
 import { KELOMPOK_INFO, TAHAP_LABEL, type Aturan, type BlastState, type JenisPenerima, type Kelompok, type Penerima,
   type TemplateSaya } from "@/lib/lk";
-import { SALAM, VARIABEL, isi as isiTemplate, kosong, templateBawaan, type Template } from "@/lib/pesan";
+import { SALAM, VARIABEL, isi as isiTemplate, kosong, persempit, templateBawaan, type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { formatWa } from "@/components/today/WaPanel";
 import s from "./blast.module.css";
@@ -13,6 +13,7 @@ import s from "./blast.module.css";
 type DataPenerima = {
   jenis: JenisPenerima; penerima: Penerima[]; petugas: string; jumlah_tanpa_nomor: number; tag: string[];
   kelompok: { kode: Kelompok; label: string }[]; angkatan: string[]; kab: string[];
+  komponen?: { kode: string; label: string }[];
 };
 type StateResp = { state: BlastState; aturan: Aturan; wa_terbuka: boolean; wa_otomatis: boolean; jam_kirim: boolean;
   template: TemplateSaya[] };
@@ -51,6 +52,7 @@ export function BlastView() {
   const [tag, setTag] = useState("");
   const [angkatan, setAngkatan] = useState("");
   const [kab, setKab] = useState("");
+  const [komp, setKomp] = useState("");
   const [hanyaTodo, setHanyaTodo] = useState(true);
   const [lewatiHariIni, setLewatiHariIni] = useState(true);
   const [cari, setCari] = useState("");
@@ -116,13 +118,17 @@ export function BlastView() {
     requestAnimationFrame(() => atasRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
-  const terpilih = useMemo(() => {
+  // saringan selain komponen; jumlah di tiap tombol komponen dihitung dari sini
+  const dasar = useMemo(() => {
     if (!data) return [];
     const q = cari.trim().toLowerCase();
     return data.penerima.filter((p) => (!kel.length || kel.includes(p.kelompok)) && (!tag || p.tag.includes(tag))
       && (!angkatan || p.angkatan.includes(angkatan)) && (!kab || p.kab.includes(kab))
       && (!hanyaTodo || p.perlu > 0) && (!q || p.nama.toLowerCase().includes(q)));
   }, [data, kel, tag, angkatan, kab, hanyaTodo, cari]);
+  const terpilih = useMemo(() => dasar.map((p) => persempit(p, komp)).filter((p): p is Penerima => !!p),
+    [dasar, komp]);
+  const labelKomp = data?.komponen?.find((k) => k.kode === komp)?.label;
 
   const alasanTarget = (p: Penerima) => !p.punya_nomor ? "Nomor kosong"
     : lewatiHariIni && p.terakhir_blast ? `Sudah diblast ${p.terakhir_blast}` : "";
@@ -263,6 +269,22 @@ export function BlastView() {
           {data && (
             <>
               <div className={s.saring}>
+                {!!data.komponen?.length && (
+                  <div className={s.komponenBar} role="radiogroup" aria-label="Komponen">
+                    <button type="button" role="radio" aria-checked={!komp} onClick={() => setKomp("")}>
+                      Semua komponen<i>{dasar.length}</i>
+                    </button>
+                    {data.komponen.map((k) => {
+                      const jml = dasar.filter((p) => p.posisi?.[k.kode]).length;
+                      return (
+                        <button key={k.kode} type="button" role="radio" aria-checked={komp === k.kode} disabled={!jml && komp !== k.kode}
+                          onClick={() => { setKomp(k.kode); setBuang(new Set()); }}>
+                          {k.label}<i>{jml}</i>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className={s.chipGrup} aria-label="Kelompok">
                   {(jenis === "sekolah" ? KELOMPOK_SEKOLAH : jenis === "koor" ? KELOMPOK_KOOR : data.kelompok).map((k) => {
                     const on = kel.includes(k.kode);
@@ -303,7 +325,7 @@ export function BlastView() {
 
               <div className={s.penerimaHead}>
                 <b>{target.length} penerima dipilih</b>
-                <span>dari {terpilih.length} yang cocok saringan{data.jumlah_tanpa_nomor ? ` · ${data.jumlah_tanpa_nomor} tanpa nomor` : ""}</span>
+                <span>dari {terpilih.length} yang cocok saringan{labelKomp ? ` · pesan hanya memuat ${labelKomp}` : ""}{data.jumlah_tanpa_nomor ? ` · ${data.jumlah_tanpa_nomor} tanpa nomor` : ""}</span>
                 <div>
                   <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set())}>Pilih semua</button>
                   <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set(terpilih.map((p) => p.kunci)))}>Kosongkan</button>
@@ -322,7 +344,7 @@ export function BlastView() {
                           <b>{p.nama}</b>
                           <small>{jenis === "sekolah" ? `${p.kepsek || "Kepala sekolah"} · ${p.tersamar || "tanpa nomor"}`
                             : jenis === "koor" ? `${p.tersamar || "tanpa nomor"} · ${p.fasil?.length ?? 0} fasil, ${p.jumlah_sekolah} sekolah`
-                            : `${p.tersamar || "tanpa nomor"} · ${p.jumlah_sekolah} sekolah${p.perlu ? `, ${p.perlu} punya to-do` : ""}`}</small>
+                            : `${p.tersamar || "tanpa nomor"} · ${p.jumlah_sekolah} sekolah${p.perlu ? `, ${p.perlu} ${labelKomp ? `di ${labelKomp}` : "punya to-do"}` : ""}`}</small>
                         </span>
                         {jenis === "fasil" && KELOMPOK_INFO[p.kelompok as Kelompok] && (
                           <Chip tone={KELOMPOK_INFO[p.kelompok as Kelompok].tone}>{KELOMPOK_INFO[p.kelompok as Kelompok].label}</Chip>

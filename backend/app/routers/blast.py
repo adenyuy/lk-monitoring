@@ -32,7 +32,8 @@ def _terakhir_blast(nomor: set[str]) -> dict[str, str]:
 
 
 def _todo_json(r: todo.Rencana, pelaku: str | None = None) -> list[dict[str, Any]]:
-    return [{"judul": t.judul, "detail": t.detail, "pelaku": t.pelaku}
+    # posisi: komponen papan LK (lp, lp_rev, mg, ...) supaya pesan bisa dipersempit ke satu komponen
+    return [{"judul": t.judul, "detail": t.detail, "pelaku": t.pelaku, "posisi": komunikasi.posisi_todo(t.kode)}
             for t in r.todo if pelaku is None or t.pelaku == pelaku]
 
 
@@ -48,7 +49,7 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
                 "kelompok": r["kelompok"], "tag": r["tag"], "ptn": f.ptn, "koor": f.koor,
                 "angkatan": sorted({s.angkatan for s in f.sekolah if s.angkatan}),
                 "kab": sorted({s.kab for s in f.sekolah if s.kab}),
-                "jumlah_sekolah": len(f.sekolah), "perlu": r["perlu"],
+                "jumlah_sekolah": len(f.sekolah), "perlu": r["perlu"], "posisi": r["posisi"],
                 "sekolah": [{"nama": s.nama, "tahap": rencana[s.npsn].tahap, "todo": _todo_json(rencana[s.npsn])}
                             for s in sorted(f.sekolah, key=lambda s: s.nama) if rencana[s.npsn].todo],
             })
@@ -73,6 +74,7 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
             r = ringkas[f.kunci]
             x["fasil"].append({"nama": f.nama, "kelompok": r["kelompok"], "sekolah": len(f.sekolah),
                                "perlu": r["perlu"], "todo": r["todo"], "todo_fasil": r["todo_fasil"],
+                               "posisi": r["posisi"],
                                "belum_ditelepon": r["belum_ditelepon"], "tanpa_progres": r["tanpa_progres"],
                                # sulit: tidak sampai / hanya dibaca (Log Komunikasi) atau chat minggu ini hanya dibaca
                                "sulit": r["perlu"] > 0 and (r["kelompok"] in ("perlu_telepon", "dibaca")
@@ -85,6 +87,7 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
             x["fasil"].sort(key=lambda f: f["nama"])
             x["jumlah_sekolah"] = sum(f["sekolah"] for f in x["fasil"])
             x["perlu"] = sum(f["perlu"] for f in x["fasil"])
+            x["posisi"] = dict(sum((Counter(f["posisi"]) for f in x["fasil"]), Counter()))
             x["kelompok"] = "perlu_telepon" if any(f["sulit"] for f in x["fasil"]) else "terhubung"
             x["tag"] = []
             out.append(x)
@@ -98,6 +101,7 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
                 "kelompok": "beres" if not r.todo else r.tahap, "tag": [], "angkatan": [s.angkatan] if s.angkatan else [],
                 "kab": [s.kab] if s.kab else [], "jumlah_sekolah": 1, "perlu": 1 if r.todo else 0,
                 "todo": _todo_json(r, "sekolah"), "tahap": r.tahap,
+                "posisi": {k: 1 for k in {komunikasi.posisi_todo(x.kode) for x in r.todo} if k},
             })
     else:
         raise HTTPException(400, "Jenis penerima tidak dikenal.")
@@ -119,6 +123,7 @@ def penerima(jenis: Literal["fasil", "koor", "sekolah"] = "fasil", _=Depends(wa_
         "jumlah_tanpa_nomor": sum(1 for x in daftar if not x["punya_nomor"]),
         "tag": sorted({t for x in daftar for t in x["tag"]}, key=str.casefold),
         "kelompok": [{"kode": a, "label": b} for a, b, _ in komunikasi.KELOMPOK],
+        "komponen": [{"kode": a, "label": b} for a, b, _ in komunikasi.POSISI],
         "angkatan": sorted({a for x in daftar for a in x["angkatan"]}),
         "kab": [k for k, _ in Counter(k for x in daftar for k in x["kab"]).most_common()],
     }

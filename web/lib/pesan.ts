@@ -84,6 +84,22 @@ function daftarFasil(p: Penerima) {
     }).join("\n");
 }
 
+/** Penerima yang dipersempit ke satu komponen papan LK: hanya sekolah, to-do, dan fasil di komponen itu.
+ *  Mengembalikan null bila penerima tidak punya apa pun di komponen tersebut. */
+export function persempit(p: Penerima, komponen: string): Penerima | null {
+  if (!komponen) return p;
+  const n = p.posisi?.[komponen] ?? 0;
+  if (!n) return null;
+  const kena = (t: TodoRingkas) => t.posisi === komponen;
+  return {
+    ...p,
+    perlu: n,
+    sekolah: p.sekolah?.map((x) => ({ ...x, todo: x.todo.filter(kena) })).filter((x) => x.todo.length),
+    todo: p.todo?.filter(kena),
+    fasil: p.fasil?.filter((f) => f.posisi?.[komponen]).map((f) => ({ ...f, perlu: f.posisi?.[komponen] ?? 0 })),
+  };
+}
+
 /** Isi variabel untuk satu penerima. `{salam}` dibiarkan bila `salamNanti` (diisi server saat dikirim). */
 export function isi(teks: string, p: Penerima, petugas: string, salamNanti = true) {
   const sTodo = sekolahTodo(p);
