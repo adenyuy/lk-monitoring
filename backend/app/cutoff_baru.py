@@ -169,6 +169,7 @@ class Rencana:
     ringkasan: dict[str, Any] = field(default_factory=dict)
     selesai: set[str] = field(default_factory=set)
     label: str = ""
+    logkom: dict[str, int] = field(default_factory=dict)
     kol_awal: int = 0                     # kolom pertama yang ditulis untuk sekolah yang sudah ada  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
 
 
@@ -342,6 +343,11 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
     semua = lk_baru.baca_semua(rc.week, refresh=True)
     n_ket = tulis_keterangan(rc.week, semua)
 
+    if "logkom" not in rc.selesai:
+        _langkah("Menyamakan Log Komunikasi (sekolah baru & PIC)", 72)
+        rc.logkom = sinkron_log_kom(semua)
+        rc.selesai.add("logkom")
+
     _langkah("Mengisi Log Progres", 80)
     if "log" not in rc.selesai:
         rc.label = catat_log_progres(semua)
@@ -352,7 +358,8 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
         _catat_tarik(ss, rc, oleh, total)
         rc.selesai.add("catat")
     cache.clear()
-    return {"tab": tab, "sekolah": total, "baru": len(rc.tambah), "keterangan": n_ket, "cutoff": label}
+    return {"tab": tab, "sekolah": total, "baru": len(rc.tambah), "keterangan": n_ket, "cutoff": label,
+            "log_kom": rc.logkom}
 
 
 # ---------- keterangan otomatis ----------
@@ -626,6 +633,61 @@ def riwayat() -> list[dict[str, Any]]:
             "sekolah": r[3] if len(r) > 3 else "", "baru": r[4] if len(r) > 4 else "", "oleh": r[5] if len(r) > 5 else ""}
            for r in v if r]
     return list(reversed(out))[:30]
+
+
+# ---------- Log Komunikasi: sekolah baru & PIC ----------
+
+def _baris_log(s: Sekolah) -> list[str]:
+    return [s.petugas.strip(), s.npsn, s.nama, s.ptn, s.koor, s.fasil]
+
+
+def rencana_log_kom(semua: list[Sekolah], log_rows: list[list[Any]], baris_awal: int = 3
+                    ) -> tuple[list[list[str]], list[tuple[int, str]]]:
+    """(baris baru untuk sekolah yang belum ada, [(nomor baris, PIC baru)] untuk PIC yang kosong/berbeda).
+    log_rows = isi Log Komunikasi kolom A:B mulai baris_awal."""
+    ada: dict[str, tuple[int, str]] = {}
+    for i, r in enumerate(log_rows):
+        n = re.sub(r"\.0+$", "", str(r[1]).strip()) if len(r) > 1 else ""
+        if n:
+            ada.setdefault(n, (baris_awal + i, str(r[0]).strip() if r else ""))
+    baru, ubah = [], []
+    for s in semua:
+        if s.npsn not in ada:
+            baru.append(_baris_log(s))
+        else:
+            b, pic = ada[s.npsn]
+            if s.petugas.strip() and pic != s.petugas.strip():
+                ubah.append((b, s.petugas.strip()))
+    return baru, ubah
+
+
+def sinkron_log_kom(semua: list[Sekolah]) -> dict[str, int]:
+    """Samakan Log Komunikasi dengan LK: tambah baris sekolah baru, dan isi/samakan kolom PIC."""
+    ss = lk_baru._ss()
+    tab = lk_baru.TAB_LOG_KOM
+    rows = ss.values_get(f"'{tab}'!A3:B", params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
+    baru, ubah = rencana_log_kom(semua, rows)
+    if ubah:
+        data = [{"range": f"'{tab}'!A{b}", "values": [[pic]]} for b, pic in ubah]
+        for i in range(0, len(data), 200):
+            ss.values_batch_update({"valueInputOption": "RAW", "data": data[i:i + 200]})
+    if baru:
+        w = ss.worksheet(tab)
+        mulai = 3 + len(rows)
+        perlu = mulai + len(baru) + 5
+        if w.row_count < perlu:
+            w.resize(rows=perlu)
+        ss.batch_update({"requests": [{"copyPaste": {
+            "source": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": 3, "startColumnIndex": 0,
+                       "endColumnIndex": w.col_count},
+            "destination": {"sheetId": w.id, "startRowIndex": mulai - 1, "endRowIndex": mulai - 1 + len(baru),
+                            "startColumnIndex": 0, "endColumnIndex": w.col_count},
+            "pasteType": t}} for t in ("PASTE_FORMAT", "PASTE_DATA_VALIDATION")]})
+        ss.values_update(f"'{tab}'!A{mulai}:F{mulai + len(baru) - 1}", params={"valueInputOption": "RAW"},
+                         body={"values": baru})
+    if baru or ubah:
+        cache.drop("lk2_logkom")
+    return {"ditambah": len(baru), "pic_diubah": len(ubah)}
 
 
 # ---------- WEEK baru ----------

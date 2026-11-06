@@ -90,3 +90,16 @@ def test_cutoff_hanya_menulis_kolom_komponen(monkeypatch):
                                                               "Waktu Tunggu Reviu Laporan Pendahuluan",
                                                               "Reviu Laporan Pendahuluan"}
     assert rc.tambah[0][1] == "999" and rc.tambah[0][2] == "SD Tambahan"  # sekolah baru tetap lengkap
+
+
+def test_rencana_log_kom_sekolah_baru_dan_pic():
+    from types import SimpleNamespace as S
+
+    semua = [S(npsn="1", petugas="Ani", nama="SD 1", ptn="P", koor="K", fasil="F"),
+             S(npsn="2", petugas="Budi", nama="SD 2", ptn="P", koor="K", fasil="F"),
+             S(npsn="3", petugas="Cici", nama="SD 3", ptn="Q", koor="L", fasil="G"),
+             S(npsn="4", petugas="", nama="SD 4", ptn="Q", koor="L", fasil="G")]
+    log_rows = [["Ani", "1"], ["", "2"], ["Dodi", 3.0]]  # NPSN bisa terbaca angka
+    baru, ubah = cutoff_baru.rencana_log_kom(semua, log_rows)
+    assert baru == [["", "4", "SD 4", "Q", "L", "G"]]
+    assert ubah == [(4, "Budi"), (5, "Cici")]  # baris sheet mulai 3

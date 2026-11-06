@@ -7,7 +7,14 @@ import { Button, Notice, Spinner } from "@/components/ui";
 import s from "./cutoff2.module.css";
 
 type Status = { jalan: boolean; langkah: string; persen: number; hasil: null | { tab: string; sekolah: number; baru: number;
-  keterangan: number; cutoff: string }; error: string };
+  keterangan: number; cutoff: string; log_kom?: LogKomHasil }; error: string };
+type LogKomHasil = { ditambah: number; pic_diubah: number };
+
+function teksLogKom(x?: LogKomHasil) {
+  if (!x || (!x.ditambah && !x.pic_diubah)) return " Log Komunikasi sudah sesuai.";
+  return ` Log Komunikasi: ${x.ditambah ? `${x.ditambah} sekolah baru ditambahkan` : ""}`
+    + `${x.ditambah && x.pic_diubah ? ", " : ""}${x.pic_diubah ? `${x.pic_diubah} PIC disamakan` : ""}.`;
+}
 type LogBaris = { kelompok: string; komponen: string; nilai: string[] };
 type Info = {
   weeks: number[]; week_aktif: number | null; senin_baru: string; cutoff_terakhir: string;
@@ -27,6 +34,7 @@ const TAHAP_TULIS: { sampai: number; label: string }[] = [
   { sampai: 25, label: "Menambah sekolah baru" },
   { sampai: 40, label: "Mengurutkan per PIC" },
   { sampai: 55, label: "Menulis keterangan otomatis" },
+  { sampai: 72, label: "Menyamakan Log Komunikasi" },
   { sampai: 80, label: "Mengisi Log Progres" },
   { sampai: 100, label: "Selesai" },
 ];
@@ -236,7 +244,7 @@ export function CutoffView() {
               {!jalan && status.hasil && (
                 <Notice tone="ok" title={`${status.hasil.cutoff} tersimpan di ${status.hasil.tab}`}>
                   {fmt(status.hasil.sekolah)} sekolah diperbarui{status.hasil.baru ? `, ${fmt(status.hasil.baru)} sekolah baru` : ""},
-                  {" "}{fmt(status.hasil.keterangan)} keterangan otomatis ditulis ulang, dan Log Progres mendapat kolom baru.
+                  {" "}{fmt(status.hasil.keterangan)} keterangan otomatis ditulis ulang, dan Log Progres mendapat kolom baru.{teksLogKom(status.hasil.log_kom)}
                 </Notice>
               )}
               {!jalan && status.error && <Notice tone="bad" title="Penulisan cutoff gagal">{status.error}</Notice>}
@@ -386,11 +394,13 @@ function PicBaru() {
   async function isi() {
     setBusy("isi"); setPesan(null);
     try {
-      const r = await post<{ ditulis: number; diisi: number; diganti: number; tanpa: unknown[]; lk_tab: string }>(
+      const r = await post<{ ditulis: number; diisi: number; diganti: number; tanpa: unknown[]; lk_tab: string;
+        log_kom: LogKomHasil }>(
         "/api/cutoff/pic/isi", { link, ganti_beda: ganti });
       setPesan({ tone: "ok", teks: `${r.ditulis} PIC ditulis di ${r.lk_tab}`
         + (r.diganti ? ` (${r.diisi} diisi, ${r.diganti} diganti)` : "")
-        + (r.tanpa.length ? `. ${r.tanpa.length} sekolah masih tanpa PIC karena tidak ada di sheet.` : ".") });
+        + (r.tanpa.length ? `. ${r.tanpa.length} sekolah masih tanpa PIC karena tidak ada di sheet.` : ".")
+        + teksLogKom(r.log_kom) });
       setCek(null);
       void muat();
     } catch (e) {
@@ -406,7 +416,7 @@ function PicBaru() {
       </div>
       <p className={s.catatanTulis}>
         Tempel link sheet pembagian terbaru. Aplikasi mencari tab berkolom NPSN dan Nama Anggota, lalu hanya mengisi
-        kolom PIC di LK.
+        kolom PIC di LK, lalu menyamakan PIC dan sekolah baru di Log Komunikasi.
       </p>
       <input className={s.linkInput} type="url" placeholder="https://docs.google.com/spreadsheets/d/…" value={link}
         onChange={(e) => { setLink(e.target.value); setCek(null); }} aria-label="Link sheet pembagian" />

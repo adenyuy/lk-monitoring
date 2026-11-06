@@ -127,8 +127,11 @@ def tulis(link: str, ganti_beda: bool = False) -> dict[str, Any]:
             ss.values_batch_update({"valueInputOption": "RAW", "data": isi[i:i + 200]})
         cache.clear()
     db.set_setting(KUNCI_LINK, link)
+    from .cutoff_baru import sinkron_log_kom
+
+    log_kom = sinkron_log_kom(lk_baru.baca_semua(rc["week"], refresh=True))
     return {"ditulis": len(data), "diisi": len(rc["isi"]), "diganti": len(rc["beda"]) if ganti_beda else 0,
-            "tanpa": rc["tanpa"], "lk_tab": rc["lk_tab"]}
+            "tanpa": rc["tanpa"], "lk_tab": rc["lk_tab"], "log_kom": log_kom}
 
 
 def ringkas() -> dict[str, Any]:
