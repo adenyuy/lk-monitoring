@@ -255,6 +255,7 @@ export function CutoffView() {
 
         <aside className={s.samping}>
           <WeekBaru info={info} onSelesai={muat} />
+          <PicBaru />
           {info.riwayat.length > 0 && (
             <section className={s.card}>
               <div className={s.cardHead}><h2>Riwayat tarikan</h2></div>
@@ -340,6 +341,117 @@ function WeekBaru({ info, onSelesai }: { info: Info; onSelesai: () => void }) {
         <Button variant="secondary" size="sm" onClick={() => setKonfirmasi(true)}>Buat WEEK {berikut}</Button>
       )}
       {hasil && <p className={hasil.tone === "ok" ? s.ok : s.bad}>{hasil.teks}</p>}
+    </section>
+  );
+}
+
+// ---------- PIC sekolah baru dari sheet pembagian ----------
+
+type PicCek = {
+  file: string; tab: string; lk_tab: string; sheet_sekolah: number; kosong: number; akan_ditulis: number;
+  jml_isi: number; jml_beda: number; asing: string[];
+  isi: { npsn: string; nama: string; pic: string }[];
+  beda: { npsn: string; nama: string; pic: string; pic_lama: string }[];
+  tanpa: { npsn: string; nama: string; fasil: string }[];
+  per_pic: { pic: string; jumlah: number }[];
+};
+
+function PicBaru() {
+  const [info, setInfo] = useState<{ kosong: number; link: string } | null>(null);
+  const [link, setLink] = useState("");
+  const [ganti, setGanti] = useState(false);
+  const [cek, setCek] = useState<PicCek | null>(null);
+  const [busy, setBusy] = useState<"" | "cek" | "isi">("");
+  const [pesan, setPesan] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
+
+  const muat = useCallback(async () => {
+    try {
+      const r = await api<{ kosong: number; link: string }>("/api/cutoff/pic");
+      setInfo(r);
+      setLink((l) => l || r.link);
+    } catch { /* kartu tetap bisa dipakai tanpa ringkasan */ }
+  }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void muat(); }, [muat]);
+
+  async function periksa(g = ganti) {
+    setBusy("cek"); setPesan(null);
+    try {
+      setCek(await post<PicCek>("/api/cutoff/pic/cek", { link, ganti_beda: g }));
+    } catch (e) {
+      setCek(null);
+      setPesan({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(""); }
+  }
+  async function isi() {
+    setBusy("isi"); setPesan(null);
+    try {
+      const r = await post<{ ditulis: number; diisi: number; diganti: number; tanpa: unknown[]; lk_tab: string }>(
+        "/api/cutoff/pic/isi", { link, ganti_beda: ganti });
+      setPesan({ tone: "ok", teks: `${r.ditulis} PIC ditulis di ${r.lk_tab}`
+        + (r.diganti ? ` (${r.diisi} diisi, ${r.diganti} diganti)` : "")
+        + (r.tanpa.length ? `. ${r.tanpa.length} sekolah masih tanpa PIC karena tidak ada di sheet.` : ".") });
+      setCek(null);
+      void muat();
+    } catch (e) {
+      setPesan({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(""); }
+  }
+
+  return (
+    <section className={`${s.card} ${s.weekCard}`}>
+      <div className={s.cardHead}>
+        <h2>PIC sekolah baru</h2>
+        {info && <span>{info.kosong ? `${info.kosong} sekolah tanpa PIC` : "Semua sekolah sudah ber-PIC"}</span>}
+      </div>
+      <p className={s.catatanTulis}>
+        Tempel link sheet pembagian terbaru. Aplikasi mencari tab berkolom NPSN dan Nama Anggota, lalu hanya mengisi
+        kolom PIC di LK.
+      </p>
+      <input className={s.linkInput} type="url" placeholder="https://docs.google.com/spreadsheets/d/…" value={link}
+        onChange={(e) => { setLink(e.target.value); setCek(null); }} aria-label="Link sheet pembagian" />
+      <label className={s.centang}>
+        <input type="checkbox" checked={ganti} onChange={(e) => { setGanti(e.target.checked); if (cek) void periksa(e.target.checked); }} />
+        Ganti juga PIC yang berbeda dengan sheet
+      </label>
+      {!cek && (
+        <Button variant="secondary" size="sm" loading={busy === "cek"} disabled={!link.trim()} onClick={() => void periksa()}>
+          Cek
+        </Button>
+      )}
+      {cek && (
+        <div className={s.picHasil}>
+          <p>Dari <b>{cek.file}</b>, tab <b>{cek.tab}</b> ({cek.sheet_sekolah.toLocaleString("id-ID")} sekolah):</p>
+          <ul className={s.cekList}>
+            <li>{cek.jml_isi} sekolah tanpa PIC akan diisi</li>
+            <li>{cek.jml_beda} sekolah punya PIC berbeda{cek.jml_beda ? (ganti ? ", akan diganti" : ", dibiarkan") : ""}</li>
+            {cek.tanpa.length > 0 && <li>{cek.tanpa.length} sekolah tanpa PIC tidak ada di sheet</li>}
+            {cek.asing.length > 0 && <li>Nama tidak dikenal (dilewati): {cek.asing.join(", ")}</li>}
+          </ul>
+          {cek.per_pic.length > 0 && (
+            <p className={s.catatanTulis}>{cek.per_pic.map((x) => `${x.pic} ${x.jumlah}`).join(", ")}</p>
+          )}
+          {cek.tanpa.length > 0 && (
+            <details className={s.picDetail}>
+              <summary>Lihat sekolah yang tidak ada di sheet</summary>
+              <ul>{cek.tanpa.map((x) => <li key={x.npsn}>{x.npsn} {x.nama}</li>)}</ul>
+            </details>
+          )}
+          {ganti && cek.beda.length > 0 && (
+            <details className={s.picDetail}>
+              <summary>Lihat PIC yang akan diganti</summary>
+              <ul>{cek.beda.map((x) => <li key={x.npsn}>{x.nama}: {x.pic_lama} → {x.pic}</li>)}</ul>
+            </details>
+          )}
+          <div className={s.picAksi}>
+            <Button variant="ghost" size="sm" onClick={() => setCek(null)}>Batal</Button>
+            <Button size="sm" loading={busy === "isi"} disabled={!cek.akan_ditulis} onClick={() => void isi()}>
+              {cek.akan_ditulis ? `Isi ${cek.akan_ditulis} PIC` : "Tidak ada yang perlu diisi"}
+            </Button>
+          </div>
+        </div>
+      )}
+      {pesan && <p className={pesan.tone === "ok" ? s.ok : s.bad}>{pesan.teks}</p>}
     </section>
   );
 }

@@ -136,3 +136,13 @@
   .stepper { grid-template-columns: 1fr; }
 }
 .catatanTulis { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.linkInput { height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13px;
+  color: var(--ink); width: 100%; min-width: 0; }
+.linkInput:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }
+.centang { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.centang input { width: 16px; height: 16px; accent-color: var(--primary); }
+.picHasil { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink-2); border-top: 1px solid var(--line);
+  padding-top: 10px; }
+.picDetail summary { cursor: pointer; color: var(--primary); font-size: 12.5px; }
+.picDetail ul { margin: 6px 0 0 18px; font-size: 12.5px; max-height: 160px; overflow: auto; }
+.picAksi { display: flex; justify-content: flex-end; gap: 8px; }

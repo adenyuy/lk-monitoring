@@ -101,6 +101,8 @@ Untuk admin: tombol Buat Google Slides butuh **Google Slides API** aktif di proj
 
 Pilih jenis tarikan (Harian / Mingguan), WEEK, dan file cutoff → **Cek file** → periksa angkanya → **Tulis ke WEEK n**.
 
+**PIC sekolah baru**: bila ada sekolah baru, temanmu biasanya membuat sheet pembagian baru. Tempel link-nya di kartu **PIC sekolah baru** → **Cek** → **Isi PIC**. Aplikasi mencari tab berkolom NPSN dan Nama Anggota (mis. *Penugasan Anggota*), lalu hanya mengisi kolom PIC yang kosong di WEEK aktif. Centang **Ganti juga PIC yang berbeda** bila ada pembagian ulang. Sekolah yang tidak ada di sheet ditampilkan supaya bisa ditanyakan.
+
 ### Bingung?
 
 Ketuk tombol bulat → **Panduan** (aplikasi menunjuk bagian layar satu per satu) atau **Tanya jawab** (sesi terlewat, besok harinya, chat di luar sesi, dan lainnya).

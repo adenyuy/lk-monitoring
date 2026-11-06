@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .. import cutoff_baru, google_auth, komunikasi, lk_baru
+from .. import cutoff_baru, db, google_auth, komunikasi, lk_baru, pic_baru
 from .deps import require_feature
 from .lkb import _jalan
 
@@ -83,3 +83,40 @@ def week_baru(req: WeekReq, _=Depends(admin)) -> dict[str, Any]:
         raise HTTPException(400, str(e)) from e
     except Exception as e:
         raise HTTPException(502, f"WEEK baru gagal dibuat: {e}") from e
+
+
+# ---------- PIC sekolah baru dari sheet pembagian ----------
+
+class PicReq(BaseModel):
+    link: str
+    ganti_beda: bool = False
+
+
+def _pic(fn, req: PicReq) -> dict[str, Any]:
+    try:
+        return fn(req.link.strip(), req.ganti_beda)
+    except (pic_baru.PicError, lk_baru.LkError) as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(502, f"Sheet pembagian atau LK tidak bisa dibaca: {e}") from e
+
+
+@router.get("/pic")
+def pic_info(_=Depends(admin)) -> dict[str, Any]:
+    return _jalan(pic_baru.ringkas)
+
+
+@router.post("/pic/cek")
+def pic_cek(req: PicReq, _=Depends(admin)) -> dict[str, Any]:
+    r = _pic(pic_baru.rencana, req)
+    db.set_setting(pic_baru.KUNCI_LINK, req.link.strip())
+    return {k: v for k, v in r.items() if k not in ("isi", "beda")} | {
+        "isi": [{k: x[k] for k in ("npsn", "nama", "pic")} for x in r["isi"][:200]],
+        "beda": [{k: x[k] for k in ("npsn", "nama", "pic", "pic_lama")} for x in r["beda"][:200]],
+        "jml_isi": len(r["isi"]), "jml_beda": len(r["beda"]),
+    }
+
+
+@router.post("/pic/isi")
+def pic_isi(req: PicReq, _=Depends(admin)) -> dict[str, Any]:
+    return _pic(pic_baru.tulis, req)
