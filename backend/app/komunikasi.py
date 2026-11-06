@@ -27,8 +27,9 @@ from .sheets import normalize_petugas
 log = logging.getLogger(__name__)
 
 KELOMPOK = (
-    ("perlu_telepon", "Perlu ditelepon", "Centang satu, nomor tidak ada WA, atau berulang kali hanya dibaca"),
+    ("perlu_telepon", "Perlu ditelepon", "Minggu ini chat minimal 2 kali hanya dibaca tanpa balasan, atau nomor tidak ada WA"),
     ("dibaca", "Dibaca, belum membalas", "Chat hari ini sudah dibaca tapi belum dibalas"),
+    ("terkirim", "Terkirim, belum dibaca", "Chat hari ini terkirim tapi belum dibaca (centang)"),
     ("menunggu", "Menunggu konfirmasi", "Sudah terhubung, jawabannya belum tuntas atau lambat"),
     ("belum", "Belum dihubungi hari ini", "Belum ada catatan di Log Komunikasi hari ini"),
     ("terhubung", "Terhubung hari ini", "Respon baik lewat WhatsApp atau sudah ditelepon"),
@@ -52,7 +53,6 @@ def posisi_todo(kode: str) -> str:
     return _POSISI_DARI.get(kode, "")
 
 TERHUBUNG = {"T", "TP"}
-TIDAK_TERSAMBUNG = {"C", "N"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS fasil_tag (
@@ -212,10 +212,14 @@ def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[st
     lalu = [kode[d] for d in minggu if d <= hari and d in kode]
     if not k:
         return "belum"
-    if k in TIDAK_TERSAMBUNG:
-        return "perlu_telepon"
+    if k == "N":
+        return "perlu_telepon"  # nomor tidak ada WhatsApp: hanya bisa ditelepon
+    if k == "C":
+        return "terkirim"
     if k == "R":
-        return "perlu_telepon" if lalu.count("R") >= 2 and "TP" not in lalu else "dibaca"
+        # perlu ditelepon hanya bila minggu ini minimal 2 kali hanya dibaca dan belum pernah membalas/ditelepon
+        membalas = any(x in TERHUBUNG or x in ("T1", "T2") for x in lalu)
+        return "perlu_telepon" if lalu.count("R") >= 2 and not membalas else "dibaca"
     if k in ("T1", "T2"):
         return "menunggu"
     return "terhubung"
@@ -240,9 +244,10 @@ def kode_wa_hari_ini(nomor: str, hari: str) -> str:
     if chat:
         if chat["status"] == "dibalas" and (chat["waktu_balasan"] or "")[:10] == hari:
             return "T"
-        if chat["status"] in ("dibaca", "dibalas") and (chat["dicek"] or "")[:10] == hari:
-            return "R"
-    return "C"
+        if (chat["dicek"] or "")[:10] == hari:
+            return "R" if chat["status"] in ("dibaca", "dibalas") else "C"
+    # chat belum dicek sejak dikirim: belum tahu dibaca/dibalas, jangan tebak "C"
+    return ""
 
 
 def sinkron_wa(hari: str | None = None) -> int:
@@ -265,12 +270,12 @@ def sinkron_wa(hari: str | None = None) -> int:
         tulis: dict[str, str] = {}
         for f in fasil.values():
             k = kode_wa_hari_ini(f.nomor, hari)
-            if not k:
-                continue
             for s in f.sekolah:
                 lama = logkom.kode.get(s.npsn, {}).get(hari, "")
                 if lama == k:
                     continue
+                if not k and auto.get(s.npsn) != lama:
+                    continue  # tidak ada kode baru; hanya kode tebakan aplikasi yang dihapus
                 if lama and auto.get(s.npsn) != lama:
                     continue  # diisi petugas sendiri
                 tulis[s.npsn] = k
@@ -311,7 +316,8 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
     ada_banding = any(x is not None for x in tambah)
     progres_naik = sum(x for x in tambah if x)
     hubung = sum(1 for d in minggu if kode.get(d) in TERHUBUNG | {"T1", "T2"})
-    dibaca_saja = sum(1 for d in minggu if kode.get(d) in {"R", "C", "N"})
+    dibaca_saja = sum(1 for d in minggu if kode.get(d) == "R")
+    membalas = any(kode.get(d) in TERHUBUNG | {"T1", "T2"} for d in minggu)
     fokus = Counter(rencana[s.npsn].fokus.judul for s in perlu if rencana[s.npsn].fokus)
     tunggu = [t.tunggu for s in perlu for t in rencana[s.npsn].todo if t.pelaku == "fasil" and t.tunggu]
     posisi: Counter[str] = Counter()
@@ -330,7 +336,7 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
         "tunggu_maks": max(tunggu) if tunggu else None,
         "tag": tags.get(f.kunci, []),
         "tanpa_progres": bool(perlu) and ada_banding and progres_naik == 0 and hubung >= 2,
-        "belum_ditelepon": dibaca_saja >= 2 and "TP" not in kode.values(),
+        "belum_ditelepon": dibaca_saja >= 2 and not membalas,
         "progres_naik": progres_naik if ada_banding else None,
         "posisi": dict(posisi),
     }

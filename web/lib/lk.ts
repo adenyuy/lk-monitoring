@@ -1,7 +1,7 @@
 // Tipe data LK format baru (WEEK n, Log Komunikasi) dan Blast.
 
 export type KodeKom = "T" | "T1" | "T2" | "TP" | "R" | "C" | "N" | "";
-export type Kelompok = "perlu_telepon" | "dibaca" | "menunggu" | "belum" | "terhubung" | "beres";
+export type Kelompok = "perlu_telepon" | "dibaca" | "terkirim" | "menunggu" | "belum" | "terhubung" | "beres";
 export type Tahap = "pendahuluan" | "berkala" | "l50" | "l100" | "selesai";
 
 export type LkInfo = {
@@ -118,6 +118,7 @@ export type OpsiLk = {
 export const KELOMPOK_INFO: Record<Kelompok, { label: string; tone: "bad" | "warn" | "info" | "muted" | "ok" }> = {
   perlu_telepon: { label: "Perlu ditelepon", tone: "bad" },
   dibaca: { label: "Dibaca, belum membalas", tone: "warn" },
+  terkirim: { label: "Terkirim, belum dibaca", tone: "info" },
   menunggu: { label: "Menunggu konfirmasi", tone: "info" },
   belum: { label: "Belum dihubungi", tone: "muted" },
   terhubung: { label: "Terhubung", tone: "ok" },

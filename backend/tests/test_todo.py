@@ -99,7 +99,10 @@ def test_parse_tata_dan_log():
 def test_kelompok_komunikasi():
     minggu = ["2026-11-09", "2026-11-10", "2026-11-11"]
     assert tentukan({}, "2026-11-10", False, minggu) == "belum"
-    assert tentukan({"2026-11-10": "C"}, "2026-11-10", False, minggu) == "perlu_telepon"
+    assert tentukan({"2026-11-10": "C"}, "2026-11-10", False, minggu) == "terkirim"
+    assert tentukan({"2026-11-10": "N"}, "2026-11-10", False, minggu) == "perlu_telepon"
+    # sudah pernah membalas minggu ini: dibaca dua kali tidak membuatnya perlu ditelepon
+    assert tentukan({"2026-11-09": "T", "2026-11-10": "R", "2026-11-11": "R"}, "2026-11-11", False, minggu) == "dibaca"
     assert tentukan({"2026-11-10": "R"}, "2026-11-10", False, minggu) == "dibaca"
     assert tentukan({"2026-11-09": "R", "2026-11-10": "R"}, "2026-11-10", False, minggu) == "perlu_telepon"
     assert tentukan({"2026-11-10": "T2"}, "2026-11-10", False, minggu) == "menunggu"

@@ -222,12 +222,12 @@ class Mesin:
             st.selesai = time.time()
             events.publish("kirim_selesai", **self.snapshot())
             if st.terkirim and not st.coba:
-                try:  # langsung isi Log Komunikasi hari ini untuk penerima yang baru dikirimi
-                    from . import komunikasi
+                try:  # segera baca chat penerima; Log Komunikasi diisi dari hasil bacaan itu
+                    from . import chat_refresh
 
-                    komunikasi.sinkron_wa()
+                    chat_refresh.trigger()
                 except Exception:
-                    log.exception("Sinkron Log Komunikasi setelah blast gagal")
+                    log.exception("Pembaruan chat setelah blast gagal")
 
     def _proses(self, p: Penerima, coba: bool) -> tuple[str, str]:
         from .undangan_wag import isi_salam
