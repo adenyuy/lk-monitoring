@@ -164,20 +164,17 @@ class Rencana:
     nama_file: str
     dibuat: float
     judul: list[str]                      # judul baris 3 kolom A..terakhir komponen
-    baris: list[list[Any]]                # isi baru A4.. (identitas + komponen), urut seperti di sheet
+    baris: list[list[Any]]                # isi baru kolom komponen (mulai kol_awal) baris 4.., urut seperti di sheet
     tambah: list[list[Any]]               # sekolah baru (belum ada di WEEK)
     ringkasan: dict[str, Any] = field(default_factory=dict)
     selesai: set[str] = field(default_factory=set)
-    label: str = ""  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
+    label: str = ""
+    kol_awal: int = 0                     # kolom pertama yang ditulis untuk sekolah yang sudah ada  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
 
 
 _rencana: dict[str, Rencana] = {}
 _lock = threading.Lock()
 _status: dict[str, Any] = {"jalan": False, "langkah": "", "persen": 0, "hasil": None, "error": ""}
-
-NOMOR_TETAP = ("No HP Fasilitator", "No HP Koordinator", "No HP Kepala Sekolah")
-IDENTITAS_ISI = ("Nama Sekolah", "Angkatan", "Provinsi", "Kab/Kota", "Nama Kepala Sekolah", "PTN", "Koordinator",
-                 "Fasilitator")
 
 
 def _sama(a: Any, b: Any) -> bool:
@@ -209,6 +206,9 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
     lama = ss.values_get(f"'{tab}'!A{BARIS_DATA}:{col_letter(akhir - 1)}",
                          params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
     i_npsn = t.identitas["npsn"]
+    # Sekolah yang sudah ada: hanya kolom komponen & waktu tunggu yang ditulis. PIC dan identitas (nama, fasil,
+    # koordinator, nomor HP) dikelola lewat sheet Penugasan, jadi tidak disentuh cutoff.
+    kol_awal = min(list(t.komponen.values()) + list(t.tunggu.values()))
     out, ada = [], set()
     berubah = Counter()
     naik = Counter()
@@ -220,20 +220,16 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
             ada.add(n)
         if x:
             for j, h in enumerate(judul):
-                if h not in x or h in ("PIC", "NPSN"):
+                if j < kol_awal or h not in x:
                     continue
                 v = x[h]
-                if h in NOMOR_TETAP and (not v or str(r[j]).strip()):
-                    continue  # nomor di LK (dari MASTER / Penugasan) lebih bisa dipercaya; export hanya mengisi yang kosong
-                if h in IDENTITAS_ISI and not v:
-                    continue  # export kosong (mis. sekolah baru): data yang sudah ada tidak dihapus
                 if not _sama(r[j], v):
                     berubah[h] += 1
                     k = komponen_dari_judul(h)
                     if k and todo.status(k.kode, v).status == "selesai" and todo.status(k.kode, r[j]).status != "selesai":
                         naik[k.label] += 1
                 r[j] = v
-        out.append(r)
+        out.append(r[kol_awal:akhir])
     tambah = []
     for n, x in baru.items():
         if n in ada:
@@ -246,7 +242,7 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
         tambah.append(r)
     hilang = len([n for n in ada if n not in baru])
     rc = Rencana(token=secrets.token_urlsafe(12), week=week, nama_file=nama_file, dibuat=time.time(), judul=judul,
-                 baris=out, tambah=tambah)
+                 baris=out, tambah=tambah, kol_awal=kol_awal)
     rc.ringkasan = {
         "sekolah_file": len(baru), "sekolah_lk": len(ada), "cocok": len(ada & set(baru)), "baru": len(tambah),
         "tidak_di_file": hilang,
@@ -301,17 +297,18 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
     tab = lk_baru.tab_week(rc.week)
     w = ss.worksheet(tab)
     akhir = col_letter(len(rc.judul) - 1)
+    awal = col_letter(rc.kol_awal)
 
-    _langkah("Memperbarui data sekolah", 10)
+    _langkah("Memperbarui komponen sekolah", 10)
     # potongan kecil: kiriman besar sekaligus bisa diputus Google ("Connection aborted")
     for i in range(0, len(rc.baris), POTONG_BARIS):
         if f"data:{i}" in rc.selesai:
             continue
         isi = rc.baris[i:i + POTONG_BARIS]
-        ss.values_update(f"'{tab}'!A{BARIS_DATA + i}:{akhir}{BARIS_DATA + i + len(isi) - 1}",
+        ss.values_update(f"'{tab}'!{awal}{BARIS_DATA + i}:{akhir}{BARIS_DATA + i + len(isi) - 1}",
                          params={"valueInputOption": "RAW"}, body={"values": isi})
         rc.selesai.add(f"data:{i}")
-        _langkah(f"Memperbarui data sekolah ({min(i + POTONG_BARIS, len(rc.baris)):,} dari {len(rc.baris):,})"
+        _langkah(f"Memperbarui komponen sekolah ({min(i + POTONG_BARIS, len(rc.baris)):,} dari {len(rc.baris):,})"
                  .replace(",", "."), 10 + round(15 * min(i + POTONG_BARIS, len(rc.baris)) / max(len(rc.baris), 1)))
     if rc.tambah and "tambah" not in rc.selesai:
         _langkah(f"Menambahkan {len(rc.tambah)} sekolah baru", 25)

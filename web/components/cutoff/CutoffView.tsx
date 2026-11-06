@@ -23,7 +23,7 @@ const fmt = (n: number | string) => Number(n).toLocaleString("id-ID");
 
 /** Tahap penulisan cutoff, sesuai persen yang dilaporkan server. */
 const TAHAP_TULIS: { sampai: number; label: string }[] = [
-  { sampai: 10, label: "Memperbarui data sekolah" },
+  { sampai: 10, label: "Memperbarui komponen sekolah" },
   { sampai: 25, label: "Menambah sekolah baru" },
   { sampai: 40, label: "Mengurutkan per PIC" },
   { sampai: 55, label: "Menulis keterangan otomatis" },
@@ -200,6 +200,10 @@ export function CutoffView() {
                   ) : <p className={s.muted}>Tidak ada nilai yang berubah.</p>}
                 </div>
               </div>
+              <p className={s.catatanTulis}>
+                Yang ditulis hanya kolom komponen dan waktu tunggu reviu. PIC, fasil, koordinator, dan identitas sekolah
+                mengikuti sheet Penugasan, jadi tidak diubah cutoff. Sekolah baru ditulis lengkap.
+              </p>
               {!cek.bku_bpp && <Notice tone="info">File ini belum punya kolom BKU/BPP, jadi isi BKU dan BPP di LK tidak diubah.</Notice>}
               {aksiError && <Notice tone="bad" title="Belum bisa ditulis">{aksiError}</Notice>}
               <div className={s.aksi}>
