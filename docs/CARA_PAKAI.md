@@ -87,6 +87,8 @@ Kirim dari nomor WhatsApp kamu ke **seluruh koordinator, fasil, atau kepala seko
 2. **Pesan**: tulis pesan dengan variabel seperti `{salam}`, `{nama}`, `{ptn}`, `{pic}`, `{jumlah_sekolah}` (sekolah: `{sekolah}`, `{fasil}`). Contoh untuk penerima pertama tampil di kanan.
 3. **Tinjau & kirim**: atur jeda dan istirahat, coba 3 pesan dulu (mode coba), lalu ketik **risiko ditanggung sendiri** untuk mengirim.
 
+Di kanan atas ada **Aturan kirim** (jeda acak dan istirahat) dan **WhatsApp pengirim**. Tekan **Ganti** untuk mengeluarkan nomor yang tertaut, lalu scan QR dengan HP nomor lain.
+
 Pengiriman berhenti sendiri di luar jam 07.00–22.00 atau bila 2 pesan gagal beruntun. Tekan Mulai lagi dengan target dan pesan yang sama: penerima yang sudah menerima pesan itu dilewati otomatis. Ribuan pesan dari satu nomor berisiko diblokir WhatsApp, jadi pakai jeda yang wajar dan nomor khusus bila bisa.
 
 ### Paparan
