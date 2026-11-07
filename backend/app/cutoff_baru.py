@@ -881,6 +881,7 @@ class RencanaTanggal:
     sisip: list[tuple[int, int]]  # (indeks sisip, indeks kolom contoh format), berurutan, indeks saat disisipkan
     baris1: dict[int, str]        # sel judul WEEK yang ditulis/dikosongkan (indeks akhir)
     baris2: dict[int, str]        # label tanggal kolom baru (indeks akhir)
+    blok: list[tuple[int, int]] = field(default_factory=list)  # sel judul WEEK digabung [awal, akhir) per minggu
 
 
 def rencana_kolom_tanggal(h1: list[Any], h2: list[Any], hari: date,
@@ -908,28 +909,32 @@ def rencana_kolom_tanggal(h1: list[Any], h2: list[Any], hari: date,
         tgl[idx] = d
         h1.insert(idx, "")
         baru.append(d)
-    senin, sabtu = minggu[0] - timedelta(days=minggu[0].weekday()), minggu[-1]
-    kolom = sorted(i for i, x in tgl.items() if senin <= x <= sabtu)
-    no = week
-    if no is None:  # nomor WEEK yang sudah tertulis di minggu ini
-        m = next((m for i in kolom if (m := _RE_WEEK.search(h1[i]))), None)
-        no = int(m.group(1)) if m else None
-    if no is None:  # lanjut dari judul minggu sebelumnya
-        for i in sorted((i for i, x in tgl.items() if x < senin), reverse=True):
-            m = _RE_WEEK.search(h1[i])
-            if m:
-                lalu = tgl[i] - timedelta(days=tgl[i].weekday())
-                no = int(m.group(1)) + (senin - lalu).days // 7
-                break
-    rentang = _rentang(tgl[kolom[0]], sabtu)
-    judul = f"WEEK {no} · {rentang}" if no else rentang
-    baris1 = {kolom[0]: judul} if h1[kolom[0]] != judul else {}
-    baris1.update({i: "" for i in kolom[1:] if h1[i]})
+    target = minggu[0] - timedelta(days=minggu[0].weekday())
+    # Semua minggu di sheet dirapikan: satu judul per minggu, dari kolom pertamanya sampai Sabtu
+    grup: dict[date, list[int]] = {}
+    for i in sorted(tgl):
+        grup.setdefault(tgl[i] - timedelta(days=tgl[i].weekday()), []).append(i)
+    baris1: dict[int, str] = {}
+    blok: list[tuple[int, int]] = []
+    no_lalu = senin_lalu = None
+    for senin, kolom in sorted(grup.items()):
+        no = week if week is not None and senin == target else None
+        if no is None:  # nomor WEEK yang sudah tertulis di minggu itu
+            m = next((m for i in kolom if (m := _RE_WEEK.search(h1[i]))), None)
+            no = int(m.group(1)) if m else None
+        if no is None and no_lalu is not None:  # lanjut dari minggu sebelumnya
+            no = no_lalu + (senin - senin_lalu).days // 7
+        rentang = _rentang(tgl[kolom[0]], senin + timedelta(days=5))
+        judul = f"WEEK {no} · {rentang}" if no else rentang
+        if h1[kolom[0]] != judul:
+            baris1[kolom[0]] = judul
+        baris1.update({i: "" for i in kolom[1:] if h1[i]})
+        blok.append((kolom[0], kolom[-1] + 1))
+        if no is not None:
+            no_lalu, senin_lalu = no, senin
     inv = {x: i for i, x in tgl.items()}
     baris2 = {inv[d]: f"{HARI[d.weekday()]} {d:%d/%m}" for d in baru}
-    if not sisip and not baris1:
-        return None
-    return RencanaTanggal(sisip, baris1, baris2)
+    return RencanaTanggal(sisip, baris1, baris2, blok)
 
 
 _sudah_tgl: set[str] = set()
@@ -947,13 +952,24 @@ def pastikan_tanggal_log(hari: date | None = None, week: int | None = None, ss=N
         h = ss.values_get(f"'{tab}'!A1:ZZ2").get("values", [])
         h1, h2 = (h + [[], []])[:2]
         r = rencana_kolom_tanggal(h1, h2, hari, week)
+        tgl = _tanggal_kolom(h2, hari)
+        if not tgl:
+            raise CutoffError("Kolom tanggal di Log Komunikasi tidak ketemu.")
         if r is None:
-            if not _tanggal_kolom(h2, hari):
-                raise CutoffError("Kolom tanggal di Log Komunikasi tidak ketemu.")
             _sudah_tgl.add(kunci)
             return False
         w = ss.worksheet(tab)
-        req = []
+        meta = ss.fetch_sheet_metadata({"fields": "sheets(properties(sheetId),merges)"})
+        a0, a1 = min(tgl), max(tgl) + 1
+        gabung = [m for s in meta.get("sheets", []) if s["properties"]["sheetId"] == w.id
+                  for m in s.get("merges", []) if m["startRowIndex"] == 0
+                  and m["startColumnIndex"] < a1 and m["endColumnIndex"] > a0]
+        blok = [(a, b) for a, b in r.blok if b - a > 1]
+        rapi = sorted((m["startColumnIndex"], m["endColumnIndex"]) for m in gabung) == sorted(blok)
+        if not r.sisip and not r.baris1 and rapi:
+            _sudah_tgl.add(kunci)
+            return False
+        req = [] if rapi and not r.sisip else [{"unmergeCells": {"range": m}} for m in gabung]
         for idx, src in r.sisip:
             req += [
                 {"insertDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": idx,
@@ -973,7 +989,13 @@ def pastikan_tanggal_log(hari: date | None = None, week: int | None = None, ss=N
             ss.batch_update({"requests": req})
         data = [{"range": f"'{tab}'!{col_letter(i)}1", "values": [[v]]} for i, v in r.baris1.items()]
         data += [{"range": f"'{tab}'!{col_letter(i)}2", "values": [[v]]} for i, v in r.baris2.items()]
-        ss.values_batch_update({"valueInputOption": "RAW", "data": data})
+        if data:
+            ss.values_batch_update({"valueInputOption": "RAW", "data": data})
+        if blok and (r.sisip or not rapi):
+            ss.batch_update({"requests": [
+                {"mergeCells": {"mergeType": "MERGE_ALL", "range": {
+                    "sheetId": w.id, "startRowIndex": 0, "endRowIndex": 1,
+                    "startColumnIndex": a, "endColumnIndex": b}}} for a, b in blok]})
         if r.sisip:
             # Laptop lain bisa menambah kolom yang sama di saat bersamaan: sisakan satu saja per tanggal
             h2 = (ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]]) or [[]])[0]
