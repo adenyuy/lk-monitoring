@@ -30,6 +30,9 @@ db.connect()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     chat_refresh.start_background()
+    from . import cutoff_baru
+
+    cutoff_baru.mulai_tanggal_log()  # kolom tanggal hari ini di Log Komunikasi dibuat otomatis tiap hari kerja
     lk_otomatis.picu()  # susulkan status komunikasi LK untuk chat minggu ini yang sudah dibaca / dibalas
     yield
     worker.shutdown()  # tutup Chrome WhatsApp dengan rapi

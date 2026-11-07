@@ -489,7 +489,7 @@ def catat_log_progres(semua: list[Sekolah], tanggal: date | None = None) -> str:
     tgl = (tanggal or schedule.now().date()).strftime("%d/%m")
     ss = lk_baru._ss()
     tab = lk_baru.TAB_LOG_PROGRES
-    h2 = ss.values_get(f"'{tab}'!A2:AZ2").get("values", [[]])[0]
+    h2 = ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]])[0]
     kol = [i for i, x in enumerate(h2) if str(x).startswith("Cutoff")]
     terisi = [i for i in kol if "(" in str(h2[i])]
     if terisi and str(h2[terisi[-1]]).endswith(f"({tgl})"):
@@ -827,7 +827,7 @@ def buat_week(senin: date) -> dict[str, Any]:
 def _tambah_tanggal_log(ss, week: int, senin: date) -> list[str]:
     tab = lk_baru.TAB_LOG_KOM
     w = ss.worksheet(tab)
-    h2 = ss.values_get(f"'{tab}'!A2:AZ2").get("values", [[]])[0]
+    h2 = ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]])[0]
     tgl = [i for i, x in enumerate(h2) if i >= 4 and re.search(r"\d{1,2}/\d{1,2}", str(x))]
     if not tgl:
         raise CutoffError("Kolom tanggal di Log Komunikasi tidak ketemu.")
@@ -871,3 +871,120 @@ def senin_berikutnya() -> date:
     d = schedule.now().date()
     return d + timedelta(days=7 - d.weekday())
 
+
+
+# ---------- Log Komunikasi: kolom tanggal harian ----------
+
+_RE_WEEK = re.compile(r"WEEK\s*(\d+)", re.I)
+_lock_tgl = threading.Lock()
+
+
+def _tanggal_kolom(h2: list[Any], acuan: date) -> dict[int, date]:
+    """{indeks kolom: tanggal} dari baris judul ke-2 Log Komunikasi ('Sen 09/11')."""
+    out = {}
+    for i, x in enumerate(h2):
+        m = lk_baru._RE_TGL.search(str(x)) if i >= 4 else None
+        if m:
+            try:
+                out[i] = lk_baru._tahun_untuk(int(m.group(2)), int(m.group(1)), acuan)
+            except ValueError:
+                continue
+    return out
+
+
+def rencana_kolom_tanggal(h1: list[Any], h2: list[Any], hari: date) -> tuple[int, int, str] | None:
+    """Di mana kolom `hari` disisipkan: (indeks sisip, indeks kolom contoh format, label WEEK baris 1 atau '').
+    None bila kolomnya sudah ada (atau tidak ada kolom tanggal sama sekali)."""
+    tgl = _tanggal_kolom(h2, hari)
+    if not tgl or hari in tgl.values():
+        return None
+    sebelum = [i for i, d in tgl.items() if d < hari]
+    idx = max(sebelum) + 1 if sebelum else min(tgl)
+    contoh = max(sebelum) if sebelum else min(tgl)
+    senin = hari - timedelta(days=hari.weekday())
+    label = ""
+    if not any(senin <= d < hari for d in tgl.values()):
+        # jadi kolom pertama minggunya: beri judul WEEK seperti minggu sebelumnya
+        jumat = senin + timedelta(days=4)
+        rentang = f"{senin.day}–{jumat.day} {BULAN[jumat.month - 1]} {jumat.year}"
+        no = ""
+        for i in sorted(sebelum, reverse=True):
+            m = _RE_WEEK.search(str(h1[i]) if i < len(h1) else "")
+            if m:
+                lalu = tgl[i] - timedelta(days=tgl[i].weekday())
+                no = str(int(m.group(1)) + (senin - lalu).days // 7)
+                break
+        label = f"WEEK {no} · {rentang}" if no else rentang
+    return idx, contoh, label
+
+
+_sudah_tgl: set[str] = set()
+
+
+def pastikan_tanggal_log(hari: date | None = None) -> bool:
+    """Senin–Jumat: buat kolom tanggal hari ini di Log Komunikasi bila belum ada. True bila kolom dibuat."""
+    hari = hari or schedule.now().date()
+    if hari.weekday() >= 5 or hari.isoformat() in _sudah_tgl:
+        return False
+    with _lock_tgl:
+        tab = lk_baru.TAB_LOG_KOM
+        ss = lk_baru._ss()
+        h = ss.values_get(f"'{tab}'!A1:ZZ2").get("values", [])
+        h1, h2 = (h + [[], []])[:2]
+        rencana = rencana_kolom_tanggal(h1, h2, hari)
+        if rencana is None:
+            _sudah_tgl.add(hari.isoformat())
+            return False
+        idx, contoh, label = rencana
+        src = contoh + 1 if contoh >= idx else contoh  # posisi kolom contoh setelah penyisipan
+        w = ss.worksheet(tab)
+        ss.batch_update({"requests": [
+            {"insertDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": idx,
+                                           "endIndex": idx + 1}, "inheritFromBefore": idx > 0}},
+            {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
+                                      "startColumnIndex": src, "endColumnIndex": src + 1},
+                           "destination": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
+                                           "startColumnIndex": idx, "endColumnIndex": idx + 1},
+                           "pasteType": "PASTE_FORMAT"}},
+            {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
+                                      "startColumnIndex": src, "endColumnIndex": src + 1},
+                           "destination": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
+                                           "startColumnIndex": idx, "endColumnIndex": idx + 1},
+                           "pasteType": "PASTE_DATA_VALIDATION"}},
+        ]})
+        L = col_letter(idx)
+        ss.values_batch_update({"valueInputOption": "RAW", "data": [
+            {"range": f"'{tab}'!{L}1", "values": [[label]]},
+            {"range": f"'{tab}'!{L}2", "values": [[f"{HARI[hari.weekday()]} {hari:%d/%m}"]]},
+        ]})
+        # Laptop lain bisa menambah kolom yang sama di saat bersamaan: sisakan satu saja
+        h2 = (ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]]) or [[]])[0]
+        kembar = [i for i, d in _tanggal_kolom(h2, hari).items() if d == hari]
+        if len(kembar) > 1:
+            ss.batch_update({"requests": [
+                {"deleteDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": i,
+                                               "endIndex": i + 1}}} for i in sorted(kembar[1:], reverse=True)]})
+        cache.drop("lk2_logkom")
+        _sudah_tgl.add(hari.isoformat())
+        log.info("Kolom %s dibuat di Log Komunikasi", hari.isoformat())
+        return True
+
+
+def _loop_tanggal_log() -> None:
+    while True:
+        try:
+            pastikan_tanggal_log()
+        except lk_baru.LinkBelumAda:
+            pass
+        except Exception:
+            log.exception("Kolom tanggal Log Komunikasi gagal dibuat")
+        time.sleep(30 * 60)
+
+
+def mulai_tanggal_log() -> None:
+    """Latar: tiap 30 menit pastikan kolom tanggal hari ini ada di Log Komunikasi."""
+    import os
+
+    if os.environ.get("LKM_LK_OTOMATIS_OFF") == "1":
+        return
+    threading.Thread(target=_loop_tanggal_log, name="tanggal-log-kom", daemon=True).start()
