@@ -690,11 +690,11 @@ def log_cutoff() -> list[dict[str, Any]]:
 
 
 def status_minggu(riw: list[dict[str, Any]], hari_ini: date) -> list[dict[str, Any]]:
-    """Senin–Jumat minggu ini: sudah ada cutoff atau belum pada tiap hari."""
+    """Senin–Sabtu minggu ini: sudah ada cutoff atau belum pada tiap hari."""
     senin = hari_ini - timedelta(days=hari_ini.weekday())
     per = {x["tanggal"]: x for x in riw}
     out = []
-    for i in range(5):
+    for i in range(6):
         d = senin + timedelta(days=i)
         x = per.get(d.isoformat())
         out.append({"tanggal": d.isoformat(), "hari": HARI[i], "label": f"{HARI[i]} {d:%d/%m}",

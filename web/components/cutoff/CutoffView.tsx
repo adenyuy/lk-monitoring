@@ -365,7 +365,7 @@ function StatusMinggu({ hari }: { hari: HariCutoff[] }) {
     <section className={s.minggu} aria-label="Status cutoff minggu ini">
       <div className={s.mingguHead}>
         <h2>Cutoff minggu ini</h2>
-        <span>{sudah} dari 5 hari{ini ? ` · hari ini ${ini.status === "sudah" ? `sudah ditarik pukul ${ini.jam || "–"}` : "belum ditarik"}` : ""}</span>
+        <span>{sudah} dari {hari.length} hari{ini ? ` · hari ini ${ini.status === "sudah" ? `sudah ditarik pukul ${ini.jam || "–"}` : "belum ditarik"}` : ""}</span>
       </div>
       <ol className={s.mingguHari}>
         {hari.map((h) => (

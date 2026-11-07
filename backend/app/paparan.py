@@ -54,7 +54,7 @@ GRUP_KOM = (
 _GRUP_DARI = {k: g for g, _l, ks, _w in GRUP_KOM for k in ks}
 _URUT_GRUP = [g for g, *_ in GRUP_KOM]
 KENDALA_KOM = ("dibaca", "centang", "tanpa_wa", "menunggu")
-NAMA_HARI = ("Senin", "Selasa", "Rabu", "Kamis", "Jumat")
+NAMA_HARI = ("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu")
 
 SLIDE = (
     ("profil", "Profil sekolah binaan"),
@@ -199,7 +199,7 @@ def komunikasi_mingguan(fasil: dict[str, komunikasi.Fasil], logkom: lk_baru.LogK
                         maks_minggu: int = 3) -> dict[str, Any]:
     """Distribusi status komunikasi fasil dari Log Komunikasi, minggu ini (Senin s.d. hari ini) dibanding minggu
     sebelumnya pada rentang hari yang sama."""
-    ke = min(hari_ini.weekday(), 4)
+    ke = min(hari_ini.weekday(), 5)
     senin = hari_ini - timedelta(days=hari_ini.weekday())
     kode = {k: komunikasi.kode_fasil(f, logkom) for k, f in fasil.items()}
     minggu = []
