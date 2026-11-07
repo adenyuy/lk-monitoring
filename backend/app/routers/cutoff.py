@@ -24,7 +24,6 @@ def info(_=Depends(admin)) -> dict[str, Any]:
         "senin_baru": cutoff_baru.senin_berikutnya().isoformat(),
         "riwayat": cutoff_baru.riwayat(),
         **_log_cutoff(),
-        "log_progres": _jalan(cutoff_baru.baca_log_progres),
         "status": cutoff_baru.status(),
         "kolom_wajib": list(cutoff_baru.WAJIB),
         "cutoff_terakhir": _cutoff_terakhir(),

@@ -322,3 +322,9 @@ def dashboard(pic: str = Query("", max_length=120), paksa: bool = False,
         except Exception:
             out["pilihan_pic"] = []
     return out
+
+
+@router.get("/log-progres")
+def log_progres(_: Access = Depends(require_access)) -> dict[str, Any]:
+    """Log Progres nasional (tab Log Progres di LK), ditampilkan di dashboard."""
+    return _jalan(cutoff_baru.baca_log_progres)

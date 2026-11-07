@@ -1,0 +1,38 @@
+/* Log Progres nasional (dashboard) */
+.muted { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.wajib { font-size: 12.5px; }
+.wajib summary { cursor: pointer; color: var(--primary); width: fit-content; }
+.wajib { margin-top: 12px; }
+.logGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.logKartu { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.logKartu header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.logKartu h3 { font-size: 13.5px; font-weight: 600; }
+.logKosong { background: #fafbfc; }
+.logKosong .logUtama b { font-size: 15px; color: var(--muted); }
+.naikT { font-size: 12px; color: var(--ok-fg); font-weight: 600; white-space: nowrap; }
+.turunT { font-size: 12px; color: var(--bad-fg); font-weight: 600; white-space: nowrap; }
+.logUtama { display: flex; align-items: center; gap: 12px; }
+.logUtama > div { display: flex; flex-direction: column; min-width: 0; }
+.logUtama b { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.logUtama span { font-size: 12.5px; color: var(--ink-2); }
+.logUtama small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cincin { flex: none; }
+.cincinDasar { fill: none; stroke: var(--line-soft); stroke-width: 7; }
+.cincinIsi { fill: none; stroke: var(--primary); stroke-width: 7; stroke-linecap: round; transition: stroke-dasharray 400ms ease; }
+.spark polyline { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.spark circle { fill: var(--primary); }
+.logLain { list-style: none; border-top: 1px solid var(--line-soft); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.logLain li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(40px, 0.8fr) auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.logLain li > span:first-child { color: var(--ink-2); }
+.logLain b { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.miniBar { height: 6px; background: var(--line-soft); border-radius: 99px; }
+.miniBar span { display: block; height: 100%; background: #5673bf; border-radius: 99px; }
+.lamaT { color: var(--bad-fg); }
+
+.tabelWrap { overflow-x: auto; margin-top: 8px; }
+.tabel { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabel th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tabel td { padding: 6px 10px; border-bottom: 1px solid var(--line-soft); }
+.tabel td small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.grupAwal td { border-top: 1px solid var(--line); }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

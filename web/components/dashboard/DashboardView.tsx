@@ -6,6 +6,7 @@ import { usePolling } from "@/lib/hooks";
 import { KODE_WARNA, hariPendek, type Tahap } from "@/lib/lk";
 import { Button, Notice, Spinner } from "@/components/ui";
 import s from "./dashboard.module.css";
+import { LogProgresNasional } from "./LogProgres";
 
 type Capaian = { kode: string; label: string; tahap: Tahap; pelaku: string; selesai: number; belum: number; due: number;
   kosong: number; tanpa_data: number; relevan: number; persen: number | null; rasio: [number, number] | null };
@@ -155,6 +156,8 @@ export function DashboardView() {
         </div>
         <Tren tren={d.tren} />
       </section>
+
+      <LogProgresNasional />
 
       <div className={s.grid3}>
         <section className={s.card}><div className={s.cardHead}><h2>Angkatan</h2></div><Batang data={di.angkatan} /></section>
