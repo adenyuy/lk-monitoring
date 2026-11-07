@@ -793,13 +793,13 @@ def sinkron_log_kom(semua: list[Sekolah]) -> dict[str, int]:
 
 # ---------- WEEK baru ----------
 
-HARI = ("Sen", "Sel", "Rab", "Kam", "Jum")
+HARI = ("Sen", "Sel", "Rab", "Kam", "Jum", "Sab")
 BULAN = ("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
 
 
 def buat_week(senin: date) -> dict[str, Any]:
     """Salin WEEK terakhir jadi WEEK n+1 (isian petugas dikosongkan, keterangan otomatis ditulis ulang),
-    dan tambahkan 5 kolom tanggal (Senin–Jumat) di Log Komunikasi."""
+    dan siapkan kolom tanggal Senin–Sabtu di Log Komunikasi."""
     if senin.weekday() != 0:
         raise CutoffError("Tanggal awal WEEK harus hari Senin.")
     ss = lk_baru._ss()
@@ -825,38 +825,9 @@ def buat_week(senin: date) -> dict[str, Any]:
 
 
 def _tambah_tanggal_log(ss, week: int, senin: date) -> list[str]:
-    tab = lk_baru.TAB_LOG_KOM
-    w = ss.worksheet(tab)
-    h2 = ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]])[0]
-    tgl = [i for i, x in enumerate(h2) if i >= 4 and re.search(r"\d{1,2}/\d{1,2}", str(x))]
-    if not tgl:
-        raise CutoffError("Kolom tanggal di Log Komunikasi tidak ketemu.")
-    akhir = tgl[-1]
-    hari = [senin + timedelta(days=i) for i in range(5)]
-    if any(f"{d:%d/%m}" in str(x) for x in h2 for d in hari):
-        return [d.isoformat() for d in hari]
-    ss.batch_update({"requests": [
-        {"insertDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": akhir + 1,
-                                       "endIndex": akhir + 6}, "inheritFromBefore": True}},
-        {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
-                                  "startColumnIndex": akhir - 4, "endColumnIndex": akhir + 1},
-                       "destination": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
-                                       "startColumnIndex": akhir + 1, "endColumnIndex": akhir + 6},
-                       "pasteType": "PASTE_FORMAT"}},
-        {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
-                                  "startColumnIndex": akhir - 4, "endColumnIndex": akhir + 1},
-                       "destination": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
-                                       "startColumnIndex": akhir + 1, "endColumnIndex": akhir + 6},
-                       "pasteType": "PASTE_DATA_VALIDATION"}},
-    ]})
-    jumat = hari[-1]
-    judul = f"WEEK {week} · {senin.day}–{jumat.day} {BULAN[jumat.month - 1]} {jumat.year}"
-    L0, L1 = col_letter(akhir + 1), col_letter(akhir + 5)
-    ss.values_batch_update({"valueInputOption": "RAW", "data": [
-        {"range": f"'{tab}'!{L0}1", "values": [[judul]]},
-        {"range": f"'{tab}'!{L0}2:{L1}2", "values": [[f"{HARI[i]} {d:%d/%m}" for i, d in enumerate(hari)]]},
-    ]})
-    return [d.isoformat() for d in hari]
+    """Kolom Senin–Sabtu untuk WEEK baru di Log Komunikasi."""
+    pastikan_tanggal_log(senin, week=week, ss=ss)
+    return [d.isoformat() for d in hari_minggu(senin)]
 
 
 def senin_berikutnya() -> date:
@@ -892,81 +863,131 @@ def _tanggal_kolom(h2: list[Any], acuan: date) -> dict[int, date]:
     return out
 
 
-def rencana_kolom_tanggal(h1: list[Any], h2: list[Any], hari: date) -> tuple[int, int, str] | None:
-    """Di mana kolom `hari` disisipkan: (indeks sisip, indeks kolom contoh format, label WEEK baris 1 atau '').
-    None bila kolomnya sudah ada (atau tidak ada kolom tanggal sama sekali)."""
+def hari_minggu(hari: date) -> list[date]:
+    """Senin–Sabtu minggu `hari` (hari Minggu: minggu berikutnya, supaya kolomnya siap Senin pagi)."""
+    senin = hari - timedelta(days=hari.weekday()) + timedelta(days=7 if hari.weekday() == 6 else 0)
+    return [senin + timedelta(days=i) for i in range(6)]
+
+
+def _rentang(a: date, b: date) -> str:
+    if a.month == b.month:
+        return f"{a.day}–{b.day} {BULAN[b.month - 1]} {b.year}"
+    awal = f"{a.day} {BULAN[a.month - 1]}" + (f" {a.year}" if a.year != b.year else "")
+    return f"{awal}–{b.day} {BULAN[b.month - 1]} {b.year}"
+
+
+@dataclass
+class RencanaTanggal:
+    sisip: list[tuple[int, int]]  # (indeks sisip, indeks kolom contoh format), berurutan, indeks saat disisipkan
+    baris1: dict[int, str]        # sel judul WEEK yang ditulis/dikosongkan (indeks akhir)
+    baris2: dict[int, str]        # label tanggal kolom baru (indeks akhir)
+
+
+def rencana_kolom_tanggal(h1: list[Any], h2: list[Any], hari: date,
+                          week: int | None = None) -> RencanaTanggal | None:
+    """Siapkan satu minggu penuh Senin–Sabtu di Log Komunikasi: kolom yang belum ada disisipkan urut tanggal,
+    judul 'WEEK n · 9–14 Nov 2026' di kolom pertama minggu itu. Hari sebelum kolom tanggal pertama di sheet
+    tidak dibuat. None bila tidak ada yang perlu diubah (atau tidak ada kolom tanggal sama sekali)."""
     tgl = _tanggal_kolom(h2, hari)
-    if not tgl or hari in tgl.values():
+    if not tgl:
         return None
-    sebelum = [i for i, d in tgl.items() if d < hari]
-    idx = max(sebelum) + 1 if sebelum else min(tgl)
-    contoh = max(sebelum) if sebelum else min(tgl)
-    senin = hari - timedelta(days=hari.weekday())
-    label = ""
-    if not any(senin <= d < hari for d in tgl.values()):
-        # jadi kolom pertama minggunya: beri judul WEEK seperti minggu sebelumnya
-        jumat = senin + timedelta(days=4)
-        rentang = f"{senin.day}–{jumat.day} {BULAN[jumat.month - 1]} {jumat.year}"
-        no = ""
-        for i in sorted(sebelum, reverse=True):
-            m = _RE_WEEK.search(str(h1[i]) if i < len(h1) else "")
+    h1 = [str(x) for x in h1] + [""] * max(0, len(h2) - len(h1))
+    awal = min(tgl.values())
+    minggu = [d for d in hari_minggu(hari) if d >= awal]
+    if not minggu:
+        return None
+    sisip, baru = [], []
+    for d in minggu:
+        if d in tgl.values():
+            continue
+        sebelum = [i for i, x in tgl.items() if x < d]
+        idx = max(sebelum) + 1 if sebelum else min(tgl)
+        contoh = max(sebelum) if sebelum else min(tgl)
+        sisip.append((idx, contoh + 1 if contoh >= idx else contoh))
+        tgl = {(i + 1 if i >= idx else i): x for i, x in tgl.items()}
+        tgl[idx] = d
+        h1.insert(idx, "")
+        baru.append(d)
+    senin, sabtu = minggu[0] - timedelta(days=minggu[0].weekday()), minggu[-1]
+    kolom = sorted(i for i, x in tgl.items() if senin <= x <= sabtu)
+    no = week
+    if no is None:  # nomor WEEK yang sudah tertulis di minggu ini
+        m = next((m for i in kolom if (m := _RE_WEEK.search(h1[i]))), None)
+        no = int(m.group(1)) if m else None
+    if no is None:  # lanjut dari judul minggu sebelumnya
+        for i in sorted((i for i, x in tgl.items() if x < senin), reverse=True):
+            m = _RE_WEEK.search(h1[i])
             if m:
                 lalu = tgl[i] - timedelta(days=tgl[i].weekday())
-                no = str(int(m.group(1)) + (senin - lalu).days // 7)
+                no = int(m.group(1)) + (senin - lalu).days // 7
                 break
-        label = f"WEEK {no} · {rentang}" if no else rentang
-    return idx, contoh, label
+    rentang = _rentang(tgl[kolom[0]], sabtu)
+    judul = f"WEEK {no} · {rentang}" if no else rentang
+    baris1 = {kolom[0]: judul} if h1[kolom[0]] != judul else {}
+    baris1.update({i: "" for i in kolom[1:] if h1[i]})
+    inv = {x: i for i, x in tgl.items()}
+    baris2 = {inv[d]: f"{HARI[d.weekday()]} {d:%d/%m}" for d in baru}
+    if not sisip and not baris1:
+        return None
+    return RencanaTanggal(sisip, baris1, baris2)
 
 
 _sudah_tgl: set[str] = set()
 
 
-def pastikan_tanggal_log(hari: date | None = None) -> bool:
-    """Senin–Jumat: buat kolom tanggal hari ini di Log Komunikasi bila belum ada. True bila kolom dibuat."""
+def pastikan_tanggal_log(hari: date | None = None, week: int | None = None, ss=None) -> bool:
+    """Pastikan kolom Senin–Sabtu minggu `hari` ada di Log Komunikasi. True bila sheet diubah."""
     hari = hari or schedule.now().date()
-    if hari.weekday() >= 5 or hari.isoformat() in _sudah_tgl:
+    kunci = hari_minggu(hari)[0].isoformat()
+    if week is None and kunci in _sudah_tgl:
         return False
     with _lock_tgl:
         tab = lk_baru.TAB_LOG_KOM
-        ss = lk_baru._ss()
+        ss = ss or lk_baru._ss()
         h = ss.values_get(f"'{tab}'!A1:ZZ2").get("values", [])
         h1, h2 = (h + [[], []])[:2]
-        rencana = rencana_kolom_tanggal(h1, h2, hari)
-        if rencana is None:
-            _sudah_tgl.add(hari.isoformat())
+        r = rencana_kolom_tanggal(h1, h2, hari, week)
+        if r is None:
+            if not _tanggal_kolom(h2, hari):
+                raise CutoffError("Kolom tanggal di Log Komunikasi tidak ketemu.")
+            _sudah_tgl.add(kunci)
             return False
-        idx, contoh, label = rencana
-        src = contoh + 1 if contoh >= idx else contoh  # posisi kolom contoh setelah penyisipan
         w = ss.worksheet(tab)
-        ss.batch_update({"requests": [
-            {"insertDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": idx,
-                                           "endIndex": idx + 1}, "inheritFromBefore": idx > 0}},
-            {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
-                                      "startColumnIndex": src, "endColumnIndex": src + 1},
-                           "destination": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
-                                           "startColumnIndex": idx, "endColumnIndex": idx + 1},
-                           "pasteType": "PASTE_FORMAT"}},
-            {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
-                                      "startColumnIndex": src, "endColumnIndex": src + 1},
-                           "destination": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
-                                           "startColumnIndex": idx, "endColumnIndex": idx + 1},
-                           "pasteType": "PASTE_DATA_VALIDATION"}},
-        ]})
-        L = col_letter(idx)
-        ss.values_batch_update({"valueInputOption": "RAW", "data": [
-            {"range": f"'{tab}'!{L}1", "values": [[label]]},
-            {"range": f"'{tab}'!{L}2", "values": [[f"{HARI[hari.weekday()]} {hari:%d/%m}"]]},
-        ]})
-        # Laptop lain bisa menambah kolom yang sama di saat bersamaan: sisakan satu saja
-        h2 = (ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]]) or [[]])[0]
-        kembar = [i for i, d in _tanggal_kolom(h2, hari).items() if d == hari]
-        if len(kembar) > 1:
-            ss.batch_update({"requests": [
-                {"deleteDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": i,
-                                               "endIndex": i + 1}}} for i in sorted(kembar[1:], reverse=True)]})
+        req = []
+        for idx, src in r.sisip:
+            req += [
+                {"insertDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": idx,
+                                               "endIndex": idx + 1}, "inheritFromBefore": idx > 0}},
+                {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
+                                          "startColumnIndex": src, "endColumnIndex": src + 1},
+                               "destination": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": w.row_count,
+                                               "startColumnIndex": idx, "endColumnIndex": idx + 1},
+                               "pasteType": "PASTE_FORMAT"}},
+                {"copyPaste": {"source": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
+                                          "startColumnIndex": src, "endColumnIndex": src + 1},
+                               "destination": {"sheetId": w.id, "startRowIndex": 2, "endRowIndex": w.row_count,
+                                               "startColumnIndex": idx, "endColumnIndex": idx + 1},
+                               "pasteType": "PASTE_DATA_VALIDATION"}},
+            ]
+        if req:
+            ss.batch_update({"requests": req})
+        data = [{"range": f"'{tab}'!{col_letter(i)}1", "values": [[v]]} for i, v in r.baris1.items()]
+        data += [{"range": f"'{tab}'!{col_letter(i)}2", "values": [[v]]} for i, v in r.baris2.items()]
+        ss.values_batch_update({"valueInputOption": "RAW", "data": data})
+        if r.sisip:
+            # Laptop lain bisa menambah kolom yang sama di saat bersamaan: sisakan satu saja per tanggal
+            h2 = (ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]]) or [[]])[0]
+            per: dict[date, list[int]] = {}
+            for i, d in _tanggal_kolom(h2, hari).items():
+                per.setdefault(d, []).append(i)
+            hapus = sorted((i for ii in per.values() for i in ii[1:]), reverse=True)
+            if hapus:
+                ss.batch_update({"requests": [
+                    {"deleteDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": i,
+                                                   "endIndex": i + 1}}} for i in hapus]})
         cache.drop("lk2_logkom")
-        _sudah_tgl.add(hari.isoformat())
-        log.info("Kolom %s dibuat di Log Komunikasi", hari.isoformat())
+        _sudah_tgl.add(kunci)
+        log.info("Log Komunikasi: minggu %s disiapkan (%d kolom baru)", kunci, len(r.sisip))
         return True
 
 
@@ -982,7 +1003,7 @@ def _loop_tanggal_log() -> None:
 
 
 def mulai_tanggal_log() -> None:
-    """Latar: tiap 30 menit pastikan kolom tanggal hari ini ada di Log Komunikasi."""
+    """Latar: tiap 30 menit pastikan kolom Senin–Sabtu minggu ini ada di Log Komunikasi."""
     import os
 
     if os.environ.get("LKM_LK_OTOMATIS_OFF") == "1":

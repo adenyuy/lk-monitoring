@@ -202,7 +202,7 @@ def kode_fasil(f: Fasil, logkom: lk_baru.LogKom) -> dict[str, str]:
 
 def minggu_ini(hari: date) -> list[str]:
     senin = hari - timedelta(days=hari.weekday())
-    return [(senin + timedelta(days=i)).isoformat() for i in range(5)]
+    return [(senin + timedelta(days=i)).isoformat() for i in range(6)]
 
 
 def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[str]) -> str:

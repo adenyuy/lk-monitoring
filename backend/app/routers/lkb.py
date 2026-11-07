@@ -289,7 +289,7 @@ def pengingat(_=Depends(require_access)) -> dict[str, Any]:
     if balas:
         items.append({"jenis": "perlu_balas", "judul": f"{len(balas)} fasil menunggu balasan Anda",
                       "isi": "Mereka sudah membalas dan belum dibalas lagi.", "total": len(balas), "fasil": balas})
-    hari_kerja = schedule.now().weekday() < 5
+    hari_kerja = schedule.now().weekday() < 6  # Log Komunikasi Senin–Sabtu
     if hari_kerja and k["hari"] in k["logkom"].tanggal:
         belum = [f for f in daftar.values() if f["kelompok"] == "belum"]
         if belum:

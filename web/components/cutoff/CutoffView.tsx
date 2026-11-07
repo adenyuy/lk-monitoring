@@ -331,7 +331,7 @@ function WeekBaru({ info, onSelesai }: { info: Info; onSelesai: () => void }) {
       <ul className={s.cekList}>
         <li>Salin WEEK {info.week_aktif} beserta data sekolah dan komponen</li>
         <li>Isian Kendala & TL dikosongkan, keterangan otomatis ditulis ulang</li>
-        <li>Log Komunikasi mendapat kolom Senin–Jumat</li>
+        <li>Log Komunikasi mendapat kolom Senin–Sabtu dengan judul WEEK-nya</li>
       </ul>
       <label className={s.week}><span>Mulai Senin</span><input type="date" value={senin} onChange={(e) => setSenin(e.target.value)} /></label>
       {konfirmasi ? (

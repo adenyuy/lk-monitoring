@@ -545,14 +545,14 @@ def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:
         if tanggal not in lk.tanggal:
             from .cutoff_baru import pastikan_tanggal_log
 
-            try:  # kolom tanggal belum ada: buat dulu (hanya Senin–Jumat)
+            try:  # kolom tanggal belum ada: buat dulu (Senin–Sabtu)
                 if pastikan_tanggal_log(date.fromisoformat(tanggal)):
                     lk = baca_log_kom(refresh=True)
             except Exception:
                 log.exception("Kolom tanggal Log Komunikasi gagal dibuat")
         if tanggal not in lk.tanggal:
             raise LkError(f"Tab {TAB_LOG_KOM} belum punya kolom untuk tanggal {tanggal}. "
-                          "Kolom tanggal hanya dibuat otomatis untuk Senin–Jumat.")
+                          "Kolom tanggal dibuat otomatis untuk Senin–Sabtu.")
         c = col_letter(lk.tanggal[tanggal])
         data = []
         for npsn, k in npsn_kode.items():
