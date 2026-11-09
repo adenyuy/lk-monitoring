@@ -58,13 +58,10 @@ _siap = False
 PERINGKAT = {"N": 0, "C": 1, "C2": 2, "R": 3, "T1": 4, "T2": 4, "T": 5, "TP": 5}
 
 _KONFIRMASI = re.compile(r"(^|\n)\s*[•*\-]?\s*\*?(kendala|tindak\s*lanjut|tl)\*?\s*[:：=]", re.I)
-# Balasan berisi (bukan sekadar "oke/siap"): menyebut progres, laporan, dokumen, atau langkah yang sudah dikerjakan.
-_ISI = re.compile(r"\b(progres|progress|laporan|lpj|adendum|addendum|reviu|review|revisi|kendala|tindak\s*lanjut|"
-                  r"update|perkembangan|bku|bpp|fisik|mingguan|bulanan|pendahuluan|e-?meterai|"
-                  r"sudah\s+(saya\s+)?(kirim|dikirim|upload|diupload|unggah|diunggah|isi|diisi|submit|lapor|reviu|"
-                  r"direviu|cek|dicek|koordinasi|hubungi|dihubungi|ingatkan|diingatkan|tolak|ditolak|setujui|disetujui))\b",
-                  re.I)
-MEDIA = ("[foto]", "[dokumen]", "[video]", "[pesan suara]")
+# Menyebut kendala / tindak lanjut di kalimat biasa ("kendalanya sekolah belum upload")
+_KATA_KENDALA = re.compile(r"\b(kendala\w*|tindak\s*lanjut\w*)\b", re.I)
+# ...kecuali sekadar janji ("kendalanya nanti saya kabari")
+_JANJI = re.compile(r"\b(nanti|menyusul|kabari|dikabari|kabarkan|akan\s+saya)\b", re.I)
 TIPE_SURVEI_WAG = ("svy:", "wag:")
 MIN_PUTARAN = 5        # blast ke sekian fasil di hari yang sama = satu putaran
 LAMBAT_HARI_KERJA = 3  # balasan pertama sesudah sekian hari kerja = respon lambat (T2)
@@ -79,14 +76,15 @@ def _db() -> None:
 
 
 def konfirmasi(teks: str) -> bool:
-    """Balasan yang menjawab (T): format Kendala / Tindak lanjut, menyebut progres / laporan / langkah yang sudah
-    dikerjakan, cukup panjang, atau berupa foto / dokumen. Jawaban pendek seperti "oke kak, nanti dicek" = belum."""
+    """Balasan yang menjawab (T) = menyebut Kendala / Tindak lanjut: format "Kendala: …" / "Tindak lanjut: …",
+    atau kalimat yang membahas kendala / tindak lanjut. Balasan lain (oke, siap, laporan panjang tanpa kendala,
+    foto) = T1. Janji seperti "kendalanya nanti saya kabari" juga masih T1."""
     t = (teks or "").strip()
     if not t:
         return False
-    if _KONFIRMASI.search(t) or _ISI.search(t) or t.startswith(MEDIA):
+    if _KONFIRMASI.search(t):
         return True
-    return len(" ".join(t.split())) >= 80
+    return bool(_KATA_KENDALA.search(t)) and not _JANJI.search(t)
 
 
 # ---------- siklus ----------
@@ -180,11 +178,15 @@ def catat_amat(nomor: str, awal: date, centang: str, hari: date) -> None:
 
 
 def catat_balas(nomor: str, balasan: list[tuple[date, str]]) -> None:
+    """Balasan per tanggal. Nilai konfirmasi dihitung ulang dari pesan yang terlihat (aturan bisa berubah);
+    tanggal yang pesannya tidak terlihat lagi tidak disentuh."""
     _db()
+    per: dict[str, bool] = {}
+    for d, t in balasan:
+        per[d.isoformat()] = per.get(d.isoformat(), False) or konfirmasi(t)
     with db.tx() as c:
         c.executemany("INSERT INTO kom_balas VALUES(?,?,?) ON CONFLICT(nomor, tanggal) DO UPDATE SET "
-                      "konfirmasi = MAX(konfirmasi, excluded.konfirmasi)",
-                      [(nomor, d.isoformat(), int(konfirmasi(t))) for d, t in balasan])
+                      "konfirmasi = excluded.konfirmasi", [(nomor, t, int(k)) for t, k in per.items()])
 
 
 def awal_siklus(rows, tgl: list[date | None]) -> list[date]:

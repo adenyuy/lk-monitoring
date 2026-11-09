@@ -30,7 +30,7 @@ KELOMPOK = (
     ("perlu_telepon", "Perlu ditelepon", "Minggu ini chat minimal 2 kali hanya dibaca tanpa balasan, atau nomor tidak ada WA"),
     ("dibaca", "Dibaca, belum membalas", "Chat hari ini sudah dibaca tapi belum dibalas"),
     ("terkirim", "Terkirim, belum dibaca", "Chat terkirim tapi belum dibaca (centang satu atau dua abu-abu)"),
-    ("menunggu", "Menunggu konfirmasi", "Sudah terhubung, jawabannya belum tuntas atau lambat"),
+    ("menunggu", "Membalas, belum tuntas", "Sudah membalas, tapi belum ada Kendala / Tindak lanjut atau lambat"),
     ("belum", "Belum dihubungi hari ini", "Belum ada catatan di Log Komunikasi hari ini"),
     ("terhubung", "Terhubung hari ini", "Respon baik lewat WhatsApp atau sudah ditelepon"),
     ("beres", "Semua hijau", "Semua sekolah binaannya tanpa to-do"),
@@ -253,8 +253,10 @@ def sinkron_wa(hari: str | None = None) -> int:
                 for t, kode in kom_siklus.susun_semua(f.nomor, hari_d, isi, auto.get(sk.npsn, {}), put).items():
                     per_hari.setdefault(t, {})[sk.npsn] = kode
         if any("C2" in x.values() for x in per_hari.values()) and not lk_baru.pastikan_kode_dropdown("C2"):
-            # dropdown di sheet tidak bisa ditambah C2: pakai C supaya tetap valid
-            per_hari = {t: {n: ("C" if v == "C2" else v) for n, v in x.items()} for t, x in per_hari.items()}
+            # Dropdown di sheet tidak bisa ditambah C2. C2 TIDAK boleh diganti C (C = centang satu, maknanya beda):
+            # sel itu dilewati dulu sampai C2 ada di dropdown.
+            log.warning("Kode C2 belum ada di dropdown Log Komunikasi; sel C2 tidak ditulis")
+            per_hari = {t: y for t, x in per_hari.items() if (y := {n: v for n, v in x.items() if v != "C2"})}
         n = 0
         awal_lk = min(logkom.tanggal, default="")
         for t in sorted(per_hari):
@@ -389,7 +391,7 @@ STATUS_KOM = (
     ("telepon", "Perlu ditelepon", "Centang satu, tidak ada WA, atau berulang kali hanya dibaca"),
     ("dibaca", "Dibaca, belum membalas", "Sapa lagi, atau telepon bila berulang"),
     ("terkirim", "Terkirim, belum dibaca", "Tunggu dibaca"),
-    ("menunggu", "Menunggu konfirmasi", "Terhubung, tapi jawabannya belum tuntas atau lambat"),
+    ("menunggu", "Membalas, belum tuntas", "Sudah membalas, tapi belum ada Kendala / Tindak lanjut atau lambat"),
     ("terhubung", "Sudah membalas", "Respon baik lewat WhatsApp atau sudah ditelepon"),
     ("belum", "Belum dihubungi", "Belum ada chat atau kode komunikasi minggu ini"),
 )

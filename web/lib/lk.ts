@@ -1,6 +1,6 @@
 // Tipe data LK format baru (WEEK n, Log Komunikasi) dan Blast.
 
-export type KodeKom = "T" | "T1" | "T2" | "TP" | "R" | "C" | "N" | "";
+export type KodeKom = "T" | "T1" | "T2" | "TP" | "R" | "C" | "C2" | "N" | "";
 export type Kelompok = "perlu_telepon" | "dibaca" | "terkirim" | "menunggu" | "belum" | "terhubung" | "beres";
 export type Tahap = "pendahuluan" | "berkala" | "l50" | "l100" | "selesai";
 
@@ -119,7 +119,7 @@ export const KELOMPOK_INFO: Record<Kelompok, { label: string; tone: "bad" | "war
   perlu_telepon: { label: "Perlu ditelepon", tone: "bad" },
   dibaca: { label: "Dibaca, belum membalas", tone: "warn" },
   terkirim: { label: "Terkirim, belum dibaca", tone: "info" },
-  menunggu: { label: "Menunggu konfirmasi", tone: "info" },
+  menunggu: { label: "Membalas, belum tuntas", tone: "info" },
   belum: { label: "Belum dihubungi", tone: "muted" },
   terhubung: { label: "Terhubung", tone: "ok" },
   beres: { label: "Semua hijau", tone: "ok" },
@@ -134,9 +134,9 @@ export const TAHAP_LABEL: Record<Tahap, string> = {
 export const KODE_WARNA: Record<string, { bg: string; fg: string; label: string }> = {
   T: { bg: "#e3f3ea", fg: "#1e5e3c", label: "Respon baik" },
   TP: { bg: "#d8efe9", fg: "#155e52", label: "Ditelepon" },
-  T1: { bg: "#fff4de", fg: "#7a4900", label: "Menunggu konfirmasi" },
-  T2: { bg: "#fde9d2", fg: "#8a4a0c", label: "Respon lambat" },
-  R: { bg: "#e8edf9", fg: "#2346a0", label: "Hanya dibaca" },
+  T1: { bg: "#fff4de", fg: "#7a4900", label: "Membalas, belum konfirmasi" },
+  T2: { bg: "#fde9d2", fg: "#8a4a0c", label: "Membalas lambat" },
+  R: { bg: "#e8edf9", fg: "#2346a0", label: "Dibaca, tidak membalas" },
   C: { bg: "#fcecec", fg: "#a6282b", label: "Centang satu" },
   C2: { bg: "#f3eef0", fg: "#7a3b45", label: "Centang dua, tidak membalas" },
   N: { bg: "#f2e6ee", fg: "#8a2d63", label: "Tidak ada WA" },

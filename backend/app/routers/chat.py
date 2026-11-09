@@ -117,6 +117,9 @@ def baca(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
         return {**_hasil(n, actions.chat_info(rows), rows), "sumber": "langsung"}
     _siap()
     info, rows = _jalan(lambda b: actions.read_thread(b, n), timeout=90)
+    from .. import chat_refresh
+
+    chat_refresh._catat_siklus(n, rows)  # centang & balasan yang terlihat ikut menentukan kode Log Komunikasi
     return _hasil(n, info, rows)
 
 
@@ -149,4 +152,7 @@ def balas(nomor: str, req: BalasReq, _=Depends(wa_blast)) -> dict[str, Any]:
     ringkas = ringkas if len(ringkas) <= 90 else ringkas[:89] + "…"
     aktivitas.catat(n, "balas", ("Tanya isian LK: " if req.jenis == "tanya_lk" else "Pesan: ") + ringkas)
     info, rows = thread
+    from .. import chat_refresh
+
+    chat_refresh._catat_siklus(n, rows)
     return _hasil(n, info, rows)

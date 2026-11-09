@@ -109,7 +109,7 @@ def test_sinkron_menulis_semua_hari(monkeypatch):
     with db.tx() as c:
         c.execute("DELETE FROM kom_auto")
     komunikasi.sinkron_wa()
-    assert tulis == {"2026-11-06": {"111": "C", "222": "C"},  # C2 diganti C karena dropdown terkunci
+    assert tulis == {  # 06/11 = C2 tapi dropdown terkunci: dilewati, TIDAK diganti C (maknanya beda)
                      "2026-11-07": {"111": "T1"},              # 222 diisi TP oleh petugas
                      "2026-11-09": {"111": "T1", "222": "TP"}}
 
@@ -236,12 +236,26 @@ def test_putaran_dari_jumlah_fasil():
             c.execute("DELETE FROM sends WHERE nomor LIKE '6281_________' OR nomor LIKE '6282_________'")
 
 
-def test_konfirmasi_lebih_pintar():
-    assert ks.konfirmasi("Berikut update progres minggu ke-2 sekolah binaan")
-    assert ks.konfirmasi("sudah saya ingatkan kepseknya kak")
-    assert ks.konfirmasi("[foto]") and ks.konfirmasi("[dokumen] laporan.pdf")
+def test_t_hanya_bila_menyebut_kendala_atau_tindak_lanjut():
+    assert ks.konfirmasi("kendalanya sekolah belum upload BKU, sudah saya ingatkan")
+    assert ks.konfirmasi("SD A tidak ada kendala pak")
+    assert ks.konfirmasi("Tindak lanjutnya minggu depan kepsek kirim laporan")
+    # balasan lain tetap T1, walau panjang atau berisi laporan/foto
+    assert not ks.konfirmasi("Berikut update progres minggu ke-2 sekolah binaan")
+    assert not ks.konfirmasi("sudah saya ingatkan kepseknya kak, " * 3)
+    assert not ks.konfirmasi("[foto]") and not ks.konfirmasi("[dokumen] laporan.pdf")
     assert not ks.konfirmasi("oke kak siap")
-    assert not ks.konfirmasi("baik kak, nanti saya cek dulu ya")
+    assert not ks.konfirmasi("baik kak, kendalanya nanti saya kabari")
+
+
+def test_konfirmasi_dihitung_ulang_saat_chat_dibaca_lagi():
+    ks.catat_balas(NO, [(JUM, "sudah dikirim laporan panjang sekali")])
+    with db.tx() as c:  # catatan lama dengan aturan lama (dulu dianggap T)
+        c.execute("UPDATE kom_balas SET konfirmasi = 1 WHERE nomor = ?", (NO,))
+    ks.catat_balas(NO, [(JUM, "sudah dikirim laporan panjang sekali"), (JUM, "oke")])
+    assert db.query_one("SELECT konfirmasi FROM kom_balas WHERE nomor = ?", (NO,))["konfirmasi"] == 0
+    ks.catat_balas(NO, [(JUM, "oke"), (JUM, "Kendala: hujan")])
+    assert db.query_one("SELECT konfirmasi FROM kom_balas WHERE nomor = ?", (NO,))["konfirmasi"] == 1
 
 
 def test_respon_lambat_t2():

@@ -34,7 +34,7 @@ BIRU, BIRU_MUDA, MERAH = "#2346a0", "#c9d4ef", "#a6282b"
 KOM = (
     ("terhubung", "Sudah membalas", "#2f8f5b"),
     ("perlu_balas", "Membalas, giliran PIC", "#1f7a6c"),
-    ("menunggu", "Menunggu konfirmasi", "#d9a23a"),
+    ("menunggu", "Membalas, belum tuntas", "#d9a23a"),
     ("dibaca", "Dibaca, belum membalas", "#5673bf"),
     ("terkirim", "Terkirim, belum dibaca", "#9aa8c7"),
     ("telepon", "Perlu ditelepon", "#c8484b"),
@@ -45,8 +45,8 @@ KOM_WARNA = {k: w for k, _, w in KOM}
 # Kode Log Komunikasi dikelompokkan, urut dari paling baik. Status fasil dalam seminggu = kode terbaiknya.
 GRUP_KOM = (
     ("terhubung", "Terhubung", ("T", "TP"), "#2f8f5b"),
-    ("menunggu", "Menunggu / respon lambat", ("T1", "T2"), "#d9a23a"),
-    ("dibaca", "Hanya dibaca", ("R",), "#5673bf"),
+    ("menunggu", "Membalas, belum tuntas / lambat", ("T1", "T2"), "#d9a23a"),
+    ("dibaca", "Dibaca, tidak membalas", ("R",), "#5673bf"),
     ("centang", "Belum dibaca (centang)", ("C", "C2"), "#c8484b"),
     ("tanpa_wa", "Tidak ada WA", ("N",), "#9b4a7f"),
     ("belum", "Belum dihubungi", (), "#c4c9d2"),

@@ -164,7 +164,9 @@ _ROWS_JS = """
     else if (foto) media = 'FOTO';
     return {
       media,
-      id: r.getAttribute('data-id') || '',
+      // data-id "true_<jid>_<id>" = pesan kita, "false_..." = pesan masuk (penanda arah paling andal)
+      id: r.getAttribute('data-id') || (r.querySelector('[data-id]') || r.closest('[data-id]') || r).getAttribute('data-id')
+        || (r.getAttribute('data-testid') || '').replace(/^conv-msg-/, '') || '',
       pre: pre ? pre.getAttribute('data-pre-plain-text') || '' : '',
       text: text || '',
       kutipan: kutipan || '',
@@ -242,7 +244,26 @@ def _status_of(raw: dict) -> str:
     return ""
 
 
+def _arah_id(pid: str) -> bool | None:
+    """Arah pesan dari ID WhatsApp Web: 'true_…' = pesan kita, 'false_…' = pesan masuk, selain itu tidak tahu."""
+    if pid.startswith("true_"):
+        return True
+    if pid.startswith("false_"):
+        return False
+    return None
+
+
+def _pengirim(pre: str) -> str:
+    """'[10:37, 26/10/2026] Nama: ' -> 'nama'."""
+    if "]" not in (pre or ""):
+        return ""
+    return _norm(pre[pre.index("]") + 1:].strip().rstrip(":"))
+
+
 def _is_out(raw: dict, status: str) -> bool:
+    arah = _arah_id(raw.get("id", ""))
+    if arah is not None:
+        return arah
     if raw["tailOut"]:
         return True
     if raw["tailIn"]:
@@ -256,11 +277,45 @@ def _is_out(raw: dict, status: str) -> bool:
 
 def rows(page: Page) -> list[Row]:
     raw = page.evaluate(_ROWS_JS, [list(S.MESSAGE_ROW), list(S.MESSAGE_TEXT), S.TAIL_OUT, S.TAIL_IN, S.QUOTE])
+    return _baris(raw)
+
+
+def _pasti(r: dict) -> bool:
+    """Arah pesan ini diketahui pasti (ID, ekor, atau label "You:"), bukan tebakan dari ikon status."""
+    labels = [_norm(x) for x in r["labels"]]
+    return (_arah_id(r.get("id", "")) is not None or r["tailOut"] or r["tailIn"]
+            or any(lbl in S.OUT_SENDER_LABELS for lbl in labels))
+
+
+# Pesan kita ke fasil (blast, progres mingguan, survei, undangan WAG) menyapa "Bapak/Ibu …"; fasil tidak menyapa
+# dirinya sendiri begitu. Bisa terpotong di depan ("siang Bapak/Ibu …") bila "Selamat" berformat terpisah.
+_PESAN_KITA = re.compile(r"^\W*(selamat\s+)?(pagi|siang|sore|malam)\s+bapak\s*/\s*ibu\b"
+                         r"|sekolah\s+dampingan\s+bapak\s*/\s*ibu|tanggapan\s+bapak\s*/\s*ibu"
+                         r"|kerja\s*sama\s+bapak\s*/\s*ibu|bapak\s*/\s*ibu[^\n]{0,80}izin\s+menindaklanjuti", re.I)
+
+
+def pesan_kita(teks: str) -> bool:
+    return bool(_PESAN_KITA.search(teks or ""))
+
+
+def _baris(raw: list[dict]) -> list[Row]:
+    status = [_status_of(r) for r in raw]
+    arah = [_is_out(r, st) for r, st in zip(raw, status)]
+    # Pesan tanpa ekor yang ikon centangnya tidak terbaca (mis. blast panjang) bisa tertebak "masuk".
+    # Pembanding: nama pengirim di label "[jam, tanggal] Nama:" pesan yang arahnya sudah pasti.
+    kita = {_pengirim(r.get("pre", "")) for r, o in zip(raw, arah) if o and _pasti(r)} - {""}
+    fasil = {_pengirim(r.get("pre", "")) for r, o in zip(raw, arah) if not o and _pasti(r)} - {""}
     out = []
-    for r in raw:
-        st = _status_of(r)
-        is_out = _is_out(r, st)
-        out.append(Row(r["id"], is_out, st if is_out else "", teks_pesan(r.get("media", ""), r["text"]),
+    for r, st, o in zip(raw, status, arah):
+        if not _pasti(r):
+            p = _pengirim(r.get("pre", ""))
+            if p in kita and p not in fasil:
+                o = True
+            elif p in fasil and p not in kita:
+                o = False
+        if not o and _arah_id(r.get("id", "")) is None and pesan_kita(r["text"]):
+            o = True
+        out.append(Row(r["id"], o, st if o else "", teks_pesan(r.get("media", ""), r["text"]),
                        _waktu(r.get("pre", "")), rapikan(r.get("kutipan", ""))))
     return out
 

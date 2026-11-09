@@ -90,3 +90,36 @@ def test_terakhir_masuk_artinya_perlu_dibalas():
     assert not actions.chat_info([keluar, masuk, _row(True, "Terima kasih", "sent")]).terakhir_masuk
     assert not actions.chat_info([keluar]).terakhir_masuk
     assert not actions.chat_info([masuk, keluar]).terakhir_masuk  # pesan masuk sebelum broadcast bukan balasan
+
+
+def baris_raw(id="x", pre="", text="", **kw):
+    return {**raw(text=text, **kw), "id": id, "pre": pre}
+
+
+def test_arah_dari_id_pesan():
+    keluar = baris_raw(id="true_6281@c.us_3EB0AA", text="halo")  # tanpa ekor & ikon
+    masuk = baris_raw(id="false_6281@c.us_ABC", text="baik", labels=[" Read "])
+    rows = actions._baris([keluar, masuk])
+    assert rows[0].out and not rows[1].out
+
+
+def test_blast_tanpa_ikon_dikenali_dari_nama_pengirim():
+    rows = actions._baris([
+        baris_raw(pre="[10:00, 06/11/2026] Petugas: ", text="pesan awal", tail_out=True, labels=[" Read "]),
+        baris_raw(pre="[10:01, 06/11/2026] Petugas: ", text="lanjutan panjang tanpa ikon"),
+        baris_raw(pre="[11:00, 06/11/2026] Budi: ", text="oke", tail_in=True),
+    ])
+    assert [r.out for r in rows] == [True, True, False]
+    assert actions.chat_info(rows).balasan == ["oke"]
+
+
+def test_teks_blast_kita_tidak_dianggap_balasan():
+    for teks in ("siang Bapak/Ibu Budi Santoso, izin menindaklanjuti progres pelaporan sekolah",
+                 "Selamat siang Bapak/Ibu Sari Wulandari\n\nTerima kasih atas tanggapan Bapak/Ibu minggu lalu.",
+                 "Berikut update progres Minggu ke-2 sekolah dampingan Bapak/Ibu yang laporan kemajuan"):
+        rows = actions._baris([baris_raw(text="awal", tail_out=True, labels=[" Delivered "]),
+                               baris_raw(text=teks, tail_in=True)])
+        assert rows[1].out, teks
+        assert actions.chat_info(rows).status != "dibalas"
+    assert not actions.pesan_kita("Baik pak, terima kasih")
+    assert not actions.pesan_kita("Selamat siang pak, berikut laporan progres sekolah saya")

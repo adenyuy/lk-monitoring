@@ -460,13 +460,14 @@ def tulis_isian(week: int, isi: list[tuple[Sekolah, int, str, str, str]], hanya_
 # ---------- Log Komunikasi ----------
 
 KODE_KOMUNIKASI = {
-    "T": "Terhubung WhatsApp, respon baik",
-    "T1": "Terhubung WhatsApp, menunggu konfirmasi",
-    "T2": "Terhubung WhatsApp, respon lambat",
+    # T/T1/T2 hanya bila fasil SUDAH MEMBALAS. Pesan diterima tapi tidak dibalas = C2 (atau R bila sudah dibaca).
+    "T": "Membalas dengan Kendala / Tindak lanjut (respon baik)",
+    "T1": "Sudah membalas, belum ada Kendala / Tindak lanjut",
+    "T2": "Sudah membalas, tapi lambat (3+ hari kerja)",
     "TP": "Terhubung melalui telepon",
-    "R": "Chat hanya dibaca",
+    "R": "Dibaca (centang biru), tidak membalas",
     "C": "Centang satu (belum diterima)",
-    "C2": "Centang dua, belum dibaca dan tidak membalas",
+    "C2": "Centang dua (diterima), belum dibaca, tidak membalas",
     "N": "Nomor tidak terhubung WhatsApp",
 }
 _RE_TGL = re.compile(r"(\d{1,2})/(\d{1,2})")
