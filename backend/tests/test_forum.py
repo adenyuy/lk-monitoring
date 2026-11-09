@@ -79,7 +79,7 @@ def test_alur_tanya_jawab_solusi(tab):
 def test_tanya_sekaligus_jawaban_sendiri(tab):
     tid = forum.buat_tanya(A, "Petugas A", "Cara ganti nomor WA", "", "Aplikasi", [], jawaban="Scan QR ulang")
     d = forum.detail(tid, B, False)
-    assert d["solusi"] and d["jawaban"][0]["isi"] == "Scan QR ulang"
+    assert d["solusi"] and d["jawaban"][0]["isi"] == "Scan QR ulang" and d["jawaban"][0]["penanya"]
     assert forum.ringkas(forum.baca(), B)[0]["selesai"]
 
 

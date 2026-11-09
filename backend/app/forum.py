@@ -279,7 +279,7 @@ def detail(pid: str, email: str, admin: bool) -> dict[str, Any]:
         raise ForumError("Pertanyaan tidak ditemukan. Mungkin sudah dihapus.")
     jawab = sorted(t.jawaban, key=lambda j: (j.id != t.solusi, j.dibuat))
     return {**_pos_json(t, email, admin), "judul": t.judul, "topik": t.topik, "solusi": t.solusi,
-            "jawaban": [_pos_json(j, email, admin) for j in jawab]}
+            "jawaban": [{**_pos_json(j, email, admin), "penanya": j.email == t.email} for j in jawab]}
 
 
 def topik(daftar: list[Pos]) -> list[str]:

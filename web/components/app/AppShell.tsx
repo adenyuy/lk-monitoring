@@ -10,7 +10,6 @@ import { Notice, Spinner } from "@/components/ui";
 import { WaBanner } from "./WaBanner";
 import { LockIcon, NoAccess } from "./NoAccess";
 import { AssistDock } from "./Assist";
-import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
 import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconForum, IconLk, IconLog, IconLogo, IconPaparan, IconBlastAdmin } from "./Icons";
@@ -24,7 +23,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { me, error } = useMe();
   const [wa, setWa] = useState<WaStatus | null>(null);
   const [terkunci, setTerkunci] = useState(false);
-  const [panduan, setPanduan] = useState(false);
 
   const siap = !!me && me.logged_in && !!me.access && me.settings.setup_selesai;
 
@@ -93,7 +91,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const waLabel = wa?.state === "logged_in" ? `WhatsApp ${wa.nomor_tersamar || "terhubung"}`
     : wa?.state === "closed" ? "WhatsApp belum dibuka" : wa ? "WhatsApp menunggu" : "Memeriksa WhatsApp";
   const waDot = WA_WARNA[wa?.state ?? ""] ?? "#98a2b3";
-  const langkah = PANDUAN[path] ?? PANDUAN["/lk/"] ?? PANDUAN["/today/"];
 
   const menu = (
     <>
@@ -186,10 +183,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         </footer>
       </div>
 
-      <AssistDock onPanduan={() => setPanduan(true)} onTerkunci={() => setTerkunci(true)} bolehCutoff={bolehCutoff}
+      <AssistDock onTerkunci={() => setTerkunci(true)} bolehCutoff={bolehCutoff}
         adaBaru={adaBaru} />
       {terkunci && <NoAccess onClose={() => setTerkunci(false)} />}
-      {panduan && <Tour key={path} langkah={langkah} onClose={() => setPanduan(false)} />}
     </div>
   );
 }

@@ -16,7 +16,7 @@ type Pos = {
   id: string; isi: string; foto: string[]; nama: string; dibuat: string; diubah: string; milik_saya: boolean;
   boleh_ubah: boolean;
 };
-type Detail = Pos & { judul: string; topik: string; solusi: string; jawaban: Pos[] };
+type Detail = Pos & { judul: string; topik: string; solusi: string; jawaban: (Pos & { penanya: boolean })[] };
 type Izin = { punya: boolean; status: string; error: string };
 
 const pesan = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -35,14 +35,67 @@ function waktu(iso: string): string {
   return t.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Teks biasa dengan baris baru dan tautan yang bisa diklik. */
-function Teks({ isi }: { isi: string }) {
-  const bagian = isi.split(/(https?:\/\/[^\s]+)/g);
+const lengkap = (iso: string) => (iso ? new Date(iso).toLocaleString("id-ID", {
+  weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+
+/** Tautan di dalam satu baris teks jadi bisa diklik. */
+function Sebaris({ t }: { t: string }) {
   return (
-    <div className={s.teks}>
-      {bagian.map((b, i) => (/^https?:\/\//.test(b)
+    <>
+      {t.split(/(https?:\/\/[^\s]+)/g).map((b, i) => (/^https?:\/\//.test(b)
         ? <a key={i} href={b} target="_blank" rel="noreferrer">{b}</a>
         : <Fragment key={i}>{b}</Fragment>))}
+    </>
+  );
+}
+
+type Blok = { k: "p" | "ul" | "ol"; baris: string[] };
+
+/** Teks biasa -> paragraf; baris berawalan "-", "•", "*" jadi poin, "1." / "1)" jadi nomor. */
+function Teks({ isi }: { isi: string }) {
+  const blok: Blok[] = [];
+  for (const mentah of isi.replace(/\r/g, "").split("\n")) {
+    const b = mentah.trimEnd();
+    const poin = b.match(/^\s*[-•*]\s+(.*)$/);
+    const nomor = b.match(/^\s*\d+[.)]\s+(.*)$/);
+    const k: Blok["k"] | null = !b.trim() ? null : poin ? "ul" : nomor ? "ol" : "p";
+    const terakhir = blok[blok.length - 1];
+    if (!k) { blok.push({ k: "p", baris: [] }); continue; }
+    const teks = poin?.[1] ?? nomor?.[1] ?? b;
+    if (terakhir && terakhir.k === k && terakhir.baris.length) terakhir.baris.push(teks);
+    else if (terakhir && !terakhir.baris.length) { terakhir.k = k; terakhir.baris.push(teks); }
+    else blok.push({ k, baris: [teks] });
+  }
+  return (
+    <div className={s.teks}>
+      {blok.filter((x) => x.baris.length).map((x, i) => {
+        if (x.k === "p") {
+          return <p key={i}>{x.baris.map((t, j) => <Fragment key={j}>{j > 0 && <br />}<Sebaris t={t} /></Fragment>)}</p>;
+        }
+        const L = x.k;
+        return <L key={i}>{x.baris.map((t, j) => <li key={j}><Sebaris t={t} /></li>)}</L>;
+      })}
+    </div>
+  );
+}
+
+const WARNA = ["#2346a0", "#1e7a4c", "#9a5b00", "#7a3fa0", "#a6282b", "#0f6f86", "#5b6474"];
+
+function Avatar({ nama, kecil }: { nama: string; kecil?: boolean }) {
+  const kata = nama.trim().split(/\s+/);
+  const inisial = ((kata[0]?.[0] ?? "?") + (kata.length > 1 ? kata[kata.length - 1][0] : "")).toUpperCase();
+  const w = WARNA[[...nama].reduce((a, c) => a + c.charCodeAt(0), 0) % WARNA.length];
+  return <span className={`${s.avatar} ${kecil ? s.avatarKecil : ""}`} style={{ background: w }} aria-hidden="true">{inisial}</span>;
+}
+
+function Penulis({ nama, dibuat, diubah, label }: { nama: string; dibuat: string; diubah?: string; label?: ReactNode }) {
+  return (
+    <div className={s.penulis}>
+      <Avatar nama={nama} />
+      <div>
+        <div className={s.penulisNama}><b>{nama}</b>{label}</div>
+        <time dateTime={dibuat} title={lengkap(dibuat)}>{waktu(dibuat)}{diubah ? " · diubah" : ""}</time>
+      </div>
     </div>
   );
 }
@@ -331,7 +384,7 @@ function Hapus({ onHapus }: { onHapus: () => Promise<void> }) {
 // ---------- satu jawaban ----------
 
 function Jawaban({ j, terpilih, bolehPilih, onPilih, onUbah }: {
-  j: Pos; terpilih: boolean; bolehPilih: boolean; onPilih: () => Promise<void>; onUbah: () => void;
+  j: Pos & { penanya: boolean }; terpilih: boolean; bolehPilih: boolean; onPilih: () => Promise<void>; onUbah: () => void;
 }) {
   const [ubah, setUbah] = useState(false);
   const [isi, setIsi] = useState(j.isi);
@@ -356,11 +409,12 @@ function Jawaban({ j, terpilih, bolehPilih, onPilih, onUbah }: {
 
   return (
     <article className={`${s.jawab} ${terpilih ? s.jawabTerpilih : ""}`}>
-      {terpilih && <div className={s.pita}>✓ Jawaban yang dipakai penanya</div>}
-      <header className={s.meta}>
-        <b>{j.nama}</b>
-        <span>{waktu(j.dibuat)}{j.diubah ? " · diubah" : ""}</span>
+      <header className={s.jawabKepala}>
+        <Penulis nama={j.nama} dibuat={j.dibuat} diubah={j.diubah}
+          label={j.penanya ? <span className={s.labelPenanya}>Penanya</span> : undefined} />
+        {terpilih && <span className={s.pita}><IkonCentang /> Solusi</span>}
       </header>
+      <div className={s.jawabBadan}>
       {ubah ? (
         <div className={s.ubahInline}>
           <textarea value={isi} onChange={(e) => setIsi(e.target.value)} rows={4} maxLength={8000} />
@@ -388,7 +442,22 @@ function Jawaban({ j, terpilih, bolehPilih, onPilih, onUbah }: {
           {j.boleh_ubah && <Hapus onHapus={async () => { await post(`/api/forum/${j.id}/hapus`); onUbah(); }} />}
         </footer>
       )}
+      </div>
     </article>
+  );
+}
+
+function IkonCentang() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"
+      strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+  );
+}
+
+function IkonBalas() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+      strokeLinejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.5 8.5 0 1 1 21 11.5z" /></svg>
   );
 }
 
@@ -464,10 +533,8 @@ function DetailView({ id, topik, onKembali }: { id: string; topik: string[]; onK
             : <Chip tone="warn">Belum dijawab</Chip>}
         </div>
         <h1>{d.judul}</h1>
-        <header className={s.meta}>
-          <b>{d.nama}</b>
-          <span>{waktu(d.dibuat)}{d.diubah ? " · diubah" : ""}</span>
-        </header>
+        <Penulis nama={d.nama} dibuat={d.dibuat} diubah={d.diubah} />
+        {(d.isi || d.foto.length > 0) && <hr className={s.garis} />}
         {d.isi && <Teks isi={d.isi} />}
         <Galeri foto={d.foto} />
         {d.boleh_ubah && (
@@ -479,7 +546,12 @@ function DetailView({ id, topik, onKembali }: { id: string; topik: string[]; onK
       </article>
 
       <section className={s.jawabanSeksi} aria-labelledby="judul-jawaban">
-        <h2 id="judul-jawaban">{d.jawaban.length ? `${d.jawaban.length} jawaban` : "Belum ada jawaban"}</h2>
+        <h2 id="judul-jawaban" className={s.judulSeksi}>
+          <IkonBalas /> {d.jawaban.length ? `${d.jawaban.length} jawaban` : "Belum ada jawaban"}
+        </h2>
+        {!d.jawaban.length && (
+          <p className={s.belumAda}>Jadilah yang pertama membantu. Pengalaman kecil pun bisa berguna.</p>
+        )}
         {d.jawaban.map((j) => (
           <Jawaban key={j.id} j={j} terpilih={d.solusi === j.id} bolehPilih={d.boleh_ubah}
             onPilih={() => pilih(j.id)} onUbah={() => void muat()} />
@@ -510,16 +582,26 @@ function DetailView({ id, topik, onKembali }: { id: string; topik: string[]; onK
 
 // ---------- halaman daftar ----------
 
-type Saring = "semua" | "belum" | "terjawab" | "saya";
-const SARING: { k: Saring; label: string }[] = [
-  { k: "semua", label: "Semua" }, { k: "belum", label: "Belum dijawab" }, { k: "terjawab", label: "Terjawab" },
-  { k: "saya", label: "Pertanyaan saya" },
+type Saring = "terbaru" | "aktif" | "belum" | "selesai" | "saya";
+const SARING: { k: Saring; label: string; judul: string }[] = [
+  { k: "terbaru", label: "Terbaru", judul: "Pertanyaan terbaru" },
+  { k: "aktif", label: "Aktif", judul: "Baru ada aktivitas" },
+  { k: "belum", label: "Belum dijawab", judul: "Belum dijawab" },
+  { k: "selesai", label: "Selesai", judul: "Sudah ada solusi" },
+  { k: "saya", label: "Punya saya", judul: "Pertanyaan saya" },
 ];
 
-function Status({ x }: { x: Ringkas }): ReactNode {
-  if (x.selesai) return <Chip tone="ok">Selesai</Chip>;
-  if (x.jawaban) return <Chip tone="info">{x.jawaban} jawaban</Chip>;
-  return <Chip tone="warn">Belum dijawab</Chip>;
+/** Kolom angka di kiri baris: jumlah jawaban (hijau penuh bila sudah ada solusi) dan foto. */
+function Statistik({ x }: { x: Ringkas }): ReactNode {
+  const kelas = x.selesai ? s.jmlSelesai : x.jawaban ? s.jmlAda : "";
+  return (
+    <div className={s.stat}>
+      <span className={`${s.jml} ${kelas}`}>
+        {x.selesai && <IkonCentang />}{x.jawaban} jawaban
+      </span>
+      {x.ada_foto && <span>ada foto</span>}
+    </div>
+  );
 }
 
 export function ForumView() {
@@ -529,7 +611,8 @@ export function ForumView() {
   const [d, setD] = useState<Daftar | null>(null);
   const [galat, setGalat] = useState("");
   const [cari, setCari] = useState("");
-  const [saring, setSaring] = useState<Saring>("semua");
+  const [saring, setSaring] = useState<Saring>("terbaru");
+  const [filter, setFilter] = useState(false);
   const [tp, setTp] = useState("");
   const [tulis, setTulis] = useState(false);
   const [segar, setSegar] = useState(false);
@@ -558,42 +641,65 @@ export function ForumView() {
   const q = cari.trim().toLowerCase();
   const kata = q.split(/\s+/).filter(Boolean);
   const tampil = (d?.items ?? []).filter((x) =>
-    (saring === "semua" || (saring === "belum" && !x.jawaban) || (saring === "terjawab" && x.jawaban > 0)
-      || (saring === "saya" && x.milik_saya))
+    ((saring === "terbaru" || saring === "aktif") || (saring === "belum" && !x.jawaban)
+      || (saring === "selesai" && x.selesai) || (saring === "saya" && x.milik_saya))
     && (!tp || x.topik === tp)
-    && kata.every((k) => x.cari.includes(k)));
+    && kata.every((k) => x.cari.includes(k)))
+    .sort((a, b) => (saring === "terbaru" ? b.dibuat.localeCompare(a.dibuat) : b.aktif.localeCompare(a.aktif)));
+  const judul = SARING.find((x) => x.k === saring)?.judul ?? "Pertanyaan";
   const topikAda = [...new Set((d?.items ?? []).map((x) => x.topik).filter(Boolean))];
+
+  const kapan = (x: Ringkas) => (saring === "aktif" ? x.aktif : x.dibuat);
 
   return (
     <div className={s.page}>
-      <header className={s.head}>
+      <header className={s.soHead}>
         <div>
-          <h1>Forum tim</h1>
-          <p>Tanya masalah di lapangan atau bagikan solusi yang sudah kamu temukan. Cari dulu, mungkin sudah pernah dijawab.</p>
+          <h1>{judul}</h1>
+          <p>Forum tim: tanya masalah di lapangan atau bagikan solusi. Cari dulu, mungkin sudah pernah dijawab.</p>
         </div>
-        <Button onClick={() => setTulis(true)} disabled={!d}>+ Tulis pertanyaan</Button>
+        <Button onClick={() => setTulis(true)} disabled={!d}>Tanya</Button>
       </header>
 
-      <div className={s.tools}>
-        <input type="search" className={s.search} placeholder="Cari judul, isi, atau jawaban" value={cari}
-          onChange={(e) => setCari(e.target.value)} aria-label="Cari di forum" />
-        <div className={s.saringBaris}>
-          <div className={s.chips} role="group" aria-label="Saring">
+      <div className={s.soBar}>
+        <span className={s.soJumlah}>{tampil.length} pertanyaan</span>
+        <div className={s.soKanan}>
+          <div className={s.seg} role="group" aria-label="Urutkan dan saring">
             {SARING.map((x) => (
               <button key={x.k} type="button" aria-pressed={saring === x.k} onClick={() => setSaring(x.k)}>{x.label}</button>
             ))}
           </div>
-          {topikAda.length > 0 && (
-            <select className={s.pilihTopik} value={tp} onChange={(e) => setTp(e.target.value)} aria-label="Topik">
-              <option value="">Semua topik</option>
-              {topikAda.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          )}
-          <button type="button" className={s.aksiKecil} onClick={() => void muat(true)} disabled={segar}>
-            {segar ? "Memuat…" : "Muat ulang"}
+          <button type="button" className={`${s.filterBtn} ${filter || tp || cari ? s.filterAktif : ""}`}
+            aria-expanded={filter} onClick={() => setFilter(!filter)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+              strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+            Filter
           </button>
         </div>
       </div>
+
+      {filter && (
+        <div className={s.filterPanel}>
+          <input type="search" className={s.search} placeholder="Cari judul, isi, atau jawaban" value={cari}
+            onChange={(e) => setCari(e.target.value)} aria-label="Cari di forum" autoFocus />
+          {topikAda.length > 0 && (
+            <div className={s.chips} role="group" aria-label="Topik">
+              <button type="button" aria-pressed={!tp} onClick={() => setTp("")}>Semua topik</button>
+              {topikAda.map((t) => (
+                <button key={t} type="button" aria-pressed={tp === t} onClick={() => setTp(tp === t ? "" : t)}>{t}</button>
+              ))}
+            </div>
+          )}
+          <div className={s.filterAksi}>
+            {(cari || tp) && (
+              <button type="button" className={s.tautan} onClick={() => { setCari(""); setTp(""); }}>Hapus filter</button>
+            )}
+            <button type="button" className={s.aksiKecil} onClick={() => void muat(true)} disabled={segar}>
+              {segar ? "Memuat…" : "Muat ulang"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {galat && <Notice tone="bad">{galat}</Notice>}
       {!d && !galat && <p className={s.memuat}><Spinner /> Memuat forum…</p>}
@@ -602,7 +708,7 @@ export function ForumView() {
         <div className={s.kosongBesar}>
           <b>Belum ada pertanyaan</b>
           <p>Jadilah yang pertama. Pertanyaan yang sudah kamu tahu jawabannya juga boleh dibagikan.</p>
-          <Button onClick={() => setTulis(true)}>+ Tulis pertanyaan</Button>
+          <Button onClick={() => setTulis(true)}>Tanya</Button>
         </div>
       )}
       {d && d.items.length > 0 && tampil.length === 0 && (
@@ -610,22 +716,29 @@ export function ForumView() {
           Tanyakan saja</button></p>
       )}
 
-      <div className={s.daftar}>
-        {tampil.map((x) => (
-          <Link key={x.id} href={`/forum/?id=${encodeURIComponent(x.id)}`} className={s.kartu}>
-            <div className={s.kartuAtas}>
-              <h3>{x.judul}</h3>
-              <Status x={x} />
-            </div>
-            {x.cuplikan && <p>{x.cuplikan}</p>}
-            <div className={s.kartuBawah}>
-              {x.topik && <span className={s.topik}>{x.topik}</span>}
-              {x.ada_foto && <span>Ada foto</span>}
-              <span>{x.nama} · {waktu(x.aktif)}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
+      {tampil.length > 0 && (
+        <ul className={s.soDaftar}>
+          {tampil.map((x) => (
+            <li key={x.id} className={s.soBaris}>
+              <Statistik x={x} />
+              <div className={s.soIsi}>
+                <h3><Link href={`/forum/?id=${encodeURIComponent(x.id)}`}>{x.judul}</Link></h3>
+                {x.cuplikan && <p>{x.cuplikan}</p>}
+                <div className={s.soBawah}>
+                  <div className={s.tags}>{x.topik && <span className={s.tag}>{x.topik}</span>}</div>
+                  <span className={s.oleh}>
+                    <Avatar nama={x.nama} kecil />
+                    <b>{x.nama}</b>
+                    <time dateTime={kapan(x)} title={lengkap(kapan(x))}>
+                      {saring === "aktif" && x.aktif !== x.dibuat ? "aktif " : "bertanya "}{waktu(kapan(x))}
+                    </time>
+                  </span>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {tulis && d && (
         <FormTanya topik={d.topik} onTutup={() => setTulis(false)}

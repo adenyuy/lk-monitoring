@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
 import { LockIcon } from "./NoAccess";
 import { DaftarFasil, IzinDesktop, NotifList, useNotif, type Notif } from "./Notif";
-import { IconBlast, IconCutoff, IconDashboard, IconForum, IconLk, IconLog, IconPanduan, IconPaparan, IconTanya } from "./Icons";
+import { IconBlast, IconCutoff, IconDashboard, IconForum, IconLk, IconLog, IconPaparan } from "./Icons";
 import s from "./app.module.css";
 
 type Bubble = {
@@ -71,13 +71,13 @@ function useRingkas() {
   };
 }
 
-type Props = { onPanduan: () => void; onTerkunci: () => void; bolehCutoff: boolean; adaBaru: boolean };
+type Props = { onTerkunci: () => void; bolehCutoff: boolean; adaBaru: boolean };
 
 /**
  * Tombol bulat melayang (seperti AssistiveTouch): bisa digeser ke mana saja dan menempel ke tepi kiri/kanan.
  * Lingkarannya = hitung mundur sesi (detail saat diarahkan). Diketuk = menu cepat pindah halaman.
  */
-export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Props) {
+export function AssistDock({ onTerkunci, bolehCutoff, adaBaru }: Props) {
   const path = usePathname() ?? "";
   const cd = useRingkas();
   const [pos, setPos] = useState<Posisi | null>(null);
@@ -269,9 +269,7 @@ export function AssistDock({ onPanduan, onTerkunci, bolehCutoff, adaBaru }: Prop
                   <Tile label="Tarik Cutoff" icon={<IconCutoff />} kunci
                     onPick={() => { setMenu(false); onTerkunci(); }} />
                 )}
-                <Tile label="Panduan" icon={<IconPanduan />} onPick={() => { setMenu(false); onPanduan(); }} />
                 <Tile href="/forum/" label="Forum tim" icon={<IconForum />} current={kini("/forum/")} onPick={tutupMenu} />
-                <Tile href="/faq/" label="Tanya jawab" icon={<IconTanya />} current={kini("/faq/")} onPick={tutupMenu} />
               </div>
             </div>
           </div>
