@@ -122,7 +122,8 @@ def test_riwayat_dengan_jam_berzona_waktu(siap, monkeypatch):
     from zoneinfo import ZoneInfo
     monkeypatch.setattr(schedule, "now", lambda: datetime(2026, 11, 9, 10, tzinfo=ZoneInfo("Asia/Jakarta")))
     monkeypatch.setattr(p, "_nama_status", lambda _w: "READ")
-    w = NS(key=NS(ID="H3", fromMe=False), messageTimestamp=TS // 1000, status=0, message=NS(conversation="oke"))
+    ts = int(datetime(2026, 11, 6, 9, tzinfo=ZoneInfo("Asia/Jakarta")).timestamp())  # tidak bergantung zona waktu laptop
+    w = NS(key=NS(ID="H3", fromMe=False), messageTimestamp=ts, status=0, message=NS(conversation="oke"))
     p.on_riwayat(NS(Data=NS(conversations=[NS(ID=f"{FASIL}@s.whatsapp.net", pnJID="", messages=[NS(message=w)])],
                             phoneNumberToLidMappings=[])))
     rows = p.baris_chat(FASIL)
