@@ -287,3 +287,17 @@ def test_chat_satuan_di_luar_siklus_memulai_siklus():
     ks.catat_chat(NO, [Row(out=True, status="delivered", text="halo kak, gimana progresnya?", waktu="2026-11-09")],
                   tgl, SEN)
     assert [x.awal for x in ks.daftar_siklus(NO, SEN, [JUM])] == [SEN]
+
+
+def test_blast_ke_kepala_sekolah_bukan_putaran_fasil():
+    with db.tx() as c:
+        for i in range(8):
+            c.execute("INSERT INTO sends(tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, coba) "
+                      "VALUES('2026-11-07','2026-11-07T09:00:00',0,'Kepsek',?,'blast:x','terkirim','',0)",
+                      (f"6283{i:09d}",))
+    try:
+        assert ks.putaran(SEN, fasil={NO}) == []                       # nomor kepsek: bukan putaran fasil
+        assert date(2026, 11, 7) in ks.putaran(SEN, fasil={f"6283{i:09d}" for i in range(8)})
+    finally:
+        with db.tx() as c:
+            c.execute("DELETE FROM sends WHERE nomor LIKE '6283_________'")

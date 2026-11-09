@@ -104,21 +104,42 @@ def _rentang(hari: date) -> tuple[str, str]:
     return (hari - timedelta(days=MAKS_HARI)).isoformat(), (hari + timedelta(days=1)).isoformat()
 
 
-def putaran(hari: date) -> list[date]:
+def _nomor_fasil() -> set[str] | None:
+    """Nomor fasil petugas ini (None bila LK tidak terbaca: semua nomor dihitung)."""
+    try:
+        from .komunikasi import nomor_fasil
+
+        return nomor_fasil()
+    except Exception:
+        return None
+
+
+def putaran(hari: date, fasil: set[str] | None = None) -> list[date]:
     """Tanggal putaran blast: blast/Broadcast dari aplikasi ke minimal MIN_PUTARAN fasil di hari yang sama, atau pesan
     keluar yang terbaca di chat (blast lewat HP) ke minimal MIN_PUTARAN_HP fasil. Ambang HP lebih tinggi karena
-    chat biasa ke beberapa fasil dalam sehari (tanya kabar, membalas) bukan blast."""
+    chat biasa ke beberapa fasil dalam sehari (tanya kabar, membalas) bukan blast. Hanya nomor FASIL yang dihitung:
+    blast ke kepala sekolah / koordinator bukan putaran fasil."""
     _db()
     batas, akhir = _rentang(hari)
+    fasil = _nomor_fasil() if fasil is None else fasil
     app = db.query(
-        "SELECT substr(waktu, 1, 10) AS w, COUNT(DISTINCT nomor) AS n FROM sends WHERE coba = 0 AND status = 'terkirim' "
-        f"AND {_BUKAN_BLAST} AND waktu >= ? AND waktu < ? GROUP BY w", (batas, akhir))
+        "SELECT DISTINCT substr(waktu, 1, 10) AS w, nomor FROM sends WHERE coba = 0 AND status = 'terkirim' "
+        f"AND {_BUKAN_BLAST} AND waktu >= ? AND waktu < ?", (batas, akhir))
     hp = db.query(
-        "SELECT m.tanggal AS w, COUNT(DISTINCT m.nomor) AS n FROM kom_mulai m WHERE m.tanggal >= ? AND m.tanggal < ? "
+        "SELECT DISTINCT m.tanggal AS w, m.nomor FROM kom_mulai m WHERE m.tanggal >= ? AND m.tanggal < ? "
         "AND NOT EXISTS (SELECT 1 FROM sends x WHERE x.nomor = m.nomor AND x.coba = 0 "
-        f"AND substr(x.waktu, 1, 10) = m.tanggal AND NOT ({_BUKAN_BLAST.replace('hash_pesan', 'x.hash_pesan')})) "
-        "GROUP BY m.tanggal", (batas, akhir))
-    tgl = {r["w"] for r in app if r["n"] >= MIN_PUTARAN} | {r["w"] for r in hp if r["n"] >= MIN_PUTARAN_HP}
+        f"AND substr(x.waktu, 1, 10) = m.tanggal AND NOT ({_BUKAN_BLAST.replace('hash_pesan', 'x.hash_pesan')}))",
+        (batas, akhir))
+
+    def hitung(rows) -> dict[str, int]:
+        n: dict[str, int] = {}
+        for r in rows:
+            if fasil is None or r["nomor"] in fasil:
+                n[r["w"]] = n.get(r["w"], 0) + 1
+        return n
+
+    a, h = hitung(app), hitung(hp)
+    tgl = {w for w, n in a.items() if n >= MIN_PUTARAN} | {w for w, n in h.items() if n >= MIN_PUTARAN_HP}
     return sorted(date.fromisoformat(w) for w in tgl)
 
 
