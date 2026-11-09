@@ -160,3 +160,21 @@ def test_balasan_minggu_ikut_senin_walau_senin_blast_baru():
     ks.catat_chat(NO, rows, tgl, SEN)
     assert ks.siklus(NO, SEN).awal == SEN
     assert kode(SEN) == {"2026-11-09": "T"}
+
+
+def test_cek_baris_log_kom_satu_permintaan(monkeypatch):
+    from app import lk_baru
+
+    minta = []
+
+    class Ss:
+        def values_get(self, rng, params=None):
+            minta.append(rng)
+            return {"values": [["NPSN"], ["111"], [222.0], [""], ["444"]]}
+
+    monkeypatch.setattr(lk_baru, "_ss", lambda: Ss())
+    lk = lk_baru.LogKom({}, {"111": 2, "222": 3, "444": 5}, {})
+    assert lk_baru._baris_kom_cocok(lk, ["111", "222", "444"])
+    assert minta == ["'Log Komunikasi'!B1:B5"]  # satu rentang, berapa pun jumlah sekolahnya
+    lk.baris["444"] = 4  # baris bergeser
+    assert not lk_baru._baris_kom_cocok(lk, ["444"])

@@ -527,10 +527,13 @@ def _baris_kom_cocok(lk: LogKom, npsn: list[str]) -> bool:
     baris = [(n, lk.baris[n]) for n in npsn if n in lk.baris]
     if not baris:
         return False
-    got = _ss().values_batch_get([f"'{TAB_LOG_KOM}'!B{b}" for _, b in baris],
-                                 params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("valueRanges", [])
-    for (n, _), vr in zip(baris, got):
-        if re.sub(r"\.0+$", "", _teks((vr.get("values") or [[""]])[0][0])) != n:
+    # Satu permintaan untuk seluruh kolom NPSN. (Dulu satu rentang per sekolah: dengan banyak sekolah sekaligus
+    # alamat permintaannya terlalu panjang dan Google menolak dengan 400.)
+    kolom = _ss().values_get(f"'{TAB_LOG_KOM}'!B1:B{max(b for _, b in baris)}",
+                             params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
+    for n, b in baris:
+        isi = kolom[b - 1][0] if b - 1 < len(kolom) and kolom[b - 1] else ""
+        if re.sub(r"\.0+$", "", _teks(isi)) != n:
             return False
     return True
 

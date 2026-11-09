@@ -259,7 +259,10 @@ def sinkron_wa(hari: str | None = None) -> int:
             # dropdown di sheet tidak bisa ditambah C2: pakai C supaya tetap valid
             per_hari = {t: {n: ("C" if v == "C2" else v) for n, v in x.items()} for t, x in per_hari.items()}
         n = 0
+        awal_lk = min(logkom.tanggal, default="")
         for t in sorted(per_hari):
+            if awal_lk and t < awal_lk:
+                continue  # sebelum kolom tanggal pertama di Log Komunikasi (mis. sebelum LK format baru dipakai)
             tulis = per_hari[t]
             try:
                 n += lk_baru.tulis_log_kom(t, tulis)
