@@ -11,12 +11,13 @@ type Ringkas = {
   id: string; judul: string; cuplikan: string; topik: string; nama: string; dibuat: string; aktif: string;
   jawaban: number; selesai: boolean; ada_foto: boolean; milik_saya: boolean; cari: string;
 };
-type Daftar = { items: Ringkas[]; topik: string[]; admin: boolean };
+type Daftar = { items: Ringkas[]; topik: string[]; admin: boolean; pengumuman: Info[] };
 type Pos = {
   id: string; isi: string; foto: string[]; nama: string; dibuat: string; diubah: string; milik_saya: boolean;
   boleh_ubah: boolean;
 };
 type Detail = Pos & { judul: string; topik: string; solusi: string; jawaban: (Pos & { penanya: boolean })[] };
+type Info = Pos & { judul: string };
 type Izin = { punya: boolean; status: string; error: string };
 
 const pesan = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -580,6 +581,104 @@ function DetailView({ id, topik, onKembali }: { id: string; topik: string[]; onK
   );
 }
 
+// ---------- pengumuman (kolom kanan) ----------
+
+function IkonToa() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+      strokeLinejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" /></svg>
+  );
+}
+
+function FormInfo({ awal, onTutup, onSimpan }: { awal?: Info; onTutup: () => void; onSimpan: () => void }) {
+  const [judul, setJudul] = useState(awal?.judul ?? "");
+  const [isi, setIsi] = useState(awal?.isi ?? "");
+  const [jalan, setJalan] = useState(false);
+  const [galat, setGalat] = useState("");
+  const simpan = async () => {
+    setGalat("");
+    if (isi.trim().length < 5) return setGalat("Isi pengumuman minimal 5 huruf.");
+    setJalan(true);
+    try {
+      if (awal) await post(`/api/forum/${awal.id}/ubah`, { judul, isi });
+      else await post("/api/forum/pengumuman", { judul, isi });
+      onSimpan();
+    } catch (e) {
+      setGalat(pesan(e));
+      setJalan(false);
+    }
+  };
+  return (
+    <div className={s.infoForm}>
+      <input value={judul} onChange={(e) => setJudul(e.target.value)} maxLength={200} placeholder="Judul (opsional)"
+        aria-label="Judul pengumuman" />
+      <textarea value={isi} onChange={(e) => setIsi(e.target.value)} rows={6} maxLength={8000} autoFocus
+        placeholder="Tulis pengumuman. Baris diawali - atau 1. jadi daftar." aria-label="Isi pengumuman" />
+      {galat && <small className={s.galat}>{galat}</small>}
+      <div className={s.aksiBaris}>
+        <Button size="sm" variant="ghost" onClick={onTutup} disabled={jalan}>Batal</Button>
+        <Button size="sm" onClick={() => void simpan()} loading={jalan}>{awal ? "Simpan" : "Umumkan"}</Button>
+      </div>
+    </div>
+  );
+}
+
+function ItemInfo({ p, onUbah }: { p: Info; onUbah: () => void }) {
+  const [buka, setBuka] = useState(false);
+  const [ubah, setUbah] = useState(false);
+  const panjang = p.isi.length > 220 || p.isi.split("\n").length > 4;
+  if (ubah) return <li className={s.infoItem}><FormInfo awal={p} onTutup={() => setUbah(false)} onSimpan={() => { setUbah(false); onUbah(); }} /></li>;
+  return (
+    <li className={s.infoItem}>
+      <span className={s.infoIkon}><IkonToa /></span>
+      <div className={s.infoIsi}>
+        {p.judul && <b>{p.judul}</b>}
+        <div className={buka || !panjang ? "" : s.infoPotong}><Teks isi={p.isi} /></div>
+        {panjang && (
+          <button type="button" className={s.tautan} onClick={() => setBuka(!buka)}>
+            {buka ? "Tutup" : "Selengkapnya"}
+          </button>
+        )}
+        <small>
+          {p.nama} · <time dateTime={p.dibuat} title={lengkap(p.dibuat)}>{waktu(p.dibuat)}</time>
+          {p.boleh_ubah && (
+            <>
+              {" · "}<button type="button" className={s.tautan} onClick={() => setUbah(true)}>Ubah</button>
+              {" · "}<Hapus onHapus={async () => { await post(`/api/forum/${p.id}/hapus`); onUbah(); }} />
+            </>
+          )}
+        </small>
+      </div>
+    </li>
+  );
+}
+
+function Pengumuman({ daftar, admin, onUbah }: { daftar: Info[]; admin: boolean; onUbah: () => void }) {
+  const [tulis, setTulis] = useState(false);
+  const [semua, setSemua] = useState(false);
+  if (!daftar.length && !admin) return null;
+  const tampil = semua ? daftar : daftar.slice(0, 4);
+  return (
+    <section className={s.info} aria-labelledby="judul-info">
+      <header>
+        <h2 id="judul-info">Pengumuman</h2>
+        {admin && !tulis && <button type="button" className={s.tautan} onClick={() => setTulis(true)}>+ Tulis</button>}
+      </header>
+      {tulis && <FormInfo onTutup={() => setTulis(false)} onSimpan={() => { setTulis(false); onUbah(); }} />}
+      {!daftar.length && !tulis && <p className={s.infoKosong}>Belum ada pengumuman. Info penting untuk tim bisa ditulis di sini.</p>}
+      <ul>
+        {tampil.map((p) => <ItemInfo key={`${p.id}${p.diubah}`} p={p} onUbah={onUbah} />)}
+      </ul>
+      {daftar.length > 4 && (
+        <button type="button" className={`${s.tautan} ${s.infoSemua}`} onClick={() => setSemua(!semua)}>
+          {semua ? "Tampilkan lebih sedikit" : `Lihat semua (${daftar.length})`}
+        </button>
+      )}
+    </section>
+  );
+}
+
 // ---------- halaman daftar ----------
 
 type Saring = "terbaru" | "aktif" | "belum" | "selesai" | "saya";
@@ -652,7 +751,8 @@ export function ForumView() {
   const kapan = (x: Ringkas) => (saring === "aktif" ? x.aktif : x.dibuat);
 
   return (
-    <div className={s.page}>
+    <div className={s.soLayout}>
+    <div className={s.soUtama}>
       <header className={s.soHead}>
         <div>
           <h1>{judul}</h1>
@@ -744,6 +844,12 @@ export function ForumView() {
         <FormTanya topik={d.topik} onTutup={() => setTulis(false)}
           onSimpan={(nid) => { setTulis(false); buka(nid); }} />
       )}
+    </div>
+    {d && (
+      <aside className={s.soSamping} aria-label="Pengumuman">
+        <Pengumuman daftar={d.pengumuman ?? []} admin={d.admin} onUbah={() => void muat(true)} />
+      </aside>
+    )}
     </div>
   );
 }

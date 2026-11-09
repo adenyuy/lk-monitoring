@@ -1,0 +1,6 @@
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; }
+.tab { position: relative; padding: 10px 14px; font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tab:hover { color: var(--ink); }
+.tab[aria-current="page"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.titik { position: absolute; top: 9px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #d92d20; }

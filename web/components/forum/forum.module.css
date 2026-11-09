@@ -220,3 +220,40 @@
   .stat { width: auto; flex-direction: row; align-items: center; justify-content: flex-start; }
   .soBawah .oleh { margin-left: 0; }
 }
+
+/* ---------- daftar + kolom kanan pengumuman ---------- */
+.soLayout { max-width: 1140px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px;
+  align-items: start; }
+.soUtama { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.soSamping { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+.info { background: #fdf7e2; border: 1px solid #f1e5bc; border-radius: 10px; overflow: hidden; }
+.info > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 16px 8px; }
+.info h2 { font-size: 16px; font-weight: 600; color: var(--ink); }
+.info ul { list-style: none; margin: 0; padding: 0 16px 6px; display: flex; flex-direction: column; }
+.infoItem { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid #f1e5bc; }
+.infoItem:first-child { border-top: 0; }
+.infoIkon { flex: none; color: #8a6d1a; margin-top: 2px; }
+.infoIsi { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.infoIsi b { font-size: 14px; color: var(--ink); }
+.infoIsi .teks { font-size: 13.5px; line-height: 1.55; gap: 6px; color: #3b3a33; }
+.infoIsi small { font-size: 12px; color: #7b7458; }
+.infoIsi .tautan { font-size: 12.5px; text-decoration: none; align-self: flex-start; }
+.infoIsi small .tautan, .infoIsi small .aksiKecil { font-size: 12px; }
+.infoPotong { max-height: 6.4em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.infoKosong { padding: 0 16px 14px; font-size: 13px; color: #7b7458; }
+.infoSemua { display: block; padding: 0 16px 14px; font-size: 13px; text-decoration: none; }
+.infoForm { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 12px; flex: 1; }
+.infoItem .infoForm { padding: 0; }
+.infoForm input, .infoForm textarea { font: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid #e3d39c;
+  border-radius: 8px; background: #fff; width: 100%; resize: vertical; color: var(--ink); }
+.infoForm input:focus, .infoForm textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+
+@media (max-width: 960px) {
+  .soLayout { grid-template-columns: minmax(0, 1fr); }
+  .soSamping { position: static; order: -1; }
+}
+.info > header .tautan { text-decoration: none; font-weight: 500; }
+.infoIsi small .aksiKecil { border: 0; background: none; padding: 0; min-height: 0; font-size: 12px; color: var(--primary); }
+.infoIsi small .aksiBahaya { color: var(--bad-fg); background: none; }
+.infoIsi small .yakin { display: inline-flex; gap: 6px; font-size: 12px; }

@@ -123,3 +123,21 @@ def test_api(tab):
         assert c.get("/api/forum/tidakada").status_code == 400
     finally:
         app.dependency_overrides.clear()
+
+
+def test_pengumuman(tab):
+    with pytest.raises(forum.ForumError, match="admin"):
+        forum.buat_pengumuman(B, "B", False, "", "Petugas biasa tidak boleh")
+    p1 = forum.buat_pengumuman(A, "Admin", True, "Adendum", "Sekolah 100% belum adendum: kirim LPJ dulu ya")
+    forum.buat_pengumuman(A, "Admin", True, "", "Pengumuman kedua")
+    forum.buat_tanya(B, "B", "Pertanyaan biasa", "", "", [])
+    daftar = forum.pengumuman()
+    assert [p.isi for p in daftar][0] == "Pengumuman kedua" and len(forum.baca()) == 1
+    with pytest.raises(forum.ForumError, match="admin"):
+        forum.ubah(B, False, p1, None, "diubah petugas", None, None)
+    forum.ubah(A, True, p1, "Adendum (revisi)", None, None, None)
+    assert forum.pengumuman()[1].judul == "Adendum (revisi)"
+    forum.hapus(A, True, p1)
+    assert len(forum.pengumuman()) == 1
+    j = forum.pengumuman_json(forum.pengumuman(), B, False)
+    assert j[0]["isi"] == "Pengumuman kedua" and not j[0]["boleh_ubah"]

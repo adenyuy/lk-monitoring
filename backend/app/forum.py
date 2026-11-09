@@ -4,7 +4,7 @@ Satu baris = satu pertanyaan atau satu jawaban. Baris tidak pernah dihapus (hapu
 baris tetap dan dua petugas yang menulis bersamaan tidak saling menimpa (baris baru selalu lewat append).
 
 Kolom: id | jenis | induk | judul | isi | topik | foto | email | nama | dibuat | diubah | status | solusi
-  jenis   tanya | jawab
+  jenis   tanya | jawab | pengumuman (pengumuman hanya ditulis admin, tampil di kolom kanan Forum)
   induk   id pertanyaan (untuk jawaban)
   foto    id file Google Drive, dipisah koma
   solusi  id jawaban yang dipilih penanya sebagai jawaban yang benar (untuk pertanyaan)
@@ -66,8 +66,7 @@ def _sel(r: list[Any], i: int) -> str:
     return str(r[i]).strip() if i < len(r) and r[i] is not None else ""
 
 
-def parse(values: list[list[Any]]) -> list[Pos]:
-    """Baris sheet -> daftar pertanyaan (jawaban sudah dikelompokkan, yang dihapus dibuang)."""
+def _semua(values: list[list[Any]]) -> list[Pos]:
     if not values:
         return []
     kepala = [str(h).strip().casefold() for h in values[0]]
@@ -83,6 +82,12 @@ def parse(values: list[list[Any]]) -> list[Pos]:
             topik=ambil("topik"), foto=[f for f in (x.strip() for x in ambil("foto").split(",")) if f],
             email=ambil("email").casefold(), nama=ambil("nama"), dibuat=ambil("dibuat"), diubah=ambil("diubah"),
             status=ambil("status"), solusi=ambil("solusi"), baris=n))
+    return semua
+
+
+def parse(values: list[list[Any]]) -> list[Pos]:
+    """Baris sheet -> daftar pertanyaan (jawaban sudah dikelompokkan, yang dihapus dibuang)."""
+    semua = _semua(values)
     tanya = {p.id: p for p in semua if p.jenis == "tanya"}
     for p in semua:
         if p.jenis == "jawab" and p.induk in tanya:
@@ -90,6 +95,11 @@ def parse(values: list[list[Any]]) -> list[Pos]:
     for t in tanya.values():
         t.jawaban.sort(key=lambda j: j.dibuat)
     return list(tanya.values())
+
+
+def parse_pengumuman(values: list[list[Any]]) -> list[Pos]:
+    """Pengumuman terbaru dulu."""
+    return sorted((p for p in _semua(values) if p.jenis == "pengumuman"), key=lambda p: (p.dibuat, p.baris), reverse=True)
 
 
 # ---------- sheet ----------
@@ -110,12 +120,20 @@ def _ws(buat: bool = False):
     return w
 
 
-def baca(refresh: bool = False) -> list[Pos]:
-    def load() -> list[Pos]:
+def _values(refresh: bool = False) -> list[list[Any]]:
+    def load() -> list[list[Any]]:
         w = _ws()
-        return parse(w.get_values(f"A1:{AKHIR}")) if w else []
+        return w.get_values(f"A1:{AKHIR}") if w else []
 
     return cache.get("forum", CACHE_DETIK, load, refresh)
+
+
+def baca(refresh: bool = False) -> list[Pos]:
+    return parse(_values(refresh))
+
+
+def pengumuman(refresh: bool = False) -> list[Pos]:
+    return parse_pengumuman(_values(refresh))
 
 
 def _sekarang() -> str:
@@ -142,6 +160,9 @@ def _cari(pid: str) -> tuple[Pos, Pos | None]:
         for j in t.jawaban:
             if j.id == pid:
                 return j, t
+    for p in pengumuman():
+        if p.id == pid:
+            return p, None
     raise ForumError("Tulisan ini tidak ditemukan. Mungkin sudah dihapus.")
 
 
@@ -201,6 +222,18 @@ def buat_tanya(email: str, nama: str, judul: str, isi: str, topik: str, foto: li
     return tid
 
 
+def buat_pengumuman(email: str, nama: str, admin: bool, judul: str, isi: str) -> str:
+    if not admin:
+        raise ForumError("Pengumuman hanya bisa ditulis admin.")
+    judul, isi = _rapi(judul, MAKS_JUDUL), _rapi(isi, MAKS_ISI)
+    if len(isi) < 5:
+        raise ForumError("Isi pengumuman minimal 5 huruf.")
+    pid = _id()
+    _append([_baris_baru(id=pid, jenis="pengumuman", judul=judul, isi=isi, email=email.casefold(), nama=nama,
+                         dibuat=_sekarang())])
+    return pid
+
+
 def buat_jawab(email: str, nama: str, induk: str, isi: str, foto: list[str]) -> str:
     isi = _rapi(isi, MAKS_ISI)
     if len(isi) < 2:
@@ -226,6 +259,13 @@ def ubah(email: str, admin: bool, pid: str, judul: str | None, isi: str | None, 
             nilai["judul"] = _rapi(judul, MAKS_JUDUL)
         if topik is not None:
             nilai["topik"] = _rapi(topik, MAKS_TOPIK) or "Lainnya"
+    if pos.jenis == "pengumuman":
+        if not admin:
+            raise ForumError("Pengumuman hanya bisa diubah admin.")
+        if judul is not None:
+            nilai["judul"] = _rapi(judul, MAKS_JUDUL)
+        if isi is not None and len(isi.strip()) < 5:
+            raise ForumError("Isi pengumuman minimal 5 huruf.")
     if isi is not None:
         if pos.jenis == "jawab" and len(isi.strip()) < 2:
             raise ForumError("Jawaban masih kosong.")
@@ -271,6 +311,10 @@ def ringkas(daftar: list[Pos], email: str) -> list[dict[str, Any]]:
                     "cari": " ".join([t.judul, t.isi, t.topik, *(j.isi for j in t.jawaban)]).casefold()})
     out.sort(key=lambda x: x["aktif"], reverse=True)
     return out
+
+
+def pengumuman_json(daftar: list[Pos], email: str, admin: bool) -> list[dict[str, Any]]:
+    return [{**_pos_json(p, email, admin), "judul": p.judul, "boleh_ubah": admin} for p in daftar[:20]]
 
 
 def detail(pid: str, email: str, admin: bool) -> dict[str, Any]:

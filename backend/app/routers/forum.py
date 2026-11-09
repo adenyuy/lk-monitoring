@@ -37,7 +37,9 @@ def _izin() -> dict[str, Any]:
 @router.get("")
 def daftar(paksa: bool = False, acc: Access = Depends(require_access)) -> dict[str, Any]:
     d = _jalan(forum.baca, paksa)
-    return {"items": forum.ringkas(d, acc.email), "topik": forum.topik(d), "admin": acc.admin}
+    p = _jalan(forum.pengumuman)
+    return {"items": forum.ringkas(d, acc.email), "topik": forum.topik(d), "admin": acc.admin,
+            "pengumuman": forum.pengumuman_json(p, acc.email, acc.admin)}
 
 
 @router.get("/izin")
@@ -74,6 +76,16 @@ def tanya(body: TanyaIn, acc: Access = Depends(require_access)) -> dict[str, Any
     tid = _jalan(forum.buat_tanya, acc.email, _nama(acc), body.judul, body.isi, body.topik, body.foto,
                  body.jawaban, body.foto_jawaban)
     return {"id": tid}
+
+
+class PengumumanIn(BaseModel):
+    judul: str = Field(default="", max_length=400)
+    isi: str = Field(max_length=16000)
+
+
+@router.post("/pengumuman")
+def pengumuman(body: PengumumanIn, acc: Access = Depends(require_access)) -> dict[str, Any]:
+    return {"id": _jalan(forum.buat_pengumuman, acc.email, _nama(acc), acc.admin, body.judul, body.isi)}
 
 
 class JawabIn(BaseModel):
