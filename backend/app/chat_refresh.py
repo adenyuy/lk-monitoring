@@ -150,7 +150,7 @@ pindai_state = {"berjalan": False, "dicek": 0, "total": 0, "selesai": ""}
 
 def pindai_awal(paksa: bool = False) -> int:
     """Buka chat semua fasil sekali per hari (paksa: semuanya sekarang, mis. sesudah blast lewat HP)."""
-    from .sheets import nomor_milik
+    from .komunikasi import nomor_fasil
 
     senin = tahap.senin_iso()
     hari = schedule.now().date().isoformat()
@@ -163,7 +163,7 @@ def pindai_awal(paksa: bool = False) -> int:
         "SELECT nomor FROM chat_status WHERE substr(dicek, 1, 10) = ?", (hari,))}
     kontak = tahap.kontak_minggu()
     try:
-        semua = sorted(nomor_milik())
+        semua = sorted(nomor_fasil())  # hanya fasil: chat koordinator / kepala sekolah tidak dibuka
     except Exception:
         log.exception("Daftar fasil untuk pindai harian tidak terbaca")
         return 0

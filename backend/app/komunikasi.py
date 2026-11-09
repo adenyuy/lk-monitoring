@@ -405,6 +405,14 @@ def nomor_milik() -> set[str]:
     return out
 
 
+def nomor_fasil() -> set[str]:
+    """Nomor WhatsApp fasil binaan saja (tanpa koordinator / kepala sekolah)."""
+    out: set[str] = set()
+    for s in sekolah_saya():
+        out.update(s.nomor_fasil())
+    return out
+
+
 def nama_nomor() -> dict[str, str]:
     """{nomor: nama} untuk riwayat."""
     from .sheets import daftar_nomor
