@@ -77,7 +77,9 @@ def _jalan(fn, timeout: float):
 def status_pindai(_=Depends(wa_blast)) -> dict[str, Any]:
     from .. import chat_refresh
 
-    return dict(chat_refresh.pindai_state)
+    from ..wa import pendengar
+
+    return {**chat_refresh.pindai_state, "langsung": pendengar.sehat()}
 
 
 @router.post("/pindai")
@@ -89,6 +91,10 @@ def pindai(_=Depends(wa_blast)) -> dict[str, Any]:
         raise HTTPException(409, "Jendela WhatsApp belum dibuka. Buka WhatsApp di aplikasi dulu.")
     if not store_wa_otomatis():
         raise HTTPException(409, "WhatsApp otomatis sedang dimatikan. Nyalakan dulu di pengaturan.")
+    from ..wa import pendengar
+
+    if pendengar.sehat():
+        return {**chat_refresh.pindai_state, "langsung": True}
     chat_refresh.pindai_sekarang()
     return dict(chat_refresh.pindai_state)
 
@@ -102,6 +108,13 @@ def store_wa_otomatis() -> bool:
 @router.post("/{nomor}/baca")
 def baca(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
     n = _nomor_fasil(nomor)
+    from ..wa import pendengar
+
+    if pendengar.sehat() and pendengar.ada_riwayat():
+        # chat sudah tersimpan dari pendengar: tampilkan tanpa membuka jendela WhatsApp (kosong = belum ada chat
+        # 3 minggu terakhir, tidak perlu dicek ulang lewat jendela WhatsApp)
+        rows = pendengar.baris_chat(n)
+        return {**_hasil(n, actions.chat_info(rows), rows), "sumber": "langsung"}
     _siap()
     info, rows = _jalan(lambda b: actions.read_thread(b, n), timeout=90)
     return _hasil(n, info, rows)

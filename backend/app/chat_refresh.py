@@ -38,6 +38,16 @@ _thread: threading.Thread | None = None
 
 
 def refresh_once() -> dict:
+    from .wa import pendengar
+
+    if pendengar.sehat():  # status chat sudah masuk langsung; cukup perbarui Log Komunikasi (hari tanpa kejadian)
+        try:
+            from . import komunikasi
+
+            komunikasi.sinkron_wa()
+        except Exception:
+            log.exception("Sinkron Log Komunikasi gagal")
+        return {"dilewati": "Status chat dibaca langsung oleh pendengar WhatsApp."}
     if not _lock.acquire(blocking=False):
         return {"dilewati": "Pembaruan chat sedang berjalan."}
     try:
@@ -56,19 +66,7 @@ def refresh_once() -> dict:
             info, baris = worker.call(lambda b, n=nomor: actions.read_thread(b, n), timeout=120)
             if info.status == "belum_ada":
                 continue
-            _catat_siklus(nomor, baris)
-            if info.status == "dibalas":
-                try:  # balasan berformat "Kendala: … Tindak lanjut: …" -> isi Tindak Lanjut di LK
-                    from . import tl_auto
-
-                    tl_auto.proses(nomor, baris)
-                except Exception:
-                    log.exception("Tindak lanjut otomatis dari balasan gagal")
-            if info.status in ("dibaca", "dibalas") or info.centang in ("delivered", "read"):
-                tagging.tandai(nomor, "hijau")
-            balasan = info.balasan[-1] if info.balasan else ""
-            store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"),
-                                   info.terakhir_masuk)
+            olah_chat(nomor, info, baris)
             diperbarui += 1
         events.publish("chat_diperbarui", jumlah=diperbarui)
         try:
@@ -83,6 +81,24 @@ def refresh_once() -> dict:
         return {"error": str(e)}
     finally:
         _lock.release()
+
+
+def olah_chat(nomor: str, info: actions.ChatInfo, baris: list[actions.Row]) -> None:
+    """Olah isi satu chat (dari layar WA Web atau dari pendengar neonize): siklus Log Komunikasi, Tindak Lanjut
+    otomatis, tag warna, dan status chat."""
+    _catat_siklus(nomor, baris)
+    if info.status == "dibalas":
+        try:  # balasan berformat "Kendala: … Tindak lanjut: …" -> isi Tindak Lanjut di LK
+            from . import tl_auto
+
+            tl_auto.proses(nomor, baris)
+        except Exception:
+            log.exception("Tindak lanjut otomatis dari balasan gagal")
+    if info.status in ("dibaca", "dibalas") or info.centang in ("delivered", "read"):
+        tagging.tandai(nomor, "hijau")
+    balasan = info.balasan[-1] if info.balasan else ""
+    store.save_chat_status(nomor, info.status, balasan, schedule.now().isoformat(timespec="seconds"),
+                           info.terakhir_masuk)
 
 
 def _catat_siklus(nomor: str, baris: list[actions.Row]) -> None:
@@ -188,6 +204,12 @@ def pindai_sekarang() -> None:
 
 
 def _pindai() -> None:
+    from .wa import pendengar
+
+    if pendengar.sehat():  # blast lewat HP sudah terbaca langsung; tidak perlu membuka chat satu per satu
+        db.set_setting("pindai_paksa", False)
+        pindai_state.update(berjalan=False)
+        return
     if not _lock.acquire(blocking=False):
         return
     paksa = bool(db.get_setting("pindai_paksa", False))

@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from . import chat_refresh, config, db, lk_otomatis, paths
 from .routers import (admin, bimtek, blast, blast_admin, chat, core, cutoff, dashboard, eskalasi, forum, lkb, log,
-                      paparan, rekap, send, today, wa)
+                      paparan, pendengar as rute_pendengar, rekap, send, today, wa)
+from .wa import pendengar
 from .wa.browser import worker
 
 
@@ -34,7 +35,9 @@ async def lifespan(_: FastAPI):
 
     cutoff_baru.mulai_tanggal_log()  # kolom tanggal hari ini di Log Komunikasi dibuat otomatis tiap hari kerja
     lk_otomatis.picu()  # susulkan status komunikasi LK untuk chat minggu ini yang sudah dibaca / dibalas
+    pendengar.mulai_bila_tertaut()  # status chat langsung dari WhatsApp (neonize), bila sudah ditautkan
     yield
+    pendengar.berhenti()
     worker.shutdown()  # tutup Chrome WhatsApp dengan rapi
 
 
@@ -93,6 +96,7 @@ app.include_router(bimtek.router)
 app.include_router(eskalasi.router)
 app.include_router(admin.router)
 app.include_router(forum.router)
+app.include_router(rute_pendengar.router)
 
 
 @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)

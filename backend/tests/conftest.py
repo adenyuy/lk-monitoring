@@ -15,3 +15,6 @@ for _k in ("BROADCAST", "LK", "ACCESS"):
     os.environ.setdefault(f"LKM_{_k}_SHEET_ID", f"uji-{_k.lower()}-0000000000000000000000")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Tes saling impor langsung (mis. "from test_sender import ..."). Folder ini sesudah backend supaya paket "tests"
+# tetap milik kita, bukan folder "tests" yang ikut terpasang oleh paket linkpreview (dependensi neonize).
+sys.path.insert(1, str(Path(__file__).resolve().parent))

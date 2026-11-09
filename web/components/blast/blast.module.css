@@ -229,3 +229,11 @@
 .hp b { font-size: 14px; font-weight: 600; }
 .hp p { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .hp .hpGalat { color: var(--bad-fg); }
+
+/* status chat langsung (neonize) */
+.waTunggu { background: #e0a43a; box-shadow: 0 0 0 3px #fff4de; }
+.qrBox { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; padding: 12px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--bg); }
+.qr { flex: none; background: #fff; padding: 6px; border-radius: 8px; line-height: 0; }
+.qr svg { width: 280px; height: 280px; display: block; }
+.qrBox ol { flex: 1 1 200px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }

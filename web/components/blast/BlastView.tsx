@@ -9,6 +9,7 @@ import { SALAM, VARIABEL, isi as isiTemplate, kosong, persempit, templateBawaan,
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { formatWa } from "@/components/today/WaPanel";
 import { GantiWa, WaKartu } from "./GantiWa";
+import { PendengarKartu } from "./Pendengar";
 import s from "./blast.module.css";
 
 type DataPenerima = {
@@ -26,7 +27,7 @@ const CHAT_INFO = {
   terkirim: { label: "Terkirim, belum dibaca", tone: "info" },
 } as const;
 const CHAT_PILIH = [
-  { k: "belum", label: "Belum di-chat minggu ini" },
+  { k: "belum", label: "Belum di-chat di putaran ini" },
   { k: "terkirim", label: CHAT_INFO.terkirim.label },
   { k: "dibaca", label: CHAT_INFO.dibaca.label },
   { k: "dibalas", label: CHAT_INFO.dibalas.label },
@@ -235,6 +236,7 @@ export function BlastView() {
         </div>
         <div className={s.adminAlat}>
           <WaKartu jalan={!!st?.state.running} onGanti={() => setGantiWa(true)} />
+          <PendengarKartu />
           <button type="button" className={s.aturanBtn} onClick={() => setAturanBuka(true)} aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
           <span><b>Aturan kirim</b><small>jeda {aturan.jeda_min}–{aturan.jeda_max} dtk{aturan.istirahat_setiap ? ` · istirahat ${aturan.istirahat_menit} mnt / ${aturan.istirahat_setiap} pesan` : " · tanpa istirahat"}</small></span>
@@ -658,7 +660,7 @@ export function Progres({ state, onUbah, dasar = "/api/blast" }: { state: BlastS
 }
 
 
-type Pindai = { berjalan: boolean; dicek: number; total: number; selesai: string };
+type Pindai = { berjalan: boolean; dicek: number; total: number; selesai: string; langsung?: boolean };
 
 /** Blast dikirim dari HP: minta aplikasi membaca chat semua fasil supaya Log Komunikasi ikut terisi. */
 function BlastHp() {
@@ -680,6 +682,7 @@ function BlastHp() {
     finally { setMinta(false); }
   };
 
+  if (p?.langsung) return null;  // status chat sudah dibaca langsung: blast lewat HP terbaca sendiri
   const selesai = p?.selesai ? new Date(p.selesai).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "";
   return (
     <section className={s.hp} aria-labelledby="blast-hp">
