@@ -104,6 +104,10 @@ export type SekolahDetail = {
   relevan: number;
   kepsek: string;
   punya_hp_kepsek: boolean;
+  nomor_kepsek?: string;
+  kepsek_tersamar?: string;
+  /** chat terakhir dengan kepala sekolah: dibalas | dibaca | terkirim */
+  kepsek_chat?: { status: string; waktu: string } | null;
   delta: number | null;
 };
 

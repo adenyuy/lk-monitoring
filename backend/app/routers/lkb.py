@@ -130,8 +130,17 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
         "koor_tersamar": mask((daftar_nomor(f.hp_koor) or [""])[0]) if f.hp_koor else "",
         "sekolah_detail": [{**todo.ringkas(s, k["rencana"][s.npsn], k["blok"]), "kepsek": s.kepsek,
                             "punya_hp_kepsek": bool(s.hp_kepsek),
+                            **_kepsek_chat(s),
                             "delta": k["delta"].get(s.npsn)} for s in sekolah],
     }
+
+
+def _kepsek_chat(s) -> dict[str, Any]:
+    """Nomor kepala sekolah + status chat terakhir dengannya (untuk tab Sekolah di panel fasil)."""
+    n = (daftar_nomor(s.hp_kepsek) or [""])[0]
+    st = db.query_one("SELECT status, waktu_balasan, dicek FROM chat_status WHERE nomor = ?", (n,)) if n else None
+    return {"nomor_kepsek": n, "kepsek_tersamar": mask(n) if n else "",
+            "kepsek_chat": {"status": st["status"], "waktu": st["waktu_balasan"] or st["dicek"]} if st else None}
 
 
 @router.get("/opsi")

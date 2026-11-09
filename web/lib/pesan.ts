@@ -429,6 +429,37 @@ type FasilUntukKoor = {
 };
 
 /** Template WhatsApp ke koordinator tentang satu fasil (sudah terisi, siap kirim). */
+export type SekolahUntukPesan = {
+  nama: string; kepsek: string; todo: { judul: string; pelaku: string }[];
+};
+
+/** Pesan ke kepala sekolah: pengingat to-do sekolah (yang dikerjakan sekolah) dan info bebas. Fasil disebut supaya
+ *  tidak merasa dilangkahi. */
+export function templateSekolah(x: SekolahUntukPesan, fasil: string, salam = salamSekarang()): Template[] {
+  const sapa = x.kepsek ? `Bapak/Ibu ${x.kepsek}` : "Bapak/Ibu Kepala Sekolah";
+  const sekolah = `*${x.nama}*`;
+  const tugas = x.todo.filter((t) => t.pelaku !== "fasil");
+  const cc = fasil ? ` Hal ini juga sudah kami koordinasikan dengan fasilitator sekolah, *${fasil}*.` : "";
+  const out: Template[] = [];
+  if (tugas.length) {
+    out.push({ kode: "todo_sekolah", judul: "Pengingat laporan sekolah", bawaan: true,
+      ket: "Laporan yang masih perlu dikirim / diunggah oleh sekolah.",
+      teks: `${salam} ${sapa}, Kepala ${sekolah}. Kami dari tim monitoring Revitalisasi SD 2026 izin mengingatkan, berdasarkan data kami laporan berikut masih perlu dilengkapi oleh sekolah:
+
+${tugas.map((t, i) => `${i + 1}. ${t.judul}`).join("\n")}
+
+Mohon bantuan ${sapa} agar laporan tersebut dapat segera dilengkapi.${cc} ${TERIMA_KASIH}` });
+  }
+  out.push({ kode: "info_sekolah", judul: "Info / pengumuman", bawaan: true,
+    ket: "Teks bebas: ganti bagian dalam kurung siku.",
+    teks: `${salam} ${sapa}, Kepala ${sekolah}. Kami dari tim monitoring Revitalisasi SD 2026 izin menyampaikan informasi:
+
+[tulis informasinya di sini]
+${cc ? `\n${cc.trim()}` : ""}
+${TERIMA_KASIH}` });
+  return out;
+}
+
 export function templateKoorFasil(f: FasilUntukKoor, salam = salamSekarang()): Template[] {
   const sapa = f.koor ? `Bapak/Ibu ${f.koor}` : "Bapak/Ibu Koordinator";
   const sekolah = f.sekolah_detail.filter((x) => x.todo.length).slice().sort((a, b) => a.nama.localeCompare(b.nama));

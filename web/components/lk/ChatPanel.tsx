@@ -14,7 +14,7 @@ const CENTANG: Record<string, string> = { read: "Dibaca", delivered: "Diterima",
 export function ChatPanel({ nomor, nama, peran, template, onIsiLk }: {
   nomor: string;
   nama: string;
-  peran: "fasil" | "koor";
+  peran: "fasil" | "koor" | "sekolah";
   /** Template yang sudah terisi, siap kirim */
   template: Template[];
   onIsiLk?: (teks: string) => number;
@@ -61,7 +61,7 @@ export function ChatPanel({ nomor, nama, peran, template, onIsiLk }: {
   }
 
   const pesan = chat?.pesan ?? [];
-  const lawan = peran === "fasil" ? "Fasil" : "Koordinator";
+  const lawan = peran === "fasil" ? "Fasil" : peran === "koor" ? "Koordinator" : "Kepala sekolah";
 
   return (
     <section className={s.chat} aria-label={`WhatsApp ${nama}`}>
