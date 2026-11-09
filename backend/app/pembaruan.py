@@ -38,11 +38,25 @@ def _jalan(*arg: str, timeout: float = 60) -> str:
     git = _git()
     if not git:
         raise RuntimeError("git tidak ditemukan")
-    r = subprocess.run([git, "-C", str(paths.REPO_DIR), *arg], capture_output=True, text=True, timeout=timeout,
-                       creationflags=_tanpa_jendela)
+    try:
+        r = subprocess.run([git, "-c", "safe.directory=*", "-C", str(paths.REPO_DIR), *arg], capture_output=True,
+                           text=True, timeout=timeout, creationflags=_tanpa_jendela)
+    except subprocess.TimeoutExpired:
+        # git yang dihentikan paksa meninggalkan file kunci; tanpa dihapus semua fetch berikutnya gagal
+        _hapus_kunci()
+        raise
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip() or f"git {arg[0]} gagal")
     return r.stdout.strip()
+
+
+def _hapus_kunci() -> None:
+    g = paths.REPO_DIR / ".git"
+    for f in [*g.glob("*.lock"), *(g / "refs/remotes/origin").glob("*.lock")]:
+        try:
+            f.unlink()
+        except OSError:
+            pass
 
 
 def aktif() -> bool:
@@ -67,7 +81,7 @@ def cek(paksa: bool = False) -> dict[str, Any]:
         if not _hasil["aktif"]:
             return dict(_hasil)
         try:
-            _jalan("fetch", "--depth", "1", "-q", "origin", "release")
+            _jalan("fetch", "--depth", "1", "-q", "origin", "release", timeout=180)
             lokal = _jalan("rev-parse", "HEAD", timeout=10)
             remote = _jalan("rev-parse", "origin/release", timeout=10)
             _hasil["ada_baru"] = lokal != remote

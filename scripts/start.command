@@ -27,7 +27,9 @@ if hidup; then buka; exit 0; fi
 
 echo "Memeriksa pembaruan..."
 if [ -d .git ]; then
-  git fetch --depth 1 -q origin release 2>/dev/null && git reset -q --hard origin/release
+  rm -f .git/*.lock .git/refs/remotes/origin/*.lock  # sisa git yang terputus; server sudah mati di titik ini
+  git -c safe.directory='*' fetch --depth 1 -q origin release && git -c safe.directory='*' reset -q --hard origin/release \
+    || echo "Pembaruan gagal (aplikasi tetap dibuka dengan versi lama)."
   chmod +x ./*.command 2>/dev/null
 fi
 

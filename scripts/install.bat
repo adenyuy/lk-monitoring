@@ -48,8 +48,13 @@ echo       OK
 
 echo [4/6] Mengunduh aplikasi...
 if exist "%APP%\.git" (
-    "%GIT%" -C "%APP%" fetch --depth 1 -q origin release
-    "%GIT%" -C "%APP%" reset -q --hard origin/release
+    rem file kunci sisa git yang terputus membuat pembaruan gagal terus
+    del /f /q "%APP%\.git\*.lock" >nul 2>&1
+    if exist "%APP%\.git\refs\remotes\origin" del /f /q "%APP%\.git\refs\remotes\origin\*.lock" >nul 2>&1
+    "%GIT%" -c safe.directory=* -C "%APP%" fetch --depth 1 -q origin release
+    if errorlevel 1 goto :gagal_unduh
+    "%GIT%" -c safe.directory=* -C "%APP%" reset -q --hard origin/release
+    if errorlevel 1 goto :gagal_unduh
 ) else (
     if not exist "%LOCALAPPDATA%\LKMonitoring" mkdir "%LOCALAPPDATA%\LKMonitoring"
     "%GIT%" clone -q --depth 1 -b release "%REPO%" "%APP%"

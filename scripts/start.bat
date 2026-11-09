@@ -34,9 +34,7 @@ set "GIT="
 for /f "delims=" %%i in ('where git 2^>nul') do if not defined GIT set "GIT=%%i"
 if not defined GIT if exist "%LOCALAPPDATA%\Programs\Git\cmd\git.exe" set "GIT=%LOCALAPPDATA%\Programs\Git\cmd\git.exe"
 if not defined GIT if exist "%ProgramFiles%\Git\cmd\git.exe" set "GIT=%ProgramFiles%\Git\cmd\git.exe"
-if defined GIT if exist ".git" (
-    "%GIT%" fetch --depth 1 -q origin release 2>nul && "%GIT%" reset -q --hard origin/release
-)
+if defined GIT if exist ".git" call :perbarui
 
 set "HASH="
 for /f "skip=1 delims=" %%h in ('certutil -hashfile "backend\requirements.txt" SHA256') do if not defined HASH set "HASH=%%h"
@@ -63,6 +61,25 @@ exit /b 1
 
 :buka
 if not defined LKM_TANPA_BROWSER start "" "%URL%"
+exit /b 0
+
+:perbarui
+rem Server sudah mati di titik ini, jadi file kunci git yang tersisa pasti sisa proses yang terputus
+rem (mis. cek pembaruan yang kena batas waktu). Tanpa dihapus, pembaruan gagal terus tanpa pesan.
+rem (satu perintah del per folder: bila salah satu folder tidak ada, del membatalkan semuanya)
+del /f /q ".git\*.lock" >nul 2>&1
+if exist ".git\refs\remotes\origin" del /f /q ".git\refs\remotes\origin\*.lock" >nul 2>&1
+"%GIT%" -c safe.directory=* fetch --depth 1 -q origin release >"%TEMP%\lkm_git.txt" 2>&1
+if errorlevel 1 goto :gagal_perbarui
+"%GIT%" -c safe.directory=* reset -q --hard origin/release >"%TEMP%\lkm_git.txt" 2>&1
+if errorlevel 1 goto :gagal_perbarui
+exit /b 0
+:gagal_perbarui
+echo.
+echo  Pembaruan gagal (aplikasi tetap dibuka dengan versi lama):
+type "%TEMP%\lkm_git.txt"
+echo.
+ping -n 6 127.0.0.1 >nul
 exit /b 0
 
 :hidup
