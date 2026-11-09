@@ -246,10 +246,11 @@ def sinkron_wa(hari: str | None = None) -> int:
         for r in db.query("SELECT tanggal, npsn, kode FROM kom_auto WHERE tanggal >= ?", (sejak,)):
             auto.setdefault(r["npsn"], {})[r["tanggal"]] = r["kode"]
         per_hari: dict[str, dict[str, str]] = {}
+        put = kom_siklus.putaran(hari_d)
         for f in fasil.values():
             for sk in f.sekolah:
                 isi = logkom.kode.get(sk.npsn, {})
-                for t, kode in kom_siklus.susun_semua(f.nomor, hari_d, isi, auto.get(sk.npsn, {})).items():
+                for t, kode in kom_siklus.susun_semua(f.nomor, hari_d, isi, auto.get(sk.npsn, {}), put).items():
                     per_hari.setdefault(t, {})[sk.npsn] = kode
         if any("C2" in x.values() for x in per_hari.values()) and not lk_baru.pastikan_kode_dropdown("C2"):
             # dropdown di sheet tidak bisa ditambah C2: pakai C supaya tetap valid

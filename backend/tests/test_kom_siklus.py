@@ -203,3 +203,50 @@ def test_siklus_lama_berhenti_sebelum_siklus_baru():
 def test_fasil_tanpa_kiriman_tebakan_dihapus():
     assert ks.susun_semua(NO, SEN, {"2026-11-06": "C"}, {"2026-11-06": "C"}) == {"2026-11-06": ""}
     assert ks.susun_semua(NO, SEN, {"2026-11-06": "R"}, {}) == {}  # isian petugas
+
+
+def test_putaran_mengakhiri_siklus_fasil_yang_tidak_ikut():
+    # putaran 2 Nov (fasil ini ikut) lalu putaran Jumat 6 Nov ke fasil lain: fasil ini kosong sejak 6 Nov
+    kirim(date(2026, 11, 2))
+    ks.catat_chat(NO, [Row(out=True, status="read", text="a", waktu="2026-11-02"),
+                       Row(out=False, status="", text="ok", waktu="2026-11-02")], tgl, SEN)
+    put = [date(2026, 11, 2), JUM]
+    h = ks.susun_semua(NO, SEN, {}, {}, put)
+    assert h["2026-11-05"] == "T1" and "2026-11-06" not in h and "2026-11-09" not in h
+    assert ks.status_sekarang(NO, SEN, put) == ""  # di halaman Blast: belum di-chat di putaran terakhir
+    # sel buatan aplikasi sesudah putaran baru dikosongkan
+    assert ks.susun_semua(NO, SEN, {"2026-11-06": "T1"}, {"2026-11-06": "T1"}, put)["2026-11-06"] == ""
+
+
+def test_putaran_dari_jumlah_fasil():
+    for i in range(ks.MIN_PUTARAN):
+        with db.tx() as c:
+            c.execute("INSERT INTO sends(tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, coba) "
+                      "VALUES('2026-11-06','2026-11-06T08:00:00',0,'F',?,'blast:x','terkirim','',0)", (f"6281{i:09d}",))
+        c = None
+    with db.tx() as c:  # survei ke banyak fasil bukan putaran
+        for i in range(10):
+            c.execute("INSERT INTO sends(tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, coba) "
+                      "VALUES('2026-11-03','2026-11-03T08:00:00',3,'F',?,'svy:x','terkirim','',0)", (f"6282{i:09d}",))
+    try:
+        p = ks.putaran(SEN)
+        assert JUM in p and date(2026, 11, 3) not in p
+    finally:
+        with db.tx() as c:
+            c.execute("DELETE FROM sends WHERE nomor LIKE '6281_________' OR nomor LIKE '6282_________'")
+
+
+def test_konfirmasi_lebih_pintar():
+    assert ks.konfirmasi("Berikut update progres minggu ke-2 sekolah binaan")
+    assert ks.konfirmasi("sudah saya ingatkan kepseknya kak")
+    assert ks.konfirmasi("[foto]") and ks.konfirmasi("[dokumen] laporan.pdf")
+    assert not ks.konfirmasi("oke kak siap")
+    assert not ks.konfirmasi("baik kak, nanti saya cek dulu ya")
+
+
+def test_respon_lambat_t2():
+    kirim(date(2026, 11, 2))
+    ks.catat_chat(NO, [Row(out=True, status="read", text="a", waktu="2026-11-02"),
+                       Row(out=False, status="", text="oke kak", waktu="2026-11-05")], tgl, SEN)
+    h = ks.susun_semua(NO, SEN, {}, {}, [date(2026, 11, 2)])
+    assert h["2026-11-04"] == "C2" and h["2026-11-05"] == "T2"  # baru dibalas hari kerja ke-3

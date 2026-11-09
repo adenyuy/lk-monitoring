@@ -1,4 +1,8 @@
-"""Kode Log Komunikasi per siklus kirim: satu blast berlaku sampai fasil itu dikirimi lagi.
+"""Kode Log Komunikasi per siklus kirim: satu blast berlaku sampai putaran blast berikutnya.
+
+Putaran blast = hari ada blast/Broadcast ke banyak fasil (dari aplikasi, atau terbaca dari chat bila lewat HP).
+Siklus fasil berakhir sehari sebelum putaran berikutnya; fasil yang tidak ikut putaran itu kosong sejak hari itu.
+Survei dan undangan WAG bukan blast monitoring, jadi tidak memulai siklus.
 
 Siklus dimulai pada hari pesan terakhir terkirim (blast atau chat dari aplikasi). Setiap hari kerja (Senin–Sabtu)
 dari hari itu sampai hari ini diisi, termasuk hari yang terlewat karena laptop mati. Kode tiap hari mengikuti
@@ -54,6 +58,16 @@ _siap = False
 PERINGKAT = {"N": 0, "C": 1, "C2": 2, "R": 3, "T1": 4, "T2": 4, "T": 5, "TP": 5}
 
 _KONFIRMASI = re.compile(r"(^|\n)\s*[•*\-]?\s*\*?(kendala|tindak\s*lanjut|tl)\*?\s*[:：=]", re.I)
+# Balasan berisi (bukan sekadar "oke/siap"): menyebut progres, laporan, dokumen, atau langkah yang sudah dikerjakan.
+_ISI = re.compile(r"\b(progres|progress|laporan|lpj|adendum|addendum|reviu|review|revisi|kendala|tindak\s*lanjut|"
+                  r"update|perkembangan|bku|bpp|fisik|mingguan|bulanan|pendahuluan|e-?meterai|"
+                  r"sudah\s+(saya\s+)?(kirim|dikirim|upload|diupload|unggah|diunggah|isi|diisi|submit|lapor|reviu|"
+                  r"direviu|cek|dicek|koordinasi|hubungi|dihubungi|ingatkan|diingatkan|tolak|ditolak|setujui|disetujui))\b",
+                  re.I)
+MEDIA = ("[foto]", "[dokumen]", "[video]", "[pesan suara]")
+TIPE_SURVEI_WAG = ("svy:", "wag:")
+MIN_PUTARAN = 5        # blast ke sekian fasil di hari yang sama = satu putaran
+LAMBAT_HARI_KERJA = 3  # balasan pertama sesudah sekian hari kerja = respon lambat (T2)
 
 
 def _db() -> None:
@@ -65,8 +79,14 @@ def _db() -> None:
 
 
 def konfirmasi(teks: str) -> bool:
-    """Balasan berisi jawaban Kendala / Tindak lanjut."""
-    return bool(_KONFIRMASI.search(teks or ""))
+    """Balasan yang menjawab (T): format Kendala / Tindak lanjut, menyebut progres / laporan / langkah yang sudah
+    dikerjakan, cukup panjang, atau berupa foto / dokumen. Jawaban pendek seperti "oke kak, nanti dicek" = belum."""
+    t = (teks or "").strip()
+    if not t:
+        return False
+    if _KONFIRMASI.search(t) or _ISI.search(t) or t.startswith(MEDIA):
+        return True
+    return len(" ".join(t.split())) >= 80
 
 
 # ---------- siklus ----------
@@ -78,24 +98,54 @@ class Siklus:
     akhir: date | None = None  # hari terakhir siklus (sehari sebelum siklus berikutnya); None = sampai hari ini
 
 
-def daftar_siklus(nomor: str, hari: date) -> list[Siklus]:
-    """Semua siklus kirim dalam MAKS_HARI terakhir, urut dari yang lama. Tiap siklus berlaku sampai sehari sebelum
-    siklus berikutnya."""
+_BUKAN_BLAST = " AND ".join(f"hash_pesan NOT LIKE '{x}%'" for x in TIPE_SURVEI_WAG)
+
+
+def _rentang(hari: date) -> tuple[str, str]:
+    return (hari - timedelta(days=MAKS_HARI)).isoformat(), (hari + timedelta(days=1)).isoformat()
+
+
+def putaran(hari: date) -> list[date]:
+    """Tanggal putaran blast: blast/Broadcast dari aplikasi, atau pesan keluar yang terbaca di chat (blast lewat HP),
+    ke minimal MIN_PUTARAN fasil di hari yang sama."""
+    _db()
+    batas, akhir = _rentang(hari)
+    rows = db.query(
+        "SELECT w, COUNT(DISTINCT nomor) AS n FROM ("
+        f"SELECT substr(waktu, 1, 10) AS w, nomor FROM sends WHERE coba = 0 AND status = 'terkirim' AND {_BUKAN_BLAST} "
+        "AND waktu >= ? AND waktu < ? UNION SELECT m.tanggal, m.nomor FROM kom_mulai m WHERE m.tanggal >= ? "
+        "AND m.tanggal < ? AND NOT EXISTS (SELECT 1 FROM sends x WHERE x.nomor = m.nomor AND x.coba = 0 "
+        f"AND substr(x.waktu, 1, 10) = m.tanggal AND NOT ({_BUKAN_BLAST.replace('hash_pesan', 'x.hash_pesan')}))"
+        ") GROUP BY w", (batas, akhir, batas, akhir))
+    return sorted(date.fromisoformat(r["w"]) for r in rows if r["n"] >= MIN_PUTARAN)
+
+
+def daftar_siklus(nomor: str, hari: date, putaran_: list[date] | None = None) -> list[Siklus]:
+    """Semua siklus kirim fasil ini dalam MAKS_HARI terakhir, urut dari yang lama. Tiap siklus berlaku sampai sehari
+    sebelum siklus fasil ini berikutnya ATAU putaran blast berikutnya (yang lebih dulu)."""
     if not nomor:
         return []
     _db()
-    batas = (hari - timedelta(days=MAKS_HARI)).isoformat()
-    akhir = (hari + timedelta(days=1)).isoformat()
+    batas, akhir = _rentang(hari)
     kirim = {r["w"] for r in db.query(
+        f"SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'terkirim' AND {_BUKAN_BLAST} "
+        "AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
+    # pesan keluar yang terbaca di chat, kecuali hari survei / undangan WAG untuk nomor ini
+    lain = {r["w"] for r in db.query(
         "SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'terkirim' "
-        "AND waktu >= ? AND waktu < ? UNION SELECT tanggal FROM kom_mulai WHERE nomor = ? AND tanggal >= ? "
-        "AND tanggal < ?", (nomor, batas, akhir, nomor, batas, akhir))}
+        f"AND NOT ({_BUKAN_BLAST}) AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
+    kirim |= {r["tanggal"] for r in db.query(
+        "SELECT tanggal FROM kom_mulai WHERE nomor = ? AND tanggal >= ? AND tanggal < ?", (nomor, batas, akhir))
+        if r["tanggal"] not in lain}
     gagal = {r["w"] for r in db.query(
         "SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'gagal' "
         "AND lower(keterangan) LIKE '%tidak terdaftar%' AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
     out = [Siklus(date.fromisoformat(w), gagal=w not in kirim) for w in sorted(kirim | gagal)]
-    for a, b in zip(out, out[1:]):
-        a.akhir = b.awal - timedelta(days=1)
+    put = putaran(hari) if putaran_ is None else putaran_
+    for i, s in enumerate(out):
+        batas_akhir = [b.awal for b in out[i + 1:i + 2]] + [p for p in put if p > s.awal][:1]
+        if batas_akhir:
+            s.akhir = min(batas_akhir) - timedelta(days=1)
     return out
 
 
@@ -218,12 +268,26 @@ def kode_kejadian(k: Kejadian, s: Siklus, d: date) -> str:
     if k.konfirmasi and k.konfirmasi <= d:
         return "T"
     if k.balas and k.balas <= d:
-        return "T1"
+        lambat = len(hari_kerja(s.awal, k.balas)) - 1 >= LAMBAT_HARI_KERJA
+        return "T2" if lambat else "T1"
     if k.dibaca and k.dibaca <= d:
         return "R"
     if k.diterima and k.diterima <= d:
         return "C2"
     return "C" if k.centang1 else ""  # belum ada info apa pun: kosong, jangan menebak
+
+
+def status_sekarang(nomor: str, hari: date, putaran_: list[date] | None = None) -> str:
+    """Status chat di siklus yang masih berlaku hari ini: dibalas | dibaca | terkirim | '' (tidak ikut putaran
+    terakhir / belum dikirimi)."""
+    semua = daftar_siklus(nomor, hari, putaran_)
+    if not semua:
+        return ""
+    s = semua[-1]
+    if (s.akhir and s.akhir < hari) or s.gagal:
+        return ""
+    k = kejadian(nomor, s)
+    return "dibalas" if k.balas else "dibaca" if k.dibaca else "terkirim"
 
 
 def lebih_baik(a: str, b: str) -> bool:
@@ -253,11 +317,12 @@ def susun(s: Siklus, k: Kejadian, hari: date, isi_lk: dict[str, str], auto: dict
     return tulis
 
 
-def susun_semua(nomor: str, hari: date, isi_lk: dict[str, str], auto: dict[str, str]) -> dict[str, str]:
+def susun_semua(nomor: str, hari: date, isi_lk: dict[str, str], auto: dict[str, str],
+                putaran_: list[date] | None = None) -> dict[str, str]:
     """{tanggal: kode} untuk semua siklus fasil ini. Sel buatan aplikasi di luar siklus mana pun dikosongkan."""
     tulis: dict[str, str] = {}
     tercakup: set[str] = set()
-    for s in daftar_siklus(nomor, hari):
+    for s in daftar_siklus(nomor, hari, putaran_):
         tulis.update(susun(s, kejadian(nomor, s), hari, isi_lk, auto))
         sampai = min(hari, s.akhir) if s.akhir else hari
         tercakup |= {d.isoformat() for d in hari_kerja(s.awal, sampai)}

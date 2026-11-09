@@ -8,7 +8,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import blast, db, komunikasi, lk_baru, schedule, todo
+from .. import blast, db, kom_siklus, komunikasi, lk_baru, schedule, todo
 from ..sheets import daftar_nomor, normalize_petugas
 from ..wa.browser import worker
 from ..wa.status import mask
@@ -124,14 +124,13 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
     nomor = {x["nomor"] for x in out if x["nomor"]}
     terakhir = _terakhir_blast(nomor)
     hari_ini = _chat_hari_ini(nomor)
-    from .. import tahap as _tahap
-
-    chat = komunikasi.peta_chat(_tahap.senin_iso())
+    tgl = schedule.now().date()
+    put = kom_siklus.putaran(tgl)
     for x in out:
         x["terakhir_blast"] = terakhir.get(x["nomor"], "")
         x["chat_hari_ini"] = hari_ini.get(x["nomor"], "")
-        # status chat minggu ini: dibalas | dibaca | terkirim | '' (belum di-chat)
-        x["chat"] = (chat.get(x["nomor"]) or {}).get("status", "") if x["nomor"] else ""
+        # status chat di putaran blast terakhir: dibalas | dibaca | terkirim | '' (tidak ikut putaran / belum di-chat)
+        x["chat"] = kom_siklus.status_sekarang(x["nomor"], tgl, put) if x["nomor"] else ""
         if x["chat"] not in ("dibalas", "dibaca", "terkirim"):
             x["chat"] = "terkirim" if x["chat_hari_ini"] else ""
         x["punya_nomor"] = bool(x.pop("nomor"))
