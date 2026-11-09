@@ -128,3 +128,17 @@ def test_riwayat_dengan_jam_berzona_waktu(siap, monkeypatch):
                             phoneNumberToLidMappings=[])))
     rows = p.baris_chat(FASIL)
     assert [r.text for r in rows] == ["oke"] and rows[0].waktu == "09.00, 06/11/2026"
+
+
+def test_chat_lewat_hp_hari_ini_terhitung_di_blast():
+    from app.routers import blast as rute
+
+    p.simpan_pesan("N1", FASIL, True, "halo kak", datetime(2026, 11, 9, 8, 15), "sent")  # terbaca pendengar
+    with db.tx() as c:
+        c.execute("INSERT OR IGNORE INTO kom_mulai VALUES(?, ?)", ("6281200000009", "2026-11-09"))  # terbaca WA Web
+    try:
+        hasil = rute._chat_hari_ini({FASIL, "6281200000009", "6281200000010"})
+        assert hasil == {FASIL: "08.15", "6281200000009": "lewat HP"}
+    finally:
+        with db.tx() as c:
+            c.execute("DELETE FROM kom_mulai WHERE nomor = '6281200000009'")

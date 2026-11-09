@@ -1,5 +1,6 @@
 """Blast: penerima (fasil, koordinator, kepala sekolah binaan), pengiriman dengan jeda & istirahat."""
 
+import logging
 import re
 from collections import Counter
 from dataclasses import asdict
@@ -15,6 +16,7 @@ from ..wa.status import mask
 from .deps import require_feature
 from .lkb import _konteks, blok_hari_ini
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/blast")
 wa_blast = require_feature("wa_blast")
 MAKS_PESAN = 4000
@@ -42,6 +44,21 @@ def _chat_hari_ini(nomor: set[str]) -> dict[str, str]:
         if r["nomor"] in nomor:
             j = r["waktu"][11:16].replace(":", ".")
             out[r["nomor"]] = max(out.get(r["nomor"], ""), j)
+    # Chat lewat HP: dari pendengar (jam tepat) atau terbaca di chat WA Web (jam tidak diketahui)
+    try:
+        from .. import kom_siklus
+        from ..wa import pendengar
+
+        pendengar._db()
+        kom_siklus._db()
+        for r in db.query("SELECT nomor, waktu FROM neo_pesan WHERE keluar = 1 AND substr(waktu, 1, 10) = ?", (hari,)):
+            if r["nomor"] in nomor:
+                out[r["nomor"]] = max(out.get(r["nomor"], ""), r["waktu"][11:16].replace(":", "."))
+        for r in db.query("SELECT nomor FROM kom_mulai WHERE tanggal = ?", (hari,)):
+            if r["nomor"] in nomor and r["nomor"] not in out:
+                out[r["nomor"]] = "lewat HP"
+    except Exception:
+        log.exception("Chat lewat HP hari ini tidak terbaca")
     return out
 
 
