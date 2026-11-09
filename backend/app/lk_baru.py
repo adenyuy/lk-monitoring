@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -472,6 +473,7 @@ KODE_KOMUNIKASI = {
 }
 _RE_TGL = re.compile(r"(\d{1,2})/(\d{1,2})")
 _lock_kom = threading.Lock()
+_cek_kom_terakhir = 0.0
 
 
 @dataclass
@@ -591,8 +593,12 @@ def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:
         return 0
     with _lock_kom:
         lk = baca_log_kom()
-        if tanggal not in lk.tanggal or not _baris_kom_cocok(lk, list(npsn_kode)):
+        global _cek_kom_terakhir
+        # Cek baris NPSN cukup sekali tiap 2 menit (sinkron menulis banyak tanggal berturut-turut)
+        if tanggal not in lk.tanggal or (time.time() - _cek_kom_terakhir > 120
+                                         and not _baris_kom_cocok(lk, list(npsn_kode))):
             lk = baca_log_kom(refresh=True)
+        _cek_kom_terakhir = time.time()
         if tanggal not in lk.tanggal:
             from .cutoff_baru import pastikan_tanggal_log
 

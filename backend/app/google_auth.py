@@ -187,6 +187,9 @@ def logout() -> None:
 
 # ---------- gspread ----------
 
+BATAS_WAKTU = (10, 60)  # detik: menyambung, menunggu jawaban
+
+
 class _KlienUlang(BackOffHTTPClient):
     """Selain batas kuota (dari BackOffHTTPClient), coba ulang juga bila koneksi ke Google putus di tengah jalan
     (mis. 'Connection aborted' / 'RemoteDisconnected' saat mengirim data besar atau Wi-Fi sempat goyah)."""
@@ -213,5 +216,9 @@ def gspread_client() -> gspread.Client:
     if key not in _gc_cache:
         _gc_cache.clear()
         # Batas baca Google Sheets (60/menit/akun): coba ulang otomatis dengan jeda bertahap, bukan langsung gagal
-        _gc_cache[key] = gspread.authorize(creds, http_client=_KlienUlang)
+        gc = gspread.authorize(creds, http_client=_KlienUlang)
+        # Tanpa batas waktu, koneksi yang macet (Wi-Fi goyah) membuat permintaan menunggu selamanya dan halaman yang
+        # butuh data yang sama ikut tertahan. Lewat batas -> requests.Timeout -> dicoba ulang oleh _KlienUlang.
+        gc.http_client.set_timeout(BATAS_WAKTU)
+        _gc_cache[key] = gc
     return _gc_cache[key]

@@ -13,6 +13,8 @@ import os
 import queue
 import threading
 
+import gspread
+
 from . import config, db, schedule, store
 from .sheets import cache, filter_petugas, gspread_client, normalize_nomor, parse_broadcast
 
@@ -75,7 +77,12 @@ def _baris_milik() -> tuple[int, dict[str, list[int]]]:
     """(sheetId tab, {nomor: [baris]}) untuk fasil petugas ini di 'Broadcast P1'."""
     def load():
         ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
-        ws = ss.worksheet(TAB)
+        try:
+            ws = ss.worksheet(TAB)
+        except gspread.exceptions.WorksheetNotFound:
+            # Tab sudah tidak ada (LK format baru): ingat 10 menit supaya tidak membaca sheet berulang-ulang
+            log.info("Tab %s tidak ada; penandaan warna dilewati", TAB)
+            return None, {}
         rows = filter_petugas(parse_broadcast(ws.get("A1:E")), db.get_setting("nama_petugas") or "")
         peta: dict[str, list[int]] = {}
         for r in rows:
@@ -96,6 +103,8 @@ def _cocok(ss, baris: list[int], nomor: str) -> bool:
 def tulis(nomor: str, warna: str) -> bool:
     ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
     sheet_id, peta = _baris_milik()
+    if sheet_id is None:
+        return False
     baris = peta.get(nomor, [])
     if baris and not _cocok(ss, baris, nomor):
         cache.drop("tag_baris")  # posisi baris berubah: baca ulang
