@@ -19,6 +19,7 @@ LABEL = {
     "gagal": "Pesan gagal",
     "blast": "Blast",
     "kom": "Log komunikasi",
+    "telepon": "Telepon",
     "dibaca": "Dibaca",
     "dibalas": "Fasil membalas",
     "balas": "Chat dari aplikasi",

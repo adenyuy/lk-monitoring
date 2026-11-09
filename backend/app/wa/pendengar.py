@@ -417,6 +417,52 @@ def _pn_dari_lid(lid: str) -> str:
     return ""
 
 
+# ---------- telepon WhatsApp ----------
+
+_saya: set[str] = set()                       # nomor & LID akun sendiri
+_panggilan: dict[str, dict[str, Any]] = {}    # callID -> {nomor, keluar, diangkat}
+
+
+def on_panggil(ev, jenis: str) -> None:
+    """Kabar panggilan WhatsApp. Panggilan KELUAR ke fasil: diangkat -> TP, tidak -> dicatat "tidak diangkat"."""
+    meta = ev.basicCallMeta
+    cid = meta.callID or ""
+    lawan = getattr(meta, "from")
+    pembuat_u, _ = _jid(meta.callCreator)
+    pembuat = nomor_dari(meta.callCreator, meta.callCreatorAlt)
+    keluar = bool(_saya) and (pembuat_u in _saya or pembuat in _saya)
+    nomor = nomor_dari(lawan) if keluar else pembuat
+    log.info("Panggilan WhatsApp %s: %s %s, %s", jenis, "keluar" if keluar else "masuk",
+             _samar(nomor) if nomor else "?", cid[:8])
+    if not cid:
+        return
+    if jenis in ("offer", "notice"):
+        _panggilan.setdefault(cid, {"nomor": nomor, "keluar": keluar, "diangkat": False, "mulai": time.time()})
+    elif jenis == "accept":
+        _panggilan.setdefault(cid, {"nomor": nomor, "keluar": keluar, "diangkat": False, "mulai": time.time()})
+        _panggilan[cid]["diangkat"] = True
+    elif jenis == "terminate":
+        p = _panggilan.pop(cid, None)
+        if not p or not p["keluar"] or not p["nomor"] or p["nomor"] not in _nomor_milik():
+            return
+        hasil = "diangkat" if p["diangkat"] else "tidak"
+        threading.Thread(target=_catat_panggilan, args=(p["nomor"], hasil, cid), name="pendengar-telepon",
+                         daemon=True).start()
+    for k in [k for k, v in _panggilan.items() if time.time() - v["mulai"] > 3 * 3600]:  # panggilan basi
+        _panggilan.pop(k, None)
+
+
+def _catat_panggilan(nomor: str, hasil: str, cid: str) -> None:
+    try:
+        from .. import komunikasi
+
+        f = next((x for x in komunikasi.fasil_saya().values() if x.nomor == nomor), None)
+        if f is not None:
+            komunikasi.catat_telepon(f, hasil, "wa", cid)
+    except Exception:
+        log.exception("Telepon WhatsApp gagal dicatat")
+
+
 def _nama_status(w) -> str:
     try:
         return type(w).Status.Name(w.status)
@@ -428,8 +474,9 @@ def _jalan(baru: bool) -> None:
     global _klien
     try:
         from neonize.client import NewClient
-        from neonize.events import (ConnectedEv, DisconnectedEv, HistorySyncEv, LoggedOutEv, MessageEv,
-                                    PairStatusEv, ReceiptEv, StreamReplacedEv)
+        from neonize.events import (CallAcceptEv, CallOfferEv, CallOfferNoticeEv, CallTerminateEv, ConnectedEv,
+                                    DisconnectedEv, HistorySyncEv, LoggedOutEv, MessageEv, PairStatusEv, ReceiptEv,
+                                    StreamReplacedEv)
         from neonize.proto.waCompanionReg.WAWebProtobufsCompanionReg_pb2 import DeviceProps
     except Exception as ex:  # neonize belum terpasang / tidak didukung OS ini
         log.exception("neonize tidak bisa dimuat")
@@ -461,7 +508,10 @@ def _jalan(baru: bool) -> None:
         db.set_setting("neonize_tertaut", True)
         akun = ""
         try:
-            akun = _samar(k.get_me().JID.User)
+            me = k.get_me()
+            akun = _samar(me.JID.User)
+            _saya.clear()
+            _saya.update(x for x in (me.JID.User, me.LID.User) if x)
         except Exception:
             pass
         _ubah("tersambung", qr_svg="", galat="", akun=akun or keadaan.akun)
@@ -492,6 +542,28 @@ def _jalan(baru: bool) -> None:
             on_centang(ev, ev.ReceiptType.Name(ev.Type))
         except Exception:
             log.exception("Centang dari pendengar gagal dicatat")
+
+    def _aman(fn, ev, *a):
+        try:
+            fn(ev, *a)
+        except Exception:
+            log.exception("Kabar telepon dari pendengar gagal dicatat")
+
+    @k.event(CallOfferEv)
+    def _tawar(_c, ev) -> None:
+        _aman(on_panggil, ev, "offer")
+
+    @k.event(CallOfferNoticeEv)
+    def _tawar2(_c, ev) -> None:
+        _aman(on_panggil, ev, "notice")
+
+    @k.event(CallAcceptEv)
+    def _terima(_c, ev) -> None:
+        _aman(on_panggil, ev, "accept")
+
+    @k.event(CallTerminateEv)
+    def _selesai(_c, ev) -> None:
+        _aman(on_panggil, ev, "terminate")
 
     @k.event(HistorySyncEv)
     def _riwayat(_c, ev) -> None:

@@ -10,6 +10,7 @@ import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { BantuanDialog } from "@/components/today/BantuanDialog";
 import { ChatPanel, SalinTemplate } from "./ChatPanel";
 import { KodePicker } from "./KodePicker";
+import { TeleponAksi } from "./TeleponAksi";
 import { Track } from "./Track";
 import s from "./lk.module.css";
 
@@ -214,6 +215,7 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
         {data && <Chip tone={KELOMPOK_INFO[data.kelompok].tone}>{KELOMPOK_INFO[data.kelompok].label}</Chip>}
         {data && (
           <div className={s.layarAksi}>
+            <TeleponAksi kunci={data.kunci} info={data.telepon} onCatat={() => void muat(true)} />
             <Button variant="secondary" size="sm" onClick={() => setKanan("koor")} disabled={!data.koor}
               title={data.koor ? "Fasil tidak membalas? Minta bantuan koordinatornya" : "Koordinator belum tercatat di LK"}>
               Hubungi koordinator

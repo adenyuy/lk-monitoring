@@ -305,3 +305,22 @@
 .kartuBalasan { display: block; margin-top: 4px; font-size: 12px; color: var(--ink-2); background: #f4f1ec; border-radius: 6px;
   padding: 4px 7px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .kartuBalasan i { font-style: normal; color: var(--muted); margin-right: 6px; font-size: 11px; }
+
+/* telepon */
+.telepon { position: relative; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.teleponDicoba { font-size: 12.5px; color: var(--warn-fg); background: var(--warn-bg); border-radius: 999px; padding: 3px 10px; }
+.teleponBtn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); font: inherit; font-size: 14px; color: var(--ink); }
+.teleponBtn:hover { border-color: var(--primary); color: var(--primary); }
+.teleponBtnPenting { border-color: var(--bad-fg); color: var(--bad-fg); }
+.teleponMenu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: 280px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgba(16, 24, 40, 0.14); padding: 10px;
+  display: flex; flex-direction: column; gap: 6px; }
+.teleponMenu > p { font-size: 12.5px; color: var(--muted); padding: 2px 4px; }
+.teleponMenu button { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px;
+  padding: 8px 10px; font: inherit; display: flex; flex-direction: column; gap: 2px; }
+.teleponMenu button:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); }
+.teleponMenu button b { font-size: 14px; color: var(--ink); }
+.teleponMenu button small { font-size: 12px; color: var(--muted); }
+.teleponTerakhir { font-size: 12px; color: var(--muted); padding: 2px 4px; }
+.teleponGalat { font-size: 12px; color: var(--bad-fg); padding: 2px 4px; }

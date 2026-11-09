@@ -17,6 +17,11 @@ export type LkInfo = {
   kode: { kode: KodeKom; arti: string }[];
 };
 
+export type TeleponInfo = {
+  perlu: boolean; alasan: string; dicoba: boolean;
+  terakhir: { waktu: string; hasil: "diangkat" | "tidak"; label: string; sumber: "manual" | "wa" } | null;
+};
+
 export type FasilLk = {
   kunci: string;
   nama: string;
@@ -37,6 +42,7 @@ export type FasilLk = {
   tag: string[];
   tanpa_progres: boolean;
   belum_ditelepon: boolean;
+  telepon?: TeleponInfo;
   progres_naik: number | null;
   /** {kode kolom papan: jumlah sekolah yang tertahan di sana} */
   posisi: Record<string, number>;

@@ -17,17 +17,17 @@ import re
 import threading
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from . import db, kom_siklus, lk_baru, schedule, todo
+from . import db, kom_siklus, lk_baru, schedule, telepon, todo
 from .lk_baru import KODE_KOMUNIKASI, Sekolah
 from .sheets import normalize_petugas
 
 log = logging.getLogger(__name__)
 
 KELOMPOK = (
-    ("perlu_telepon", "Perlu ditelepon", "Minggu ini chat minimal 2 kali hanya dibaca tanpa balasan, atau nomor tidak ada WA"),
+    ("perlu_telepon", "Perlu ditelepon", "2 hari kerja hanya dibaca / tidak sampai tanpa balasan, atau nomor tidak ada WA"),
     ("dibaca", "Dibaca, belum membalas", "Chat hari ini sudah dibaca tapi belum dibalas"),
     ("terkirim", "Terkirim, belum dibaca", "Chat terkirim tapi belum dibaca (centang satu atau dua abu-abu)"),
     ("menunggu", "Membalas, belum tuntas", "Sudah membalas, tapi belum ada Kendala / Tindak lanjut atau lambat"),
@@ -228,9 +228,7 @@ def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[st
     if k in ("C", "C2"):
         return "terkirim"
     if k == "R":
-        # perlu ditelepon hanya bila minggu ini minimal 2 kali hanya dibaca dan belum pernah membalas/ditelepon
-        membalas = any(x in TERHUBUNG or x in ("T1", "T2") for x in lalu)
-        return "perlu_telepon" if lalu.count("R") >= 2 and not membalas else "dibaca"
+        return "dibaca"  # "perlu ditelepon" ditentukan di telepon.keadaan (2 hari kerja hanya dibaca)
     if k in ("T1", "T2"):
         return "menunggu"
     return "terhubung"
@@ -285,6 +283,29 @@ def sinkron_wa(hari: str | None = None) -> int:
         return n
 
 
+def catat_telepon(f: Fasil, hasil: str, sumber: str = "manual", panggil: str = "",
+                  waktu: datetime | None = None) -> dict[str, Any]:
+    """Catat telepon ke fasil. Diangkat -> TP di Log Komunikasi hari itu (hari kerja) untuk semua sekolahnya."""
+    from . import aktivitas
+
+    w = waktu or schedule.now()
+    telepon.catat(f.nomor or f"nama:{f.nama}", hasil, sumber, panggil, w)
+    hari = w.date().isoformat()
+    ditulis = 0
+    if hasil == "diangkat" and w.weekday() < 6:
+        npsn = [s.npsn for s in f.sekolah]
+        try:
+            ditulis = lk_baru.tulis_log_kom(hari, {x: "TP" for x in npsn})
+            lupakan_auto(hari, npsn)  # isian ini milik petugas: tidak ditimpa pengisian otomatis
+        except Exception:
+            log.exception("TP dari telepon gagal ditulis ke Log Komunikasi")
+    aktivitas.catat(f.nomor or f"nama:{f.nama}", "telepon",
+                    ("Telepon diangkat" + (f" · TP dicatat ({hari[8:10]}/{hari[5:7]}, {ditulis} sekolah)" if ditulis else "")
+                     if hasil == "diangkat" else "Telepon tidak diangkat")
+                    + (" · lewat WhatsApp" if sumber == "wa" else ""), f.nama)
+    return {"hasil": hasil, "tp_ditulis": ditulis}
+
+
 def lupakan_auto(hari: str, npsn: list[str]) -> None:
     """Petugas mengubah kode sendiri: sel itu tidak lagi diperbarui otomatis."""
     _db()
@@ -305,12 +326,16 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
     perlu = [s for s in f.sekolah if rencana[s.npsn].todo]
     lengkap = sum(1 for s in perlu if todo.lengkap(s, rencana[s.npsn], blok))
     kel = tentukan(kode, hari, not perlu, minggu)
+    tel = telepon.keadaan(f.nomor, kode, hari, min(logkom.tanggal, default=""))
+    if kel != "beres":
+        if tel["perlu"]:
+            kel = "perlu_telepon"
+        elif kel == "perlu_telepon":  # nomor tanpa WA yang hari ini sudah dicoba ditelepon
+            kel = "dibaca"
     tambah = [delta.get(s.npsn) for s in f.sekolah]
     ada_banding = any(x is not None for x in tambah)
     progres_naik = sum(x for x in tambah if x)
     hubung = sum(1 for d in minggu if kode.get(d) in TERHUBUNG | {"T1", "T2"})
-    dibaca_saja = sum(1 for d in minggu if kode.get(d) == "R")
-    membalas = any(kode.get(d) in TERHUBUNG | {"T1", "T2"} for d in minggu)
     fokus = Counter(rencana[s.npsn].fokus.judul for s in perlu if rencana[s.npsn].fokus)
     tunggu = [t.tunggu for s in perlu for t in rencana[s.npsn].todo if t.pelaku == "fasil" and t.tunggu]
     posisi: Counter[str] = Counter()
@@ -331,7 +356,8 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
         "tunggu_maks": max(tunggu) if tunggu else None,
         "tag": tags.get(f.kunci, []),
         "tanpa_progres": bool(perlu) and ada_banding and progres_naik == 0 and hubung >= 2,
-        "belum_ditelepon": dibaca_saja >= 2 and not membalas,
+        "belum_ditelepon": tel["perlu"],
+        "telepon": tel,
         "progres_naik": progres_naik if ada_banding else None,
         "posisi": dict(posisi),
     }

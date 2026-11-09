@@ -104,7 +104,8 @@ def test_kelompok_komunikasi():
     # sudah pernah membalas minggu ini: dibaca dua kali tidak membuatnya perlu ditelepon
     assert tentukan({"2026-11-09": "T", "2026-11-10": "R", "2026-11-11": "R"}, "2026-11-11", False, minggu) == "dibaca"
     assert tentukan({"2026-11-10": "R"}, "2026-11-10", False, minggu) == "dibaca"
-    assert tentukan({"2026-11-09": "R", "2026-11-10": "R"}, "2026-11-10", False, minggu) == "perlu_telepon"
+    # R dua hari berturut-turut ditandai "perlu ditelepon" oleh telepon.keadaan (lihat test_telepon.py)
+    assert tentukan({"2026-11-09": "R", "2026-11-10": "R"}, "2026-11-10", False, minggu) == "dibaca"
     assert tentukan({"2026-11-10": "T2"}, "2026-11-10", False, minggu) == "menunggu"
     assert tentukan({"2026-11-10": "TP"}, "2026-11-10", False, minggu) == "terhubung"
     assert tentukan({}, "2026-11-10", True, minggu) == "beres"

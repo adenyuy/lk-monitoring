@@ -177,6 +177,22 @@ def isi(req: IsiReq, _=Depends(require_access)) -> dict[str, Any]:
     return {"ok": True, "ditulis": len(tulis), "blok": blok}
 
 
+class TeleponReq(BaseModel):
+    kunci: str
+    hasil: str = Field(pattern="^(diangkat|tidak)$")
+
+
+@router.post("/telepon")
+def catat_telepon(req: TeleponReq, _=Depends(require_access)) -> dict[str, Any]:
+    """Catat telepon ke fasil. Diangkat -> TP di Log Komunikasi hari ini; tidak diangkat -> hanya dicatat."""
+    from .. import telepon
+
+    fasil = _jalan(komunikasi.fasil_saya).get(req.kunci)
+    if not fasil:
+        raise HTTPException(404, "Fasil tidak ditemukan.")
+    return {"ok": True, **_jalan(komunikasi.catat_telepon, fasil, req.hasil), "riwayat": telepon.riwayat(fasil.nomor)}
+
+
 class KomReq(BaseModel):
     kunci: str
     kode: str = Field("", max_length=3)
@@ -300,7 +316,7 @@ def pengingat(_=Depends(require_access)) -> dict[str, Any]:
     telp = [f for f in daftar.values() if f["kelompok"] == "perlu_telepon" or f["belum_ditelepon"]]
     if telp:
         items.append({"jenis": "chat_manual", "judul": f"{len(telp)} fasil perlu ditelepon",
-                      "isi": "Chat tidak sampai atau berulang kali hanya dibaca. Telepon lalu catat TP.",
+                      "isi": "2 hari kerja hanya dibaca atau tidak sampai. Telepon, lalu tekan Catat telepon di halaman fasil.",
                       "total": len(telp), "fasil": [_fasil_notif(f, "Chat tidak sampai / hanya dibaca", "manual")
                                                     for f in telp]})
     total_perlu = sum(f["perlu"] for f in daftar.values())
