@@ -123,3 +123,21 @@ def test_teks_blast_kita_tidak_dianggap_balasan():
         assert actions.chat_info(rows).status != "dibalas"
     assert not actions.pesan_kita("Baik pak, terima kasih")
     assert not actions.pesan_kita("Selamat siang pak, berikut laporan progres sekolah saya")
+
+
+def test_balasan_fasil_hasil_salin_template_bukan_pesan_kita():
+    # Fasil menyalin blast "Bapak/Ibu ..., izin menindaklanjuti ..." lalu mengisi Kendala / Tindak lanjut.
+    # Isinya mirip pesan kita, tapi tanpa centang dan pengirimnya fasil -> tetap balasan (kasus Al Qadru).
+    blast = {**raw(labels=["You:", " Read "], tail_out=True,
+                   text="Selamat siang Bapak/Ibu Al Qadru, izin menindaklanjuti\n1. SD A\nKendala: ...\nTindak lanjut: ..."),
+             "id": "a1", "pre": "[14.32, 11/6/2026] Petugas: "}
+    salinan = {**raw(text="siang Bapak/Ibu Al Qadru, izin menindaklanjuti\n1. SD A\nKendala: hujan\nTindak lanjut: lembur"),
+               "id": "a2", "pre": "[14.34, 11/6/2026] Al Qadru: "}
+    rows = actions._baris([blast, salinan])
+    assert [r.out for r in rows] == [True, False]
+    # tanpa label pengirim pun, Kendala yang sudah terisi menandakan balasan
+    tanpa_nama = {**salinan, "pre": ""}
+    assert [r.out for r in actions._baris([blast, tanpa_nama])] == [True, False]
+    # salinan yang masih titik-titik tanpa nama pengirim = pesan kita (blast lanjutan tanpa ikon)
+    titik = {**raw(text="siang Bapak/Ibu Al Qadru, izin menindaklanjuti\nKendala: ...\nTindak lanjut: ..."), "id": "a3", "pre": ""}
+    assert [r.out for r in actions._baris([blast, titik])] == [True, True]

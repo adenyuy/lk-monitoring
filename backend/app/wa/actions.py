@@ -298,6 +298,20 @@ def pesan_kita(teks: str) -> bool:
     return bool(_PESAN_KITA.search(teks or ""))
 
 
+# "Kendala: hujan" (sudah diisi), bukan "Kendala: ..." (masih titik-titik dari template kita)
+_ISIAN_TERISI = re.compile(r"^[ \t]*[•*\-]?[ \t]*\*?(kendala|tindak[ \t]*lanjut)\*?[ \t]*[:：=-][ \t]*(?![.…\-\s]*$)\S",
+                           re.I | re.M)
+
+
+def _balasan_salinan(r: dict, kita: set[str], fasil: set[str]) -> bool:
+    """Fasil sering menyalin pesan template kita lalu mengisi titik-titiknya. Isinya mirip pesan kita, tapi pengirim
+    di label "[jam, tanggal] Nama:" bukan kita, atau Kendala / Tindak lanjut-nya sudah terisi."""
+    p = _pengirim(r.get("pre", ""))
+    if p and (p in fasil or (kita and p not in kita)):
+        return True
+    return bool(_ISIAN_TERISI.search(r.get("text", "") or ""))
+
+
 def _baris(raw: list[dict]) -> list[Row]:
     status = [_status_of(r) for r in raw]
     arah = [_is_out(r, st) for r, st in zip(raw, status)]
@@ -313,7 +327,7 @@ def _baris(raw: list[dict]) -> list[Row]:
                 o = True
             elif p in fasil and p not in kita:
                 o = False
-        if not o and _arah_id(r.get("id", "")) is None and pesan_kita(r["text"]):
+        if not o and _arah_id(r.get("id", "")) is None and pesan_kita(r["text"]) and not _balasan_salinan(r, kita, fasil):
             o = True
         out.append(Row(r["id"], o, st if o else "", teks_pesan(r.get("media", ""), r["text"]),
                        _waktu(r.get("pre", "")), rapikan(r.get("kutipan", ""))))

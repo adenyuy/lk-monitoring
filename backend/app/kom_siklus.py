@@ -63,7 +63,8 @@ _KATA_KENDALA = re.compile(r"\b(kendala\w*|tindak\s*lanjut\w*)\b", re.I)
 # ...kecuali sekadar janji ("kendalanya nanti saya kabari")
 _JANJI = re.compile(r"\b(nanti|menyusul|kabari|dikabari|kabarkan|akan\s+saya)\b", re.I)
 TIPE_SURVEI_WAG = ("svy:", "wag:")
-MIN_PUTARAN = 5        # blast ke sekian fasil di hari yang sama = satu putaran
+MIN_PUTARAN = 5        # blast dari aplikasi ke sekian fasil di hari yang sama = satu putaran
+MIN_PUTARAN_HP = 15    # pesan keluar lewat HP ke sekian fasil di hari yang sama = blast lewat HP
 LAMBAT_HARI_KERJA = 3  # balasan pertama sesudah sekian hari kerja = respon lambat (T2)
 
 
@@ -104,18 +105,21 @@ def _rentang(hari: date) -> tuple[str, str]:
 
 
 def putaran(hari: date) -> list[date]:
-    """Tanggal putaran blast: blast/Broadcast dari aplikasi, atau pesan keluar yang terbaca di chat (blast lewat HP),
-    ke minimal MIN_PUTARAN fasil di hari yang sama."""
+    """Tanggal putaran blast: blast/Broadcast dari aplikasi ke minimal MIN_PUTARAN fasil di hari yang sama, atau pesan
+    keluar yang terbaca di chat (blast lewat HP) ke minimal MIN_PUTARAN_HP fasil. Ambang HP lebih tinggi karena
+    chat biasa ke beberapa fasil dalam sehari (tanya kabar, membalas) bukan blast."""
     _db()
     batas, akhir = _rentang(hari)
-    rows = db.query(
-        "SELECT w, COUNT(DISTINCT nomor) AS n FROM ("
-        f"SELECT substr(waktu, 1, 10) AS w, nomor FROM sends WHERE coba = 0 AND status = 'terkirim' AND {_BUKAN_BLAST} "
-        "AND waktu >= ? AND waktu < ? UNION SELECT m.tanggal, m.nomor FROM kom_mulai m WHERE m.tanggal >= ? "
-        "AND m.tanggal < ? AND NOT EXISTS (SELECT 1 FROM sends x WHERE x.nomor = m.nomor AND x.coba = 0 "
-        f"AND substr(x.waktu, 1, 10) = m.tanggal AND NOT ({_BUKAN_BLAST.replace('hash_pesan', 'x.hash_pesan')}))"
-        ") GROUP BY w", (batas, akhir, batas, akhir))
-    return sorted(date.fromisoformat(r["w"]) for r in rows if r["n"] >= MIN_PUTARAN)
+    app = db.query(
+        "SELECT substr(waktu, 1, 10) AS w, COUNT(DISTINCT nomor) AS n FROM sends WHERE coba = 0 AND status = 'terkirim' "
+        f"AND {_BUKAN_BLAST} AND waktu >= ? AND waktu < ? GROUP BY w", (batas, akhir))
+    hp = db.query(
+        "SELECT m.tanggal AS w, COUNT(DISTINCT m.nomor) AS n FROM kom_mulai m WHERE m.tanggal >= ? AND m.tanggal < ? "
+        "AND NOT EXISTS (SELECT 1 FROM sends x WHERE x.nomor = m.nomor AND x.coba = 0 "
+        f"AND substr(x.waktu, 1, 10) = m.tanggal AND NOT ({_BUKAN_BLAST.replace('hash_pesan', 'x.hash_pesan')})) "
+        "GROUP BY m.tanggal", (batas, akhir))
+    tgl = {r["w"] for r in app if r["n"] >= MIN_PUTARAN} | {r["w"] for r in hp if r["n"] >= MIN_PUTARAN_HP}
+    return sorted(date.fromisoformat(w) for w in tgl)
 
 
 def daftar_siklus(nomor: str, hari: date, putaran_: list[date] | None = None) -> list[Siklus]:
