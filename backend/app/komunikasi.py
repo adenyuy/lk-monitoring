@@ -1,0 +1,478 @@
+"""Fasil binaan, kelompok (cluster) komunikasi, kode Log Komunikasi otomatis dari WhatsApp, dan tag fasil.
+
+Kelompok fasil hari ini, urut dari yang paling perlu ditindak:
+  perlu_telepon   : centang satu / nomor tidak ada WA, atau sudah lebih dari sekali hanya dibaca tanpa ditelepon
+  dibaca          : chat hari ini hanya dibaca
+  menunggu        : terhubung tapi masih menunggu konfirmasi / respon lambat
+  belum           : belum ada catatan komunikasi hari ini
+  terhubung       : hari ini terhubung (WhatsApp respon baik atau telepon)
+  beres           : semua sekolah binaannya tanpa to-do
+Tanda tambahan: `tanpa_progres` = sering terhubung minggu ini tapi tidak ada komponen yang bertambah selesai
+sejak cutoff sebelumnya (fasil yang menjawab "ok ok" saja).
+"""
+
+import json
+import logging
+import re
+import threading
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+from typing import Any
+
+from . import db, kom_siklus, lk_baru, schedule, telepon, todo
+from .lk_baru import KODE_KOMUNIKASI, Sekolah
+from .sheets import normalize_petugas
+
+log = logging.getLogger(__name__)
+
+KELOMPOK = (
+    ("perlu_telepon", "Perlu ditelepon", "2 hari kerja hanya dibaca / tidak sampai tanpa balasan, atau nomor tidak ada WA"),
+    ("dibaca", "Dibaca, belum membalas", "Chat hari ini sudah dibaca tapi belum dibalas"),
+    ("terkirim", "Terkirim, belum dibaca", "Chat terkirim tapi belum dibaca (centang satu atau dua abu-abu)"),
+    ("menunggu", "Membalas, belum tuntas", "Sudah membalas, tapi belum ada Kendala / Tindak lanjut atau lambat"),
+    ("belum", "Belum dihubungi hari ini", "Belum ada catatan di Log Komunikasi hari ini"),
+    ("terhubung", "Terhubung hari ini", "Respon baik lewat WhatsApp atau sudah ditelepon"),
+    ("beres", "Semua hijau", "Semua sekolah binaannya tanpa to-do"),
+)
+# Kolom papan LK: di komponen mana sekolah binaan seorang fasil sedang tertahan (dari to-do).
+POSISI = (
+    ("lp", "Lap. Pendahuluan belum dikirim", ("lp",)),
+    ("lp_rev", "Reviu Lap. Pendahuluan", ("lp_rev",)),
+    ("mg", "Lap. Mingguan", ("mg", "mg_rev")),
+    ("bulanan", "Lap. Bulanan, BKU & BPP", ("paket_bulanan", "bl_rev")),
+    ("progres", "Progres fisik", ("progres",)),
+    ("l50", "Laporan 50%", ("l50", "l50_rev")),
+    ("l100", "Laporan 100%", ("l100", "l100_rev")),
+)
+_POSISI_DARI = {t: k for k, _, ts in POSISI for t in ts}
+
+
+def posisi_todo(kode: str) -> str:
+    """Kolom papan LK untuk satu kode to-do ('' bila tidak masuk papan)."""
+    return _POSISI_DARI.get(kode, "")
+
+TERHUBUNG = {"T", "TP"}
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS fasil_tag (
+    kunci  TEXT PRIMARY KEY,
+    tag    TEXT NOT NULL DEFAULT '[]',
+    waktu  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kom_auto (
+    tanggal TEXT NOT NULL,
+    npsn    TEXT NOT NULL,
+    kode    TEXT NOT NULL,
+    PRIMARY KEY (tanggal, npsn)
+);
+CREATE TABLE IF NOT EXISTS lk_jejak (
+    cutoff  TEXT NOT NULL,
+    npsn    TEXT NOT NULL,
+    selesai INTEGER NOT NULL,
+    PRIMARY KEY (cutoff, npsn)
+);
+"""
+_siap = False
+_lock = threading.Lock()
+
+
+def _db() -> None:
+    global _siap
+    if not _siap:
+        with db.tx() as c:
+            c.executescript(SCHEMA)
+        _siap = True
+
+
+# ---------- fasil binaan ----------
+
+@dataclass
+class Fasil:
+    kunci: str               # nomor 62… atau 'nama:<nama>' bila nomor kosong
+    nama: str
+    nomor: str
+    nomor_lain: list[str]
+    koor: str
+    hp_koor: str
+    ptn: str
+    sekolah: list[Sekolah] = field(default_factory=list)
+
+
+def kunci_fasil(s: Sekolah) -> str:
+    n = s.nomor_fasil()
+    return n[0] if n else "nama:" + normalize_petugas(s.fasil or "tanpa fasil")
+
+
+def kelompokkan(sekolah: list[Sekolah]) -> dict[str, Fasil]:
+    out: dict[str, Fasil] = {}
+    for s in sekolah:
+        k = kunci_fasil(s)
+        f = out.get(k)
+        if not f:
+            n = s.nomor_fasil()
+            f = out[k] = Fasil(k, s.fasil or "(tanpa nama fasil)", n[0] if n else "", n[1:], s.koor,
+                               s.hp_koor, s.ptn)
+        f.sekolah.append(s)
+    return out
+
+
+def petugas_saya() -> str:
+    return db.get_setting("nama_petugas") or ""
+
+
+def sekolah_saya(refresh: bool = False) -> list[Sekolah]:
+    return lk_baru.baca_petugas(petugas_saya(), refresh=refresh)
+
+
+def fasil_saya(refresh: bool = False) -> dict[str, Fasil]:
+    return kelompokkan(sekolah_saya(refresh))
+
+
+# ---------- jejak progres antar-cutoff ----------
+
+def label_cutoff() -> str:
+    """Label cutoff terakhir dari judul Log Progres, mis. 'Cutoff 2 (06/11)'. Kosong bila belum ada."""
+    from .sheets import cache
+
+    def load() -> str:
+        try:
+            r = lk_baru._ss().values_get(f"'{lk_baru.TAB_LOG_PROGRES}'!A2:Z2").get("values", [[]])[0]
+        except Exception:
+            return ""
+        isi = [x for x in r if str(x).startswith("Cutoff") and "(" in str(x)]
+        return str(isi[-1]) if isi else ""
+
+    return cache.get("lk2_cutoff_label", 600, load)
+
+
+def jejak(sekolah: list[Sekolah], rencana: dict[str, todo.Rencana]) -> dict[str, int | None]:
+    """{npsn: tambahan komponen selesai sejak cutoff sebelumnya} (None bila belum ada pembanding).
+    Jumlah komponen selesai disimpan per cutoff di laptop ini."""
+    _db()
+    lbl = label_cutoff()
+    if not lbl:
+        return {}
+    sekarang = {s.npsn: sum(1 for x in rencana[s.npsn].status.values() if x.status == "selesai") for s in sekolah}
+    with db.tx() as c:
+        c.executemany("INSERT OR IGNORE INTO lk_jejak(cutoff, npsn, selesai) VALUES(?,?,?)",
+                      [(lbl, k, v) for k, v in sekarang.items()])
+    sebelum = db.query("SELECT cutoff FROM lk_jejak WHERE cutoff != ? GROUP BY cutoff ORDER BY MAX(rowid) DESC "
+                       "LIMIT 1", (lbl,))
+    if not sebelum:
+        return {k: None for k in sekarang}
+    lama = {r["npsn"]: r["selesai"] for r in db.query("SELECT npsn, selesai FROM lk_jejak WHERE cutoff = ?",
+                                                      (sebelum[0]["cutoff"],))}
+    return {k: (v - lama[k]) if k in lama else None for k, v in sekarang.items()}
+
+
+# ---------- tag ----------
+
+def tag_semua() -> dict[str, list[str]]:
+    _db()
+    out = {}
+    for r in db.query("SELECT kunci, tag FROM fasil_tag"):
+        try:
+            out[r["kunci"]] = [str(x) for x in json.loads(r["tag"])]
+        except ValueError:
+            continue
+    return out
+
+
+def set_tag(kunci: str, tag: list[str]) -> list[str]:
+    _db()
+    bersih = list(dict.fromkeys(" ".join(t.split())[:30] for t in tag if t.strip()))[:6]
+    with db.tx() as c:
+        c.execute("INSERT INTO fasil_tag(kunci, tag, waktu) VALUES(?,?,?) ON CONFLICT(kunci) DO UPDATE SET "
+                  "tag = excluded.tag, waktu = excluded.waktu",
+                  (kunci, json.dumps(bersih), schedule.now().isoformat(timespec="seconds")))
+    return bersih
+
+
+# ---------- kelompok ----------
+
+def kode_fasil(f: Fasil, logkom: lk_baru.LogKom) -> dict[str, str]:
+    """{tanggal: kode} untuk fasil: kode paling sering di antara sekolah binaannya per hari."""
+    per: dict[str, Counter] = {}
+    for s in f.sekolah:
+        for d, k in logkom.kode.get(s.npsn, {}).items():
+            per.setdefault(d, Counter())[k] += 1
+    return {d: c.most_common(1)[0][0] for d, c in per.items()}
+
+
+def minggu_ini(hari: date) -> list[str]:
+    senin = hari - timedelta(days=hari.weekday())
+    return [(senin + timedelta(days=i)).isoformat() for i in range(6)]
+
+
+def hari_terakhir(hari: date, jumlah: int = 5, mulai: str = "") -> list[str]:
+    """`jumlah` hari kerja (Senin–Sabtu) terakhir sampai `hari`, urut dari yang lama; tidak sebelum `mulai`
+    (kolom pertama Log Komunikasi). Mis. Senin 9 Nov -> Kam 5, Jum 6, Sab 7, Sen 9."""
+    out, d = [], hari
+    while len(out) < jumlah and (not mulai or d.isoformat() >= mulai) and d > hari - timedelta(days=14):
+        if d.weekday() < 6:
+            out.append(d.isoformat())
+        d -= timedelta(days=1)
+    return out[::-1]
+
+
+def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[str]) -> str:
+    if semua_hijau:
+        return "beres"
+    k = kode.get(hari, "")
+    lalu = [kode[d] for d in minggu if d <= hari and d in kode]
+    if not k:
+        return "belum"
+    if k == "N":
+        return "perlu_telepon"  # nomor tidak ada WhatsApp: hanya bisa ditelepon
+    if k in ("C", "C2"):
+        return "terkirim"
+    if k == "R":
+        return "dibaca"  # "perlu ditelepon" ditentukan di telepon.keadaan (2 hari kerja hanya dibaca)
+    if k in ("T1", "T2"):
+        return "menunggu"
+    return "terhubung"
+
+
+# ---------- kode otomatis dari WhatsApp ----------
+
+def sinkron_wa(hari: str | None = None) -> int:
+    """Tulis kode Log Komunikasi dari WhatsApp untuk setiap hari kerja sejak blast terakhir tiap fasil
+    (lihat kom_siklus). Hanya bila WA otomatis menyala. Sel yang diisi petugas sendiri tidak ditimpa."""
+    if not wa_otomatis():
+        return 0
+    _db()
+    hari_d = date.fromisoformat(hari) if hari else schedule.now().date()
+    with _lock:
+        try:
+            fasil = fasil_saya()
+            logkom = lk_baru.baca_log_kom(refresh=True)
+        except Exception:
+            log.exception("Log Komunikasi tidak terbaca untuk sinkron WA")
+            return 0
+        sejak = (hari_d - timedelta(days=kom_siklus.MAKS_HARI)).isoformat()
+        auto: dict[str, dict[str, str]] = {}
+        for r in db.query("SELECT tanggal, npsn, kode FROM kom_auto WHERE tanggal >= ?", (sejak,)):
+            auto.setdefault(r["npsn"], {})[r["tanggal"]] = r["kode"]
+        per_hari: dict[str, dict[str, str]] = {}
+        put = kom_siklus.putaran(hari_d)
+        for f in fasil.values():
+            for sk in f.sekolah:
+                isi = logkom.kode.get(sk.npsn, {})
+                for t, kode in kom_siklus.susun_semua(f.nomor, hari_d, isi, auto.get(sk.npsn, {}), put).items():
+                    per_hari.setdefault(t, {})[sk.npsn] = kode
+        if any("C2" in x.values() for x in per_hari.values()) and not lk_baru.pastikan_kode_dropdown("C2"):
+            # Dropdown di sheet tidak bisa ditambah C2. C2 TIDAK boleh diganti C (C = centang satu, maknanya beda):
+            # sel itu dilewati dulu sampai C2 ada di dropdown.
+            log.warning("Kode C2 belum ada di dropdown Log Komunikasi; sel C2 tidak ditulis")
+            per_hari = {t: y for t, x in per_hari.items() if (y := {n: v for n, v in x.items() if v != "C2"})}
+        n = 0
+        awal_lk = min(logkom.tanggal, default="")
+        for t in sorted(per_hari):
+            if awal_lk and t < awal_lk:
+                continue  # sebelum kolom tanggal pertama di Log Komunikasi (mis. sebelum LK format baru dipakai)
+            tulis = per_hari[t]
+            try:
+                n += lk_baru.tulis_log_kom(t, tulis)
+            except Exception:
+                log.exception("Kode komunikasi otomatis gagal ditulis untuk %s", t)
+                continue
+            with db.tx() as c:
+                c.executemany("INSERT INTO kom_auto(tanggal, npsn, kode) VALUES(?,?,?) ON CONFLICT(tanggal, npsn) "
+                              "DO UPDATE SET kode = excluded.kode", [(t, k, v) for k, v in tulis.items()])
+        return n
+
+
+def catat_telepon(f: Fasil, hasil: str, sumber: str = "manual", panggil: str = "",
+                  waktu: datetime | None = None) -> dict[str, Any]:
+    """Catat telepon ke fasil. Diangkat -> TP di Log Komunikasi hari itu (hari kerja) untuk semua sekolahnya."""
+    from . import aktivitas
+
+    w = waktu or schedule.now()
+    telepon.catat(f.nomor or f"nama:{f.nama}", hasil, sumber, panggil, w)
+    hari = w.date().isoformat()
+    ditulis = 0
+    if hasil == "diangkat" and w.weekday() < 6:
+        npsn = [s.npsn for s in f.sekolah]
+        try:
+            ditulis = lk_baru.tulis_log_kom(hari, {x: "TP" for x in npsn})
+            lupakan_auto(hari, npsn)  # isian ini milik petugas: tidak ditimpa pengisian otomatis
+        except Exception:
+            log.exception("TP dari telepon gagal ditulis ke Log Komunikasi")
+    aktivitas.catat(f.nomor or f"nama:{f.nama}", "telepon",
+                    ("Telepon diangkat" + (f" · TP dicatat ({hari[8:10]}/{hari[5:7]}, {ditulis} sekolah)" if ditulis else "")
+                     if hasil == "diangkat" else "Telepon tidak diangkat")
+                    + (" · lewat WhatsApp" if sumber == "wa" else ""), f.nama)
+    return {"hasil": hasil, "tp_ditulis": ditulis}
+
+
+def lupakan_auto(hari: str, npsn: list[str]) -> None:
+    """Petugas mengubah kode sendiri: sel itu tidak lagi diperbarui otomatis."""
+    _db()
+    with db.tx() as c:
+        c.executemany("DELETE FROM kom_auto WHERE tanggal = ? AND npsn = ?", [(hari, n) for n in npsn])
+
+
+def wa_otomatis() -> bool:
+    return bool(db.get_setting("wa_otomatis", True))
+
+
+# ---------- ringkasan untuk halaman LK ----------
+
+def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.LogKom, hari: str,
+                    blok: int, tags: dict[str, list[str]], delta: dict[str, int | None]) -> dict[str, Any]:
+    minggu = minggu_ini(date.fromisoformat(hari))
+    kode = kode_fasil(f, logkom)
+    perlu = [s for s in f.sekolah if rencana[s.npsn].todo]
+    lengkap = sum(1 for s in perlu if todo.lengkap(s, rencana[s.npsn], blok))
+    kel = tentukan(kode, hari, not perlu, minggu)
+    tel = telepon.keadaan(f.nomor, kode, hari, min(logkom.tanggal, default=""))
+    if kel != "beres":
+        if tel["perlu"]:
+            kel = "perlu_telepon"
+        elif kel == "perlu_telepon":  # nomor tanpa WA yang hari ini sudah dicoba ditelepon
+            kel = "dibaca"
+    tambah = [delta.get(s.npsn) for s in f.sekolah]
+    ada_banding = any(x is not None for x in tambah)
+    progres_naik = sum(x for x in tambah if x)
+    hubung = sum(1 for d in minggu if kode.get(d) in TERHUBUNG | {"T1", "T2"})
+    fokus = Counter(rencana[s.npsn].fokus.judul for s in perlu if rencana[s.npsn].fokus)
+    tunggu = [t.tunggu for s in perlu for t in rencana[s.npsn].todo if t.pelaku == "fasil" and t.tunggu]
+    posisi: Counter[str] = Counter()
+    for s in perlu:
+        posisi.update({_POSISI_DARI[t.kode] for t in rencana[s.npsn].todo if t.kode in _POSISI_DARI})
+    return {
+        "kunci": f.kunci, "nama": f.nama, "nomor": f.nomor, "ptn": f.ptn, "koor": f.koor,
+        "punya_nomor": bool(f.nomor),
+        "kelompok": kel,
+        "kode_hari_ini": kode.get(hari, ""),
+        # 5 hari kerja terakhir sampai hari ini (bergeser tiap hari, melewati Minggu)
+        "kode_minggu": [{"tanggal": d, "kode": kode.get(d, "")}
+                        for d in hari_terakhir(date.fromisoformat(hari), 5, min(logkom.tanggal, default=""))],
+        "sekolah": len(f.sekolah), "perlu": len(perlu), "lengkap": lengkap,
+        "todo": sum(len(rencana[s.npsn].todo) for s in f.sekolah),
+        "todo_fasil": sum(1 for s in f.sekolah for t in rencana[s.npsn].todo if t.pelaku == "fasil"),
+        "fokus": [{"judul": j, "jumlah": n} for j, n in fokus.most_common(3)],
+        "tunggu_maks": max(tunggu) if tunggu else None,
+        "tag": tags.get(f.kunci, []),
+        "tanpa_progres": bool(perlu) and ada_banding and progres_naik == 0 and hubung >= 2,
+        "belum_ditelepon": tel["perlu"],
+        "telepon": tel,
+        "progres_naik": progres_naik if ada_banding else None,
+        "posisi": dict(posisi),
+    }
+
+
+def indikator(daftar: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Insight singkat untuk petugas, dari ringkasan semua fasil."""
+    out = []
+    telp = [x for x in daftar if x["belum_ditelepon"]]
+    if telp:
+        out.append({"kode": "belum_ditelepon", "nada": "warn", "jumlah": len(telp),
+                    "judul": f"{len(telp)} fasil belum pernah ditelepon",
+                    "isi": "Minggu ini chatnya berkali-kali hanya dibaca atau tidak sampai. Coba telepon lalu catat TP."})
+    ok = [x for x in daftar if x["tanpa_progres"]]
+    if ok:
+        out.append({"kode": "tanpa_progres", "nada": "warn", "jumlah": len(ok),
+                    "judul": f"{len(ok)} fasil merespons tapi laporannya tidak bergerak",
+                    "isi": "Sering terhubung minggu ini, tapi tidak ada komponen yang bertambah selesai sejak cutoff "
+                           "sebelumnya. Tanyakan kendalanya lebih spesifik, atau eskalasi ke koordinator."})
+    lama = [x for x in daftar if (x["tunggu_maks"] or 0) > 3]
+    if lama:
+        out.append({"kode": "reviu_lama", "nada": "info", "jumlah": len(lama),
+                    "judul": f"{len(lama)} fasil punya reviu yang menunggu lebih dari 3 hari",
+                    "isi": "Laporan sekolah sudah masuk tapi belum direviu fasil. Ingatkan untuk mereviu."})
+    return out
+
+
+def kode_label() -> list[dict[str, str]]:
+    return [{"kode": k, "arti": v} for k, v in KODE_KOMUNIKASI.items()]
+
+
+def nomor_bersih(v: str) -> str:
+    return re.sub(r"\D", "", v or "")
+
+
+def nomor_milik() -> set[str]:
+    """Nomor yang boleh dibaca/dikirimi dari aplikasi: fasil, koordinator, kepala sekolah binaan petugas."""
+    from .sheets import daftar_nomor
+
+    out: set[str] = set()
+    for s in sekolah_saya():
+        out.update(s.nomor_fasil())
+        out.update(daftar_nomor(s.hp_koor))
+        out.update(daftar_nomor(s.hp_kepsek))
+    return out
+
+
+def nama_nomor() -> dict[str, str]:
+    """{nomor: nama} untuk riwayat."""
+    from .sheets import daftar_nomor
+
+    out: dict[str, str] = {}
+    try:
+        for s in sekolah_saya():
+            for n in s.nomor_fasil():
+                out.setdefault(n, s.fasil)
+            for n in daftar_nomor(s.hp_koor):
+                out.setdefault(n, f"{s.koor} (koordinator)")
+            for n in daftar_nomor(s.hp_kepsek):
+                out.setdefault(n, f"Kepsek {s.nama}")
+    except Exception:
+        pass
+    return out
+
+
+# ---------- status komunikasi minggu ini (papan kedua di LK) ----------
+
+STATUS_KOM = (
+    ("perlu_balas", "Sudah membalas, giliran Anda", "Fasil membalas dan belum dibalas lagi"),
+    ("telepon", "Perlu ditelepon", "Centang satu, tidak ada WA, atau berulang kali hanya dibaca"),
+    ("dibaca", "Dibaca, belum membalas", "Sapa lagi, atau telepon bila berulang"),
+    ("terkirim", "Terkirim, belum dibaca", "Tunggu dibaca"),
+    ("menunggu", "Membalas, belum tuntas", "Sudah membalas, tapi belum ada Kendala / Tindak lanjut atau lambat"),
+    ("terhubung", "Sudah membalas", "Respon baik lewat WhatsApp atau sudah ditelepon"),
+    ("belum", "Belum dihubungi", "Belum ada chat atau kode komunikasi minggu ini"),
+)
+
+
+def peta_chat(senin_iso: str) -> dict[str, dict[str, Any]]:
+    """{nomor: {status, perlu_balas, balasan, waktu}} dari chat yang dibaca/terkirim sejak Senin."""
+    out: dict[str, dict[str, Any]] = {}
+    try:
+        for r in db.query("SELECT nomor, status, balasan_terakhir, waktu_balasan, dicek, perlu_balas FROM chat_status "
+                          "WHERE dicek >= ? OR waktu_balasan >= ?", (senin_iso, senin_iso)):
+            out[r["nomor"]] = {"status": r["status"], "perlu_balas": bool(r["perlu_balas"]),
+                               "balasan": r["balasan_terakhir"] if (r["waktu_balasan"] or "") >= senin_iso else "",
+                               "waktu": r["waktu_balasan"] if (r["waktu_balasan"] or "") >= senin_iso else ""}
+        for r in db.query("SELECT DISTINCT nomor FROM sends WHERE coba = 0 AND status = 'terkirim' AND waktu >= ?",
+                          (senin_iso,)):
+            out.setdefault(r["nomor"], {"status": "terkirim", "perlu_balas": False, "balasan": "", "waktu": ""})
+    except Exception:
+        log.exception("Status chat tidak terbaca")
+    return out
+
+
+def status_kom(r: dict[str, Any], chat: dict[str, Any] | None) -> str:
+    """Satu status komunikasi per fasil: dari chat WhatsApp minggu ini dan kode Log Komunikasi hari ini."""
+    if chat and chat.get("perlu_balas"):
+        return "perlu_balas"
+    if r["kelompok"] == "perlu_telepon" or r["belum_ditelepon"]:
+        return "telepon"
+    k = r["kode_hari_ini"]
+    if k in TERHUBUNG:
+        return "terhubung"
+    if k in ("T1", "T2"):
+        return "menunggu"
+    if k == "R":
+        return "dibaca"
+    st = (chat or {}).get("status", "")
+    if st == "dibalas":
+        return "terhubung"
+    if st == "dibaca":
+        return "dibaca"
+    if st == "terkirim":
+        return "terkirim"
+    if any(d["kode"] in TERHUBUNG for d in r["kode_minggu"]):
+        return "terhubung"
+    return "belum"
