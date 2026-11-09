@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from . import db, lk_baru, schedule, todo
+from . import db, kom_siklus, lk_baru, schedule, todo
 from .lk_baru import KODE_KOMUNIKASI, Sekolah
 from .sheets import normalize_petugas
 
@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 KELOMPOK = (
     ("perlu_telepon", "Perlu ditelepon", "Minggu ini chat minimal 2 kali hanya dibaca tanpa balasan, atau nomor tidak ada WA"),
     ("dibaca", "Dibaca, belum membalas", "Chat hari ini sudah dibaca tapi belum dibalas"),
-    ("terkirim", "Terkirim, belum dibaca", "Chat hari ini terkirim tapi belum dibaca (centang)"),
+    ("terkirim", "Terkirim, belum dibaca", "Chat terkirim tapi belum dibaca (centang satu atau dua abu-abu)"),
     ("menunggu", "Menunggu konfirmasi", "Sudah terhubung, jawabannya belum tuntas atau lambat"),
     ("belum", "Belum dihubungi hari ini", "Belum ada catatan di Log Komunikasi hari ini"),
     ("terhubung", "Terhubung hari ini", "Respon baik lewat WhatsApp atau sudah ditelepon"),
@@ -214,7 +214,7 @@ def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[st
         return "belum"
     if k == "N":
         return "perlu_telepon"  # nomor tidak ada WhatsApp: hanya bisa ditelepon
-    if k == "C":
+    if k in ("C", "C2"):
         return "terkirim"
     if k == "R":
         # perlu ditelepon hanya bila minggu ini minimal 2 kali hanya dibaca dan belum pernah membalas/ditelepon
@@ -227,36 +227,13 @@ def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[st
 
 # ---------- kode otomatis dari WhatsApp ----------
 
-def kode_wa_hari_ini(nomor: str, hari: str) -> str:
-    """Kode komunikasi hari ini dari catatan kirim + status chat lokal; '' bila belum ada kontak hari ini."""
-    if not nomor:
-        return ""
-    kirim = db.query("SELECT status, keterangan, waktu FROM sends WHERE coba = 0 AND nomor = ? "
-                     "AND substr(waktu, 1, 10) = ? ORDER BY waktu", (nomor, hari))
-    balas = db.query("SELECT waktu FROM aktivitas WHERE nomor = ? AND jenis = 'balas' AND substr(waktu, 1, 10) = ?",
-                     (nomor, hari))
-    chat = db.query_one("SELECT status, waktu_balasan, dicek FROM chat_status WHERE nomor = ?", (nomor,))
-    terkirim = any(x["status"] == "terkirim" for x in kirim) or bool(balas)
-    if not terkirim:
-        if any("tidak terdaftar" in (x["keterangan"] or "").lower() for x in kirim):
-            return "N"
-        return ""
-    if chat:
-        if chat["status"] == "dibalas" and (chat["waktu_balasan"] or "")[:10] == hari:
-            return "T"
-        if (chat["dicek"] or "")[:10] == hari:
-            return "R" if chat["status"] in ("dibaca", "dibalas") else "C"
-    # chat belum dicek sejak dikirim: belum tahu dibaca/dibalas, jangan tebak "C"
-    return ""
-
-
 def sinkron_wa(hari: str | None = None) -> int:
-    """Tulis kode Log Komunikasi hari ini dari WhatsApp (hanya bila WA otomatis menyala).
-    Sel yang diisi petugas sendiri tidak ditimpa; sel yang dulu diisi aplikasi boleh diperbarui."""
+    """Tulis kode Log Komunikasi dari WhatsApp untuk setiap hari kerja sejak blast terakhir tiap fasil
+    (lihat kom_siklus). Hanya bila WA otomatis menyala. Sel yang diisi petugas sendiri tidak ditimpa."""
     if not wa_otomatis():
         return 0
     _db()
-    hari = hari or schedule.now().date().isoformat()
+    hari_d = date.fromisoformat(hari) if hari else schedule.now().date()
     with _lock:
         try:
             fasil = fasil_saya()
@@ -264,31 +241,34 @@ def sinkron_wa(hari: str | None = None) -> int:
         except Exception:
             log.exception("Log Komunikasi tidak terbaca untuk sinkron WA")
             return 0
-        if hari not in logkom.tanggal:
-            return 0
-        auto = {r["npsn"]: r["kode"] for r in db.query("SELECT npsn, kode FROM kom_auto WHERE tanggal = ?", (hari,))}
-        tulis: dict[str, str] = {}
+        sejak = (hari_d - timedelta(days=kom_siklus.MAKS_HARI)).isoformat()
+        auto: dict[str, dict[str, str]] = {}
+        for r in db.query("SELECT tanggal, npsn, kode FROM kom_auto WHERE tanggal >= ?", (sejak,)):
+            auto.setdefault(r["npsn"], {})[r["tanggal"]] = r["kode"]
+        per_hari: dict[str, dict[str, str]] = {}
         for f in fasil.values():
-            k = kode_wa_hari_ini(f.nomor, hari)
-            for s in f.sekolah:
-                lama = logkom.kode.get(s.npsn, {}).get(hari, "")
-                if lama == k:
-                    continue
-                if not k and auto.get(s.npsn) != lama:
-                    continue  # tidak ada kode baru; hanya kode tebakan aplikasi yang dihapus
-                if lama and auto.get(s.npsn) != lama:
-                    continue  # diisi petugas sendiri
-                tulis[s.npsn] = k
-        if not tulis:
-            return 0
-        try:
-            n = lk_baru.tulis_log_kom(hari, tulis)
-        except Exception:
-            log.exception("Kode komunikasi otomatis gagal ditulis")
-            return 0
-        with db.tx() as c:
-            c.executemany("INSERT INTO kom_auto(tanggal, npsn, kode) VALUES(?,?,?) ON CONFLICT(tanggal, npsn) "
-                          "DO UPDATE SET kode = excluded.kode", [(hari, k, v) for k, v in tulis.items()])
+            s = kom_siklus.siklus(f.nomor, hari_d)
+            if s is None:
+                continue
+            k = kom_siklus.kejadian(f.nomor, s)
+            for sk in f.sekolah:
+                isi = logkom.kode.get(sk.npsn, {})
+                for t, kode in kom_siklus.susun(s, k, hari_d, isi, auto.get(sk.npsn, {})).items():
+                    per_hari.setdefault(t, {})[sk.npsn] = kode
+        if any("C2" in x.values() for x in per_hari.values()) and not lk_baru.pastikan_kode_dropdown("C2"):
+            # dropdown di sheet tidak bisa ditambah C2: pakai C supaya tetap valid
+            per_hari = {t: {n: ("C" if v == "C2" else v) for n, v in x.items()} for t, x in per_hari.items()}
+        n = 0
+        for t in sorted(per_hari):
+            tulis = per_hari[t]
+            try:
+                n += lk_baru.tulis_log_kom(t, tulis)
+            except Exception:
+                log.exception("Kode komunikasi otomatis gagal ditulis untuk %s", t)
+                continue
+            with db.tx() as c:
+                c.executemany("INSERT INTO kom_auto(tanggal, npsn, kode) VALUES(?,?,?) ON CONFLICT(tanggal, npsn) "
+                              "DO UPDATE SET kode = excluded.kode", [(t, k, v) for k, v in tulis.items()])
         return n
 
 

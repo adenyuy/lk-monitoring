@@ -466,6 +466,7 @@ KODE_KOMUNIKASI = {
     "TP": "Terhubung melalui telepon",
     "R": "Chat hanya dibaca",
     "C": "Centang satu (belum diterima)",
+    "C2": "Centang dua, belum dibaca dan tidak membalas",
     "N": "Nomor tidak terhubung WhatsApp",
 }
 _RE_TGL = re.compile(r"(\d{1,2})/(\d{1,2})")
@@ -532,6 +533,52 @@ def _baris_kom_cocok(lk: LogKom, npsn: list[str]) -> bool:
         if re.sub(r"\.0+$", "", _teks((vr.get("values") or [[""]])[0][0])) != n:
             return False
     return True
+
+
+def pastikan_kode_dropdown(kode: str) -> bool:
+    """Pastikan `kode` ada di dropdown kolom tanggal Log Komunikasi (menambahkannya bila perlu).
+    False bila dropdown tidak bisa diubah (mis. sumbernya rentang sel, bukan daftar)."""
+    kunci = f"lk2_dropdown_{kode}"
+    if cache.get(kunci, 3600, lambda: None):
+        return True
+    try:
+        lk = baca_log_kom()
+        if not lk.tanggal:
+            return False
+        kolom = sorted(set(lk.tanggal.values()))
+        ss = _ss()
+        meta = ss.fetch_sheet_metadata(params={
+            "ranges": f"'{TAB_LOG_KOM}'!{col_letter(kolom[-1])}3", "includeGridData": "true",
+            "fields": "sheets(properties(sheetId,gridProperties(rowCount)),data(rowData(values(dataValidation))))"})
+        sh = meta["sheets"][0]
+        sel = (((sh.get("data") or [{}])[0].get("rowData") or [{}])[0].get("values") or [{}])[0]
+        aturan = sel.get("dataValidation")
+        if not aturan:
+            cache.get(kunci, 3600, lambda: True, refresh=True)
+            return True  # tanpa dropdown: nilai apa pun boleh
+        kondisi = aturan.get("condition", {})
+        if kondisi.get("type") != "ONE_OF_LIST":
+            log.warning("Dropdown Log Komunikasi bukan daftar (%s); kode %s tidak ditambahkan", kondisi.get("type"), kode)
+            return False
+        nilai = [v.get("userEnteredValue", "") for v in kondisi.get("values", [])]
+        if kode not in nilai:
+            aturan = {**aturan, "condition": {**kondisi, "values": [{"userEnteredValue": v} for v in [*nilai, kode]]}}
+            sid, baris = sh["properties"]["sheetId"], sh["properties"]["gridProperties"]["rowCount"]
+            runs: list[list[int]] = []
+            for c in kolom:
+                if runs and runs[-1][1] == c:
+                    runs[-1][1] = c + 1
+                else:
+                    runs.append([c, c + 1])
+            ss.batch_update({"requests": [{"setDataValidation": {
+                "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": baris, "startColumnIndex": a,
+                          "endColumnIndex": b}, "rule": aturan}} for a, b in runs]})
+            log.info("Kode %s ditambahkan ke dropdown Log Komunikasi", kode)
+        cache.get(kunci, 3600, lambda: True, refresh=True)
+        return True
+    except Exception:
+        log.exception("Dropdown Log Komunikasi tidak bisa diperiksa")
+        return False
 
 
 def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:

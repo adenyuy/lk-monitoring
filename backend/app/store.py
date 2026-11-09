@@ -45,16 +45,21 @@ def sends_on(tanggal: str) -> list[dict[str, Any]]:
 
 def to_refresh(since_tanggal: str) -> list[str]:
     """Nomor yang perlu dicek chat-nya: ada pesan keluar (Broadcast atau chat dari aplikasi) sejak tanggal itu
-    dan belum ada balasan yang lebih baru dari pesan keluar terakhir."""
+    dan belum ada balasan yang lebih baru dari pesan keluar terakhir. Termasuk blast lewat HP yang sudah
+    terbaca di chat (kom_mulai)."""
+    from . import kom_siklus
+
+    kom_siklus._db()
     rows = db.query(
         "SELECT k.nomor FROM (SELECT nomor, MAX(waktu) AS w FROM ("
         "  SELECT nomor, waktu FROM sends WHERE status = 'terkirim' AND coba = 0 AND tanggal >= ? "
         "  UNION ALL SELECT nomor, waktu FROM aktivitas WHERE jenis = 'balas' AND waktu >= ?"
+        "  UNION ALL SELECT nomor, tanggal || 'T00:00:00' FROM kom_mulai WHERE tanggal >= ?"
         ") GROUP BY nomor) k LEFT JOIN chat_status c ON c.nomor = k.nomor "
         "WHERE c.status IS NULL OR c.status != 'dibalas' OR c.waktu_balasan < k.w "
         "OR c.perlu_balas = 1 "  # cek lagi: mungkin sudah dibalas lewat HP
         "OR c.dicek < ?",  # belum pernah dicek sejak fitur "perlu dibalas" ada
-        (since_tanggal, since_tanggal, db.get_setting("perlu_balas_sejak") or ""),
+        (since_tanggal, since_tanggal, since_tanggal, db.get_setting("perlu_balas_sejak") or ""),
     )
     return [r["nomor"] for r in rows]
 

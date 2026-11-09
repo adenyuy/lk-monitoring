@@ -254,6 +254,7 @@ export function BlastView() {
       )}
 
       {state && (jalan || state.selesai) && <Progres state={state} onUbah={muatState} />}
+      {st?.wa_otomatis && !jalan && <BlastHp />}
 
       <div ref={atasRef} className={s.stepper} role="list" aria-label="Langkah blast">
         {LANGKAH.map((l) => {
@@ -652,6 +653,50 @@ export function Progres({ state, onUbah, dasar = "/api/blast" }: { state: BlastS
           </ul>
         </details>
       )}
+    </section>
+  );
+}
+
+
+type Pindai = { berjalan: boolean; dicek: number; total: number; selesai: string };
+
+/** Blast dikirim dari HP: minta aplikasi membaca chat semua fasil supaya Log Komunikasi ikut terisi. */
+function BlastHp() {
+  const [p, setP] = useState<Pindai | null>(null);
+  const [galat, setGalat] = useState("");
+  const [minta, setMinta] = useState(false);
+
+  const cek = useCallback(async () => {
+    try { setP(await api<Pindai>("/api/chat/pindai")); } catch { /* hanya info */ }
+  }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cek(); }, [cek]);
+  usePolling(cek, 3000, !!p?.berjalan);
+
+  const mulai = async () => {
+    setGalat("");
+    setMinta(true);
+    try { setP(await post<Pindai>("/api/chat/pindai")); } catch (e) { setGalat(e instanceof Error ? e.message : String(e)); }
+    finally { setMinta(false); }
+  };
+
+  const selesai = p?.selesai ? new Date(p.selesai).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "";
+  return (
+    <section className={s.hp} aria-labelledby="blast-hp">
+      <div>
+        <b id="blast-hp">Sudah blast lewat HP?</b>
+        <p>
+          {p?.berjalan
+            ? (p.total ? `Membaca chat fasil ${p.dicek} dari ${p.total}…` : "Menunggu giliran membaca chat…")
+            : "Aplikasi akan membuka chat semua fasil, mencatat tanggal pesan yang kamu kirim, lalu mengisi Log "
+              + "Komunikasi sejak hari itu. Chat juga dicek otomatis sekali sehari."}
+          {!p?.berjalan && selesai && <> Terakhir dibaca pukul {selesai}.</>}
+        </p>
+        {galat && <p className={s.hpGalat}>{galat}</p>}
+      </div>
+      <Button variant="secondary" size="sm" onClick={() => void mulai()} loading={minta || !!p?.berjalan}>
+        {p?.berjalan ? "Sedang membaca" : "Baca chat sekarang"}
+      </Button>
     </section>
   );
 }

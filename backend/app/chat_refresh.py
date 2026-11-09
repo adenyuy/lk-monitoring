@@ -3,9 +3,10 @@
 Berjalan tiap 10 menit dan bisa dipicu manual, hanya bila jendela WhatsApp app
 terbuka dan pengiriman TIDAK sedang berjalan (pengiriman selalu didahulukan).
 
-Pindai awal: fasil yang belum tercatat dihubungi minggu ini (mis. pengguna baru, atau chat lewat HP) dicek sekali
-per minggu. Bila minggu ini sudah ada pesan keluar di chat-nya, fasil itu dihitung sudah dihubungi, lalu status
-dibaca / dibalasnya ikut tercatat, jadi langsung masuk kelompok yang benar.
+Pindai harian: chat semua fasil dibuka sekali per hari (yang belum dicek hari itu), supaya blast lewat HP ikut
+terbaca: pesan keluarnya memulai siklus Log Komunikasi (kom_siklus) dengan tanggal pesan aslinya, lalu chat itu
+ikut dipantau tiap 10 menit. Fasil yang belum tercatat dihubungi minggu ini juga dicatat sebagai sudah dihubungi.
+Tombol "Saya sudah blast lewat HP" memicu pindai ulang semua chat saat itu juga (pindai_sekarang).
 """
 
 import json
@@ -55,6 +56,7 @@ def refresh_once() -> dict:
             info, baris = worker.call(lambda b, n=nomor: actions.read_thread(b, n), timeout=120)
             if info.status == "belum_ada":
                 continue
+            _catat_siklus(nomor, baris)
             if info.status == "dibalas":
                 try:  # balasan berformat "Kendala: … Tindak lanjut: …" -> isi Tindak Lanjut di LK
                     from . import tl_auto
@@ -81,6 +83,16 @@ def refresh_once() -> dict:
         return {"error": str(e)}
     finally:
         _lock.release()
+
+
+def _catat_siklus(nomor: str, baris: list[actions.Row]) -> None:
+    """Catat centang & balasan untuk kode Log Komunikasi per siklus (lihat kom_siklus)."""
+    try:
+        from . import kom_siklus
+
+        kom_siklus.catat_chat(nomor, baris, tanggal_pesan, schedule.now().date())
+    except Exception:
+        log.exception("Kejadian chat untuk Log Komunikasi gagal dicatat")
 
 
 def tanggal_pesan(waktu: str) -> date | None:
@@ -117,51 +129,78 @@ def catat_dari_chat(nomor: str, rows: list[actions.Row], senin: date) -> str:
     return info.status
 
 
-def pindai_awal() -> int:
-    """Cek sekali per minggu chat fasil yang belum tercatat dihubungi minggu ini."""
+pindai_state = {"berjalan": False, "dicek": 0, "total": 0, "selesai": ""}
+
+
+def pindai_awal(paksa: bool = False) -> int:
+    """Buka chat semua fasil sekali per hari (paksa: semuanya sekarang, mis. sesudah blast lewat HP)."""
     from .sheets import nomor_milik
 
     senin = tahap.senin_iso()
+    hari = schedule.now().date().isoformat()
     try:
         catatan = json.loads(db.get_setting("pindai_awal") or "{}")
     except ValueError:
         catatan = {}
-    sudah = set(catatan.get("nomor", [])) if catatan.get("senin") == senin else set()
+    sudah = set(catatan.get("nomor", [])) if catatan.get("hari") == hari and not paksa else set()
+    dicek = set() if paksa else {r["nomor"] for r in db.query(
+        "SELECT nomor FROM chat_status WHERE substr(dicek, 1, 10) = ?", (hari,))}
     kontak = tahap.kontak_minggu()
     try:
         semua = sorted(nomor_milik())
     except Exception:
-        log.exception("Daftar fasil untuk pindai awal tidak terbaca")
+        log.exception("Daftar fasil untuk pindai harian tidak terbaca")
         return 0
-    sisa = [n for n in semua if n not in sudah and not kontak.get(n, {}).get("terkirim")]
+    sisa = [n for n in semua if n not in sudah and n not in dicek]
+    if not sisa:
+        return 0
+    pindai_state.update(berjalan=True, dicek=0, total=len(sisa), selesai="")
     tercatat = 0
-    for n in sisa:
-        if _sibuk():
-            break
-        try:
-            _, rows = worker.call(lambda b, x=n: actions.read_thread(b, x), timeout=120)
-        except actions.NotLoggedIn:
-            break
-        except Exception:
-            log.exception("Pindai awal %s gagal", n)
-            continue
-        if catat_dari_chat(n, rows, date.fromisoformat(senin)):
-            tercatat += 1
-        sudah.add(n)
-        db.set_setting("pindai_awal", json.dumps({"senin": senin, "nomor": sorted(sudah)}))
+    try:
+        for n in sisa:
+            if _sibuk():
+                break
+            try:
+                _, rows = worker.call(lambda b, x=n: actions.read_thread(b, x), timeout=120)
+            except actions.NotLoggedIn:
+                break
+            except Exception:
+                log.exception("Pindai harian %s gagal", n)
+                continue
+            _catat_siklus(n, rows)
+            if not kontak.get(n, {}).get("terkirim") and catat_dari_chat(n, rows, date.fromisoformat(senin)):
+                tercatat += 1
+            sudah.add(n)
+            pindai_state["dicek"] += 1
+            db.set_setting("pindai_awal", json.dumps({"hari": hari, "nomor": sorted(sudah)}))
+    finally:
+        pindai_state.update(berjalan=False, selesai=schedule.now().isoformat(timespec="seconds"))
     if tercatat:
         events.publish("chat_diperbarui", jumlah=tercatat)
     return tercatat
 
 
+def pindai_sekarang() -> None:
+    """Minta pindai ulang semua chat fasil (dijalankan di putaran latar berikutnya)."""
+    db.set_setting("pindai_paksa", True)
+    pindai_state.update(berjalan=True, dicek=0, total=0, selesai="")
+    trigger()
+
+
 def _pindai() -> None:
     if not _lock.acquire(blocking=False):
         return
+    paksa = bool(db.get_setting("pindai_paksa", False))
     try:
         if not _sibuk() and worker.browser_open() and db.get_setting("wa_otomatis", True):
-            pindai_awal()
+            if paksa:
+                db.set_setting("pindai_paksa", False)
+            pindai_awal(paksa)
+        elif paksa:
+            pindai_state.update(berjalan=False)
     except Exception:
-        log.exception("Pindai awal gagal")
+        log.exception("Pindai harian gagal")
+        pindai_state.update(berjalan=False)
     finally:
         _lock.release()
 

@@ -138,6 +138,7 @@ export const KODE_WARNA: Record<string, { bg: string; fg: string; label: string 
   T2: { bg: "#fde9d2", fg: "#8a4a0c", label: "Respon lambat" },
   R: { bg: "#e8edf9", fg: "#2346a0", label: "Hanya dibaca" },
   C: { bg: "#fcecec", fg: "#a6282b", label: "Centang satu" },
+  C2: { bg: "#f3eef0", fg: "#7a3b45", label: "Centang dua, tidak membalas" },
   N: { bg: "#f2e6ee", fg: "#8a2d63", label: "Tidak ada WA" },
 };
 

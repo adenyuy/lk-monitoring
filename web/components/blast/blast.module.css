@@ -221,3 +221,11 @@
 .waTitik { width: 9px; height: 9px; border-radius: 50%; background: #c4c9d2; }
 .waOn { background: #2f8f5b; box-shadow: 0 0 0 3px #e3f3ea; }
 .tunggu { display: flex; align-items: center; gap: 10px; color: var(--primary); font-size: 14px; }
+
+/* blast lewat HP */
+.hp { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap;
+  background: var(--surface); border: 1px dashed #c9d3ec; border-radius: 12px; padding: 12px 16px; }
+.hp > div { flex: 1 1 320px; min-width: 0; }
+.hp b { font-size: 14px; font-weight: 600; }
+.hp p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.hp .hpGalat { color: var(--bad-fg); }

@@ -47,7 +47,7 @@ GRUP_KOM = (
     ("terhubung", "Terhubung", ("T", "TP"), "#2f8f5b"),
     ("menunggu", "Menunggu / respon lambat", ("T1", "T2"), "#d9a23a"),
     ("dibaca", "Hanya dibaca", ("R",), "#5673bf"),
-    ("centang", "Centang satu", ("C",), "#c8484b"),
+    ("centang", "Belum dibaca (centang)", ("C", "C2"), "#c8484b"),
     ("tanpa_wa", "Tidak ada WA", ("N",), "#9b4a7f"),
     ("belum", "Belum dihubungi", (), "#c4c9d2"),
 )

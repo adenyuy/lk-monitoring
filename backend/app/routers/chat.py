@@ -73,6 +73,32 @@ def _jalan(fn, timeout: float):
         raise HTTPException(500, f"WhatsApp tidak bisa dibaca: {e}") from e
 
 
+@router.get("/pindai")
+def status_pindai(_=Depends(wa_blast)) -> dict[str, Any]:
+    from .. import chat_refresh
+
+    return dict(chat_refresh.pindai_state)
+
+
+@router.post("/pindai")
+def pindai(_=Depends(wa_blast)) -> dict[str, Any]:
+    """Sesudah blast lewat HP: buka ulang chat semua fasil supaya pesan keluarnya tercatat di Log Komunikasi."""
+    from .. import chat_refresh
+
+    if not worker.browser_open():
+        raise HTTPException(409, "Jendela WhatsApp belum dibuka. Buka WhatsApp di aplikasi dulu.")
+    if not store_wa_otomatis():
+        raise HTTPException(409, "WhatsApp otomatis sedang dimatikan. Nyalakan dulu di pengaturan.")
+    chat_refresh.pindai_sekarang()
+    return dict(chat_refresh.pindai_state)
+
+
+def store_wa_otomatis() -> bool:
+    from .. import db
+
+    return bool(db.get_setting("wa_otomatis", True))
+
+
 @router.post("/{nomor}/baca")
 def baca(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
     n = _nomor_fasil(nomor)
