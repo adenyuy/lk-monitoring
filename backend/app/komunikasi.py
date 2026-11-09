@@ -205,6 +205,17 @@ def minggu_ini(hari: date) -> list[str]:
     return [(senin + timedelta(days=i)).isoformat() for i in range(6)]
 
 
+def hari_terakhir(hari: date, jumlah: int = 5, mulai: str = "") -> list[str]:
+    """`jumlah` hari kerja (Senin–Sabtu) terakhir sampai `hari`, urut dari yang lama; tidak sebelum `mulai`
+    (kolom pertama Log Komunikasi). Mis. Senin 9 Nov -> Kam 5, Jum 6, Sab 7, Sen 9."""
+    out, d = [], hari
+    while len(out) < jumlah and (not mulai or d.isoformat() >= mulai) and d > hari - timedelta(days=14):
+        if d.weekday() < 6:
+            out.append(d.isoformat())
+        d -= timedelta(days=1)
+    return out[::-1]
+
+
 def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[str]) -> str:
     if semua_hijau:
         return "beres"
@@ -310,7 +321,9 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
         "punya_nomor": bool(f.nomor),
         "kelompok": kel,
         "kode_hari_ini": kode.get(hari, ""),
-        "kode_minggu": [{"tanggal": d, "kode": kode.get(d, "")} for d in minggu],
+        # 5 hari kerja terakhir sampai hari ini (bergeser tiap hari, melewati Minggu)
+        "kode_minggu": [{"tanggal": d, "kode": kode.get(d, "")}
+                        for d in hari_terakhir(date.fromisoformat(hari), 5, min(logkom.tanggal, default=""))],
         "sekolah": len(f.sekolah), "perlu": len(perlu), "lengkap": lengkap,
         "todo": sum(len(rencana[s.npsn].todo) for s in f.sekolah),
         "todo_fasil": sum(1 for s in f.sekolah for t in rencana[s.npsn].todo if t.pelaku == "fasil"),

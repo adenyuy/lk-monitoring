@@ -129,7 +129,9 @@ def test_blast_lewat_hp_terbaca_dari_chat():
     assert NO in store.to_refresh("2026-11-03")  # sesudahnya ikut dipantau tiap 10 menit
 
 
-def test_blast_hp_senin_memulai_siklus_baru():
+def test_blast_hp_senin_memulai_siklus_baru(monkeypatch):
+    # blast lewat HP ke banyak fasil hari Senin = putaran (chat satuan tidak mengulang siklus)
+    monkeypatch.setattr(ks, "putaran", lambda hari: [KAM, SEN])
     rows = [Row(out=True, status="read", text="blast Kamis", waktu="2026-11-05"),
             Row(out=False, status="", text="ok", waktu="2026-11-07"),
             Row(out=True, status="delivered", text="blast Senin", waktu="2026-11-09")]
@@ -153,7 +155,9 @@ def test_balasan_minggu_ikut_senin():
     assert kode(SEN) == {"2026-11-05": "C2", "2026-11-06": "C2", "2026-11-07": "C2", "2026-11-09": "T1"}
 
 
-def test_balasan_minggu_ikut_senin_walau_senin_blast_baru():
+def test_balasan_minggu_ikut_senin_walau_senin_blast_baru(monkeypatch):
+    # blast lewat HP ke banyak fasil hari Senin = putaran (chat satuan tidak mengulang siklus)
+    monkeypatch.setattr(ks, "putaran", lambda hari: [KAM, SEN])
     rows = [Row(out=True, status="read", text="blast Kamis", waktu="2026-11-05"),
             Row(out=False, status="", text="Kendala: hujan", waktu="2026-11-08"),
             Row(out=True, status="sent", text="blast Senin", waktu="2026-11-09")]
@@ -264,3 +268,22 @@ def test_respon_lambat_t2():
                        Row(out=False, status="", text="oke kak", waktu="2026-11-05")], tgl, SEN)
     h = ks.susun_semua(NO, SEN, {}, {}, [date(2026, 11, 2)])
     assert h["2026-11-04"] == "C2" and h["2026-11-05"] == "T2"  # baru dibalas hari kerja ke-3
+
+
+def test_chat_lanjutan_di_tengah_siklus_tidak_mengulang():
+    # blast Jumat dari aplikasi; Sabtu petugas chat "gimana kak?" (bukan putaran) -> siklus Jumat tetap jalan
+    kirim(JUM)
+    rows = [Row(out=True, status="read", text="blast", waktu="2026-11-06"),
+            Row(out=True, status="read", text="gimana kak?", waktu="2026-11-07")]
+    ks.catat_chat(NO, rows, tgl, SEN)
+    put = [JUM]
+    s = ks.daftar_siklus(NO, SEN, put)
+    assert [x.awal for x in s] == [JUM]
+    assert ks.susun_semua(NO, SEN, {}, {}, put) == {"2026-11-06": "C2", "2026-11-07": "C2", "2026-11-09": "R"}
+
+
+def test_chat_satuan_di_luar_siklus_memulai_siklus():
+    # fasil tidak ikut putaran Jumat; Senin petugas chat dia sendiri -> siklus baru mulai Senin
+    ks.catat_chat(NO, [Row(out=True, status="delivered", text="halo kak, gimana progresnya?", waktu="2026-11-09")],
+                  tgl, SEN)
+    assert [x.awal for x in ks.daftar_siklus(NO, SEN, [JUM])] == [SEN]

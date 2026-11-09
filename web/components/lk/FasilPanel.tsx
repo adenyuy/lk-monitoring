@@ -242,15 +242,15 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
               )}
             </div>
             <div className={s.komMinggu}>
-              <span className={s.label}>Minggu ini</span>
-              <ol className={s.riwayatKode} aria-label="Kode komunikasi minggu ini">
+              <span className={s.label}>5 hari terakhir</span>
+              <ol className={s.riwayatKode} aria-label="Kode komunikasi 5 hari kerja terakhir">
                 {data.kode_minggu.map((d) => {
                   const w = KODE_WARNA[d.kode];
                   const tgl = new Date(`${d.tanggal}T00:00:00`);
                   return (
                     <li key={d.tanggal} className={d.tanggal === data.hari ? s.hariIni : undefined}
                       title={`${HARI_PENDEK[tgl.getDay()]} ${tgl.getDate()}: ${d.kode ? `${d.kode} (${w?.label})` : "belum dicatat"}`}>
-                      <small>{HARI_PENDEK[tgl.getDay()]}</small>
+                      <small>{HARI_PENDEK[tgl.getDay()]} {tgl.getDate()}</small>
                       <b style={w ? { background: w.bg, color: w.fg } : undefined}>{d.kode || "–"}</b>
                     </li>
                   );

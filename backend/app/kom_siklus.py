@@ -123,31 +123,49 @@ def putaran(hari: date) -> list[date]:
 
 
 def daftar_siklus(nomor: str, hari: date, putaran_: list[date] | None = None) -> list[Siklus]:
-    """Semua siklus kirim fasil ini dalam MAKS_HARI terakhir, urut dari yang lama. Tiap siklus berlaku sampai sehari
-    sebelum siklus fasil ini berikutnya ATAU putaran blast berikutnya (yang lebih dulu)."""
+    """Semua siklus kirim fasil ini dalam MAKS_HARI terakhir, urut dari yang lama.
+
+    Awal siklus "kuat": blast/Broadcast dari aplikasi, atau pesan keluar di hari putaran (blast lewat HP).
+    Chat satuan (pesan keluar lain yang terbaca di chat, mis. "gimana kak?") hanya memulai siklus bila fasil itu
+    sedang tidak punya siklus aktif, jadi chat lanjutan di tengah siklus blast tidak mengulang kodenya dari awal.
+    Tiap siklus berlaku sampai sehari sebelum awal siklus berikutnya atau putaran blast berikutnya."""
     if not nomor:
         return []
     _db()
     batas, akhir = _rentang(hari)
-    kirim = {r["w"] for r in db.query(
+    put = putaran(hari) if putaran_ is None else putaran_
+    put_iso = {p.isoformat() for p in put}
+    kuat = {r["w"] for r in db.query(
         f"SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'terkirim' AND {_BUKAN_BLAST} "
         "AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
     # pesan keluar yang terbaca di chat, kecuali hari survei / undangan WAG untuk nomor ini
     lain = {r["w"] for r in db.query(
         "SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'terkirim' "
         f"AND NOT ({_BUKAN_BLAST}) AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
-    kirim |= {r["tanggal"] for r in db.query(
+    chat = {r["tanggal"] for r in db.query(
         "SELECT tanggal FROM kom_mulai WHERE nomor = ? AND tanggal >= ? AND tanggal < ?", (nomor, batas, akhir))
         if r["tanggal"] not in lain}
+    kuat |= chat & put_iso            # blast lewat HP di hari putaran
+    lemah = sorted(chat - kuat)       # chat satuan
     gagal = {r["w"] for r in db.query(
         "SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'gagal' "
         "AND lower(keterangan) LIKE '%tidak terdaftar%' AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
-    out = [Siklus(date.fromisoformat(w), gagal=w not in kirim) for w in sorted(kirim | gagal)]
-    put = putaran(hari) if putaran_ is None else putaran_
-    for i, s in enumerate(out):
-        batas_akhir = [b.awal for b in out[i + 1:i + 2]] + [p for p in put if p > s.awal][:1]
-        if batas_akhir:
-            s.akhir = min(batas_akhir) - timedelta(days=1)
+    gagal -= kuat
+
+    def susun_akhir(daftar: list[Siklus]) -> list[Siklus]:
+        daftar.sort(key=lambda s: s.awal)
+        for i, s in enumerate(daftar):
+            s.akhir = None
+            batas_akhir = [b.awal for b in daftar[i + 1:i + 2]] + [p for p in put if p > s.awal][:1]
+            if batas_akhir:
+                s.akhir = min(batas_akhir) - timedelta(days=1)
+        return daftar
+
+    out = susun_akhir([Siklus(date.fromisoformat(w), gagal=w in gagal) for w in sorted(kuat | gagal)])
+    for w in lemah:  # chat satuan: hanya bila tanggal itu tidak tercakup siklus mana pun
+        d = date.fromisoformat(w)
+        if not any(s.awal <= d and (s.akhir is None or d <= s.akhir) for s in out):
+            out = susun_akhir(out + [Siklus(d)])
     return out
 
 
@@ -247,8 +265,12 @@ class Kejadian:
 def kejadian(nomor: str, s: Siklus) -> Kejadian:
     _db()
     a = s.awal.isoformat()
-    amat = {r["jenis"]: date.fromisoformat(r["tanggal"])
-            for r in db.query("SELECT jenis, tanggal FROM kom_amat WHERE nomor = ? AND awal = ?", (nomor, a))}
+    # Pengamatan centang yang tercatat di dalam rentang siklus ini (juga yang dulu tercatat dengan awal siklus lain,
+    # mis. sebelum chat lanjutan berhenti dihitung sebagai siklus baru)
+    sampai = (s.akhir or date(9999, 12, 31)).isoformat()
+    amat = {r["jenis"]: date.fromisoformat(r["t"]) for r in db.query(
+        "SELECT jenis, CASE WHEN jenis = 'masih_c' THEN MAX(tanggal) ELSE MIN(tanggal) END AS t FROM kom_amat "
+        "WHERE nomor = ? AND awal >= ? AND awal <= ? AND tanggal >= ? GROUP BY jenis", (nomor, a, sampai, a))}
     # Minggu tidak ada di Log Komunikasi: balasan hari Minggu digabung ke Senin, juga bila Senin ada blast baru.
     dari = (s.awal - timedelta(days=1)).isoformat() if s.awal.weekday() == 0 else a
     bls = db.query("SELECT tanggal, konfirmasi FROM kom_balas WHERE nomor = ? AND tanggal >= ? ORDER BY tanggal",
