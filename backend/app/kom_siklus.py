@@ -5,7 +5,8 @@ dari hari itu sampai hari ini diisi, termasuk hari yang terlewat karena laptop m
 kejadian hari itu; bila tidak ada kejadian baru, kode hari sebelumnya diteruskan (termasuk kode yang diisi
 petugas sendiri).
 
-  C   terkirim, centang satu          C2  centang dua abu-abu (diterima, belum dibaca)
+  C   terlihat masih centang satu     C2  centang dua abu-abu (diterima, belum dibaca)
+  (kosong) terkirim tapi belum ada info apa pun: sel tidak diisi
   R   dibaca, tidak membalas          T1  membalas, belum konfirmasi Kendala / Tindak lanjut
   T   membalas dengan Kendala / Tindak lanjut (konfirmasi)
   N   nomor tidak ada WhatsApp (kiriman gagal permanen)
@@ -73,29 +74,35 @@ def konfirmasi(teks: str) -> bool:
 @dataclass
 class Siklus:
     awal: date
-    gagal: bool = False  # kiriman gagal permanen (nomor tidak ada WA), tidak ada yang terkirim sesudahnya
+    gagal: bool = False  # kiriman gagal permanen (nomor tidak ada WA), tidak ada yang terkirim di hari itu
+    akhir: date | None = None  # hari terakhir siklus (sehari sebelum siklus berikutnya); None = sampai hari ini
+
+
+def daftar_siklus(nomor: str, hari: date) -> list[Siklus]:
+    """Semua siklus kirim dalam MAKS_HARI terakhir, urut dari yang lama. Tiap siklus berlaku sampai sehari sebelum
+    siklus berikutnya."""
+    if not nomor:
+        return []
+    _db()
+    batas = (hari - timedelta(days=MAKS_HARI)).isoformat()
+    akhir = (hari + timedelta(days=1)).isoformat()
+    kirim = {r["w"] for r in db.query(
+        "SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'terkirim' "
+        "AND waktu >= ? AND waktu < ? UNION SELECT tanggal FROM kom_mulai WHERE nomor = ? AND tanggal >= ? "
+        "AND tanggal < ?", (nomor, batas, akhir, nomor, batas, akhir))}
+    gagal = {r["w"] for r in db.query(
+        "SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'gagal' "
+        "AND lower(keterangan) LIKE '%tidak terdaftar%' AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
+    out = [Siklus(date.fromisoformat(w), gagal=w not in kirim) for w in sorted(kirim | gagal)]
+    for a, b in zip(out, out[1:]):
+        a.akhir = b.awal - timedelta(days=1)
+    return out
 
 
 def siklus(nomor: str, hari: date) -> Siklus | None:
     """Siklus kirim yang berlaku pada `hari` untuk nomor ini."""
-    if not nomor:
-        return None
-    _db()
-    batas = (hari - timedelta(days=MAKS_HARI)).isoformat()
-    akhir = (hari + timedelta(days=1)).isoformat()
-    kirim = db.query_one(
-        "SELECT MAX(w) AS w FROM (SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? "
-        "AND status = 'terkirim' AND waktu >= ? AND waktu < ? UNION ALL SELECT tanggal FROM kom_mulai "
-        "WHERE nomor = ? AND tanggal >= ? AND tanggal < ?)",
-        (nomor, batas, akhir, nomor, batas, akhir))
-    gagal = db.query_one(
-        "SELECT MAX(substr(waktu, 1, 10)) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'gagal' "
-        "AND lower(keterangan) LIKE '%tidak terdaftar%' AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))
-    k = kirim["w"] if kirim else None
-    g = gagal["w"] if gagal else None
-    if g and (not k or g > k):
-        return Siklus(date.fromisoformat(g), gagal=True)
-    return Siklus(date.fromisoformat(k)) if k else None
+    semua = daftar_siklus(nomor, hari)
+    return semua[-1] if semua else None
 
 
 def hari_kerja(awal: date, hari: date) -> list[date]:
@@ -178,6 +185,7 @@ class Kejadian:
     dibaca: date | None = None
     balas: date | None = None      # balasan pertama di siklus
     konfirmasi: date | None = None  # balasan pertama berisi Kendala / Tindak lanjut
+    centang1: bool = False          # sempat terlihat masih centang satu
 
 
 def kejadian(nomor: str, s: Siklus) -> Kejadian:
@@ -189,7 +197,7 @@ def kejadian(nomor: str, s: Siklus) -> Kejadian:
     dari = (s.awal - timedelta(days=1)).isoformat() if s.awal.weekday() == 0 else a
     bls = db.query("SELECT tanggal, konfirmasi FROM kom_balas WHERE nomor = ? AND tanggal >= ? ORDER BY tanggal",
                    (nomor, dari))
-    k = Kejadian()
+    k = Kejadian(centang1="masih_c" in amat)
     if bls:
         k.balas = date.fromisoformat(bls[0]["tanggal"])
         konf = [r for r in bls if r["konfirmasi"]]
@@ -215,7 +223,7 @@ def kode_kejadian(k: Kejadian, s: Siklus, d: date) -> str:
         return "R"
     if k.diterima and k.diterima <= d:
         return "C2"
-    return "C"
+    return "C" if k.centang1 else ""  # belum ada info apa pun: kosong, jangan menebak
 
 
 def lebih_baik(a: str, b: str) -> bool:
@@ -230,7 +238,8 @@ def susun(s: Siklus, k: Kejadian, hari: date, isi_lk: dict[str, str], auto: dict
     """
     tulis: dict[str, str] = {}
     lalu = ""
-    for d in hari_kerja(s.awal, hari):
+    sampai = min(hari, s.akhir) if s.akhir else hari
+    for d in hari_kerja(s.awal, sampai):
         t = d.isoformat()
         ada = isi_lk.get(t, "")
         if ada and auto.get(t) != ada:  # isian petugas
@@ -239,6 +248,20 @@ def susun(s: Siklus, k: Kejadian, hari: date, isi_lk: dict[str, str], auto: dict
         baru = kode_kejadian(k, s, d)
         kode = baru if not lalu or lebih_baik(baru, lalu) else lalu
         if kode != ada:
-            tulis[t] = kode
+            tulis[t] = kode  # "" = hapus tebakan aplikasi yang dulu
         lalu = kode
+    return tulis
+
+
+def susun_semua(nomor: str, hari: date, isi_lk: dict[str, str], auto: dict[str, str]) -> dict[str, str]:
+    """{tanggal: kode} untuk semua siklus fasil ini. Sel buatan aplikasi di luar siklus mana pun dikosongkan."""
+    tulis: dict[str, str] = {}
+    tercakup: set[str] = set()
+    for s in daftar_siklus(nomor, hari):
+        tulis.update(susun(s, kejadian(nomor, s), hari, isi_lk, auto))
+        sampai = min(hari, s.akhir) if s.akhir else hari
+        tercakup |= {d.isoformat() for d in hari_kerja(s.awal, sampai)}
+    for t, v in auto.items():
+        if v and t not in tercakup and isi_lk.get(t, "") == v:
+            tulis[t] = ""
     return tulis

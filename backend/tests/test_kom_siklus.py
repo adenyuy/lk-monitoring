@@ -178,3 +178,28 @@ def test_cek_baris_log_kom_satu_permintaan(monkeypatch):
     assert minta == ["'Log Komunikasi'!B1:B5"]  # satu rentang, berapa pun jumlah sekolahnya
     lk.baris["444"] = 4  # baris bergeser
     assert not lk_baru._baris_kom_cocok(lk, ["444"])
+
+
+def test_tanpa_bukti_kosong_dan_tebakan_lama_dihapus():
+    kirim(JUM)  # terkirim dari aplikasi, chat belum pernah terbaca
+    assert ks.susun_semua(NO, SEN, {}, {}) == {}  # tidak menebak C
+    # C lama buatan aplikasi dihapus; isian petugas dibiarkan
+    hasil = ks.susun_semua(NO, SEN, {"2026-11-06": "C", "2026-11-07": "TP"}, {"2026-11-06": "C", "2026-11-07": "C"})
+    assert hasil == {"2026-11-06": "", "2026-11-09": "TP"}  # isian petugas diteruskan ke Senin
+
+
+def test_siklus_lama_berhenti_sebelum_siklus_baru():
+    kirim(date(2026, 11, 2))
+    ks.catat_chat(NO, [Row(out=True, status="read", text="a", waktu="2026-11-02"),
+                       Row(out=False, status="", text="ok", waktu="2026-11-02")], tgl, SEN)
+    kirim(JUM)
+    ks.catat_chat(NO, [Row(out=True, status="read", text="a", waktu="2026-11-02"),
+                       Row(out=False, status="", text="ok", waktu="2026-11-02"),
+                       Row(out=True, status="delivered", text="b", waktu="2026-11-06")], tgl, SEN)
+    h = ks.susun_semua(NO, SEN, {}, {})
+    assert h["2026-11-05"] == "T1" and h["2026-11-06"] == "C2" and h["2026-11-09"] == "C2"
+
+
+def test_fasil_tanpa_kiriman_tebakan_dihapus():
+    assert ks.susun_semua(NO, SEN, {"2026-11-06": "C"}, {"2026-11-06": "C"}) == {"2026-11-06": ""}
+    assert ks.susun_semua(NO, SEN, {"2026-11-06": "R"}, {}) == {}  # isian petugas
