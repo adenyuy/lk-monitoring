@@ -302,3 +302,6 @@
     transition: none;
   }
 }
+
+.head .keForum { margin-top: 8px; color: var(--ink-2); }
+.keForum a { color: var(--primary); font-weight: 500; }

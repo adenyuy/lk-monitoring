@@ -378,6 +378,8 @@ export function FaqView() {
       <header className={s.head}>
         <h1>Tanya jawab</h1>
         <p>Hal yang sering ditanyakan soal alur mingguan, sesi, chat, dan isian LK. Klik kartu untuk membaca jawabannya.</p>
+        <p className={s.keForum}>Masalahmu tidak ada di sini? <Link href="/forum/">Tanya atau cari di Forum tim</Link>, tempat
+          teman-teman berbagi pertanyaan dan solusi.</p>
       </header>
 
       <div className={s.tools}>

@@ -129,6 +129,19 @@ Pilih jenis tarikan (Harian / Mingguan), WEEK, dan file cutoff → **Cek file** 
 
 Ketuk tombol bulat → **Panduan** (aplikasi menunjuk bagian layar satu per satu) atau **Tanya jawab** (sesi terlewat, besok harinya, chat di luar sesi, dan lainnya).
 
+### Forum tim
+
+Menu **Forum**: tempat bertanya masalah di lapangan dan berbagi solusi. Semua petugas boleh menulis, langsung tampil.
+
+- **Tulis pertanyaan**: isi judul, topik, cerita masalahnya, foto (opsional, maks 4).
+  Kalau sudah tahu jawabannya, centang *Saya sudah tahu jawabannya* lalu tulis solusinya, supaya teman tidak bertanya lagi.
+- **Jawab**: buka pertanyaan, tulis di *Tulis jawaban*.
+- Penanya bisa **Tandai sebagai jawaban** pada jawaban yang berhasil; pertanyaan jadi berlabel *Selesai*.
+- Tulisan sendiri bisa diubah/dihapus. Admin bisa mengubah/menghapus semua.
+- Data disimpan di tab **Forum** sheet LK Monitoring. Foto disimpan di Google Drive pengunggah (folder
+  *LK Monitoring - Foto Forum*) dan dibuka untuk siapa saja yang punya link. Saat pertama mengunggah foto, aplikasi meminta izin
+  Google Drive sekali (izin yang sama dengan Paparan).
+
 ## 4. Tips supaya nomor tidak diblokir
 
 - Jangan menaikkan batas harian di atas 50.

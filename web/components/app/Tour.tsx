@@ -18,6 +18,7 @@ export const PANDUAN: Record<string, Langkah[]> = {
   "/dashboard/": [...UMUM],
   "/paparan/": [...UMUM],
   "/faq/": [...UMUM],
+  "/forum/": [...UMUM],
   "/log/": [
     ...UMUM,
     { target: "logtab", judul: "Dua cara melihat log", isi: "Per hari: semua yang terjadi di satu tanggal. Riwayat per fasil: kapan fasil itu dikirimi pesan, membaca, membalas, dan kapan LK-nya diisi." },

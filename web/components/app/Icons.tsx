@@ -27,6 +27,9 @@ export const IconLogo = () => (
 export const IconTanya = () => (
   <Svg><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" /><path d="M10 8.6a2 2 0 0 1 3.9.6c0 1.3-1.9 1.7-1.9 2.9" /><path d="M12 14.5h.01" /></Svg>
 );
+export const IconForum = () => (
+  <Svg><path d="M14 9.5a2 2 0 0 1-2 2H7l-3.5 3V5a2 2 0 0 1 2-2H12a2 2 0 0 1 2 2z" /><path d="M17.5 8.5h1a2 2 0 0 1 2 2v10.5L17 18h-5a2 2 0 0 1-2-2v-1.5" /></Svg>
+);
 export const IconLog = () => (
   <Svg><rect x="3.5" y="4.5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17" /><path d="M8 2.5v4" /><path d="M16 2.5v4" /><path d="M8 14h3" /><path d="M8 17h6" /></Svg>
 );

@@ -13,7 +13,7 @@ import { AssistDock } from "./Assist";
 import { PANDUAN, Tour } from "./Tour";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
-import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconLk, IconLog, IconLogo, IconPaparan, IconBlastAdmin } from "./Icons";
+import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconForum, IconLk, IconLog, IconLogo, IconPaparan, IconBlastAdmin } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -117,6 +117,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Link href="/log/" className={s.item} aria-current={aktif("/log/")}>
         <span className={s.ico}><IconLog />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru" />}</span>
         <span className={s.lbl}>Log</span>
+      </Link>
+      <Link href="/forum/" className={s.item} aria-current={aktif("/forum/")}>
+        <span className={s.ico}><IconForum /></span><span className={s.lbl}>Forum</span>
       </Link>
       {bolehCutoff ? (
         <Link href="/cutoff/" className={s.item} aria-current={aktif("/cutoff/")}>

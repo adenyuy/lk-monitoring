@@ -839,7 +839,7 @@ def _jalan_izin(email: str) -> None:
     try:
         flow = InstalledAppFlow.from_client_secrets_file(str(paths.CREDENTIALS_FILE), SCOPES_SLIDES)
         c = flow.run_local_server(port=0, open_browser=True, authorization_prompt_message="",
-                                  success_message="Izin Google Slides diberikan. Tutup tab ini dan kembali ke "
+                                  success_message="Izin Google Drive diberikan. Tutup tab ini dan kembali ke "
                                                   "LK Monitoring.",
                                   login_hint=email or None)
         TOKEN_SLIDES.write_text(c.to_json(), encoding="utf-8")
