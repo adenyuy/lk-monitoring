@@ -38,7 +38,8 @@ const KODE_BATANG: Record<string, string> = {
 const fmt = (n: number) => n.toLocaleString("id-ID");
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 
-export function DashboardView() {
+/** `online`: dashboard online (Vercel) — bawaannya nasional, tanpa pilihan "Saya sendiri". */
+export function DashboardView({ online = false }: { online?: boolean } = {}) {
   const [pic, setPic] = useState("");
   const [d, setD] = useState<Dash | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +88,9 @@ export function DashboardView() {
           <label className={s.pilihPic}>
             <span>Lihat</span>
             <select value={pic} onChange={(e) => setPic(e.target.value)} aria-label="Pilih PIC">
-              <option value="">Saya sendiri</option>
-              <option value="__semua__">Nasional (semua PIC)</option>
+              {online
+                ? <option value="">Nasional (semua PIC)</option>
+                : <><option value="">Saya sendiri</option><option value="__semua__">Nasional (semua PIC)</option></>}
               {d.pilihan_pic.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </label>

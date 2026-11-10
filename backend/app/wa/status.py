@@ -1,14 +1,18 @@
 """Status login WhatsApp Web."""
 
+from __future__ import annotations
+
 import json
 import re
 import time
-from typing import Iterable
-
-from playwright.sync_api import Page
+from typing import TYPE_CHECKING, Iterable
 
 from . import selectors as S
-from .browser import Browser
+
+if TYPE_CHECKING:  # hanya untuk tipe: dashboard online (Vercel) memakai mask() tanpa Playwright
+    from playwright.sync_api import Page
+
+    from .browser import Browser
 
 
 def first_visible(page: Page, sels: Iterable[str]) -> str | None:
