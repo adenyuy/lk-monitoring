@@ -16,7 +16,7 @@ TAHAP = (
     ("ditanya", "Isian LK ditanyakan"),
     ("lk_lengkap", "Isian LK lengkap"),
 )
-BLOK_LABEL = {1: "Senin–Rabu", 2: "Rabu–Jumat"}
+BLOK_LABEL = {1: "Senin–Rabu", 2: "Kamis–Sabtu"}
 
 
 def blok_kolom_label(blok: int) -> str:
@@ -31,8 +31,8 @@ def blok_kolom_label(blok: int) -> str:
 
 
 def blok_hari_ini() -> int:
-    """Senin–Selasa isi blok 1 (sesi Senin–Rabu), Rabu dan seterusnya blok 2 (sesi Rabu–Jumat)."""
-    return 1 if schedule.now().weekday() <= 1 else 2
+    """Senin–Rabu isi blok 1 (sesi Senin–Rabu), Kamis dan seterusnya blok 2 (sesi Kamis–Sabtu)."""
+    return 1 if schedule.now().weekday() <= 2 else 2
 
 
 def grup_relevan(s: Sekolah) -> list[str]:

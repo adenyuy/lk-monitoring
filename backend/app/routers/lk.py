@@ -16,7 +16,7 @@ from ..sheets import nomor_lk, week_aktif  # noqa: E402
 router = APIRouter(prefix="/api/lk")
 wa_blast = require_feature("wa_blast")
 
-BLOK_LABEL = {1: "Senin–Rabu", 2: "Rabu–Jumat"}
+BLOK_LABEL = {1: "Senin–Rabu", 2: "Kamis–Sabtu"}
 # Kolom alasan memakai dropdown dari tab validasi; tindak lanjut teks bebas.
 OPSI_UNTUK = {"a1": "alasan_progres", "b1": "alasan_submit", "c1": "alasan_reviu"}
 MAKS_TEKS = 500

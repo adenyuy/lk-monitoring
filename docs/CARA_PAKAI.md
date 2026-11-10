@@ -60,13 +60,14 @@ Aplikasi memandu 4 langkah:
 Halaman Hari ini menampilkan **WEEK** yang sedang dipakai dan sesi isian LK hari itu.
 
 - **Senin–Selasa**: Broadcast ke semua fasil di sheet Broadcast (40 per hari), isi LK sesi Senin–Rabu.
-- **Rabu–Jumat**: tindak lanjut lewat chat (template Tanya belum submit / progres / reviu), isi LK sesi Rabu–Jumat.
+- **Rabu**: tindak lanjut lewat chat, isi LK masih sesi Senin–Rabu.
+- **Kamis–Sabtu**: tindak lanjut lewat chat (template Tanya belum submit / progres / reviu), isi LK sesi Kamis–Sabtu.
 - **Senin berikutnya**: aplikasi otomatis memakai tab **WEEK** terbaru di LK, dan Broadcast dikirim lagi dengan data progres terbaru.
 
 ### Panel fasil (klik nama fasil)
 
 - **Di LK**: sekolah binaan, progres, dan prioritas.
-  - Pilih **Sesi Senin–Rabu / Rabu–Jumat**, isi **Status komunikasi** sekali untuk semua sekolahnya.
+  - Pilih **Sesi Senin–Rabu / Kamis–Sabtu**, isi **Status komunikasi** sekali untuk semua sekolahnya.
   - Klik sekolah untuk mengisi **ketiga alasan** (progres, submit, reviu) dan tindak lanjut, lalu **Simpan ke LK**. Sekolah yang belum submit terisi otomatis: alasan submit "Progres fisik belum mencapai 50%" (bila progres < 50%) dan alasan reviu "Sekolah Belum Submit". Tanda **✓ Selesai** muncul bila semua sudah terisi.
 - **Di WhatsApp**: percakapan dengan fasil.
   - Pakai tombol template (**Tanya belum submit**, **Tanya progres**, **Tanya belum reviu**, **Terima kasih**) lalu **Kirim balasan**.

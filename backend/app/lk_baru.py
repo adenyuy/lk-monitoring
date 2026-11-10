@@ -97,12 +97,12 @@ KOMPONEN: tuple[Komponen, ...] = (
 )
 KOMP = {k.kode: k for k in KOMPONEN}
 # Sesi isian bila judul "SESI ..." di baris 1 tidak menyebut hari: (hari pertama, hari terakhir, label), Senin = 0.
-SESI_BAWAAN = {1: (0, 1, "Senin–Selasa"), 2: (2, 4, "Rabu–Jumat")}
+SESI_BAWAAN = {1: (0, 2, "Senin–Rabu"), 2: (3, 5, "Kamis–Sabtu")}
 _HARI = {"senin": 0, "selasa": 1, "rabu": 2, "kamis": 3, "jumat": 4, "sabtu": 5, "minggu": 6}
 
 
 def rentang_hari(judul: str) -> tuple[int, int, str] | None:
-    """'SESI SENIN – SELASA · DIISI PETUGAS' -> (0, 1, 'Senin–Selasa'). None bila tidak ada nama hari."""
+    """'SESI SENIN – RABU · DIISI PETUGAS' -> (0, 2, 'Senin–Rabu'). None bila tidak ada nama hari."""
     kata = [k for k in re.findall(r"[a-z']+", judul.lower().replace("'", "")) if k in _HARI]
     if not kata:
         return None

@@ -41,11 +41,12 @@ function ContohHari() {
 }
 
 const MINGGU = [
-  { hari: "Senin", kerja: "Broadcast", lk: "Senin–Selasa" },
-  { hari: "Selasa", kerja: "Broadcast", lk: "Senin–Selasa" },
-  { hari: "Rabu", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
-  { hari: "Kamis", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
-  { hari: "Jumat", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
+  { hari: "Senin", kerja: "Broadcast", lk: "Senin–Rabu" },
+  { hari: "Selasa", kerja: "Broadcast", lk: "Senin–Rabu" },
+  { hari: "Rabu", kerja: "Tindak lanjut", lk: "Senin–Rabu" },
+  { hari: "Kamis", kerja: "Tindak lanjut", lk: "Kamis–Sabtu" },
+  { hari: "Jumat", kerja: "Tindak lanjut", lk: "Kamis–Sabtu" },
+  { hari: "Sabtu", kerja: "Tindak lanjut", lk: "Kamis–Sabtu" },
 ];
 
 /** Contoh satu minggu untuk 69 fasil dengan batas harian 40. */
@@ -94,7 +95,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
               fasil</b> dan daftar fasil yang perlu dichat lagi: yang sudah membalas tapi isian LK-nya belum lengkap
               ditaruh paling atas, lalu yang belum membalas.</p>
             <p>Klik nama fasil, pakai template <b>Tanya belum submit</b>, <b>Tanya progres</b>, atau <b>Tanya belum
-              reviu</b>, lalu isi jawabannya di panel LK (kolom sesi Rabu–Jumat). Broadcast tidak dikirim ulang otomatis
+              reviu</b>, lalu isi jawabannya di panel LK (kolom sesi yang sedang berjalan). Broadcast tidak dikirim ulang otomatis
               sampai Senin.</p>
           </>
         ),
@@ -228,7 +229,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
         id: "blok-lk",
         q: "Isian LK masuk ke kolom sesi yang mana?",
         a: (
-          <p>Mengikuti judul SESI di tab WEEK LK (saat ini <b>Senin–Selasa</b> dan <b>Rabu–Jumat</b>; Sabtu ikut sesi kedua). Anda bisa
+          <p>Senin sampai Rabu otomatis ke sesi <b>Senin–Rabu</b>, Kamis sampai Sabtu ke sesi <b>Kamis–Sabtu</b> (mengikuti judul SESI di tab WEEK LK). Anda bisa
             menggantinya di panel LK. Status komunikasi diisi sekali per fasil untuk semua sekolahnya, dan terisi
             otomatis dari chat minggu ini: <b>Terhubung</b> bila fasil membalas, <b>Chat hanya di Read</b> bila pesan
             hanya dibaca, dan <b>Nomor Tidak Terhubung Whatsapp</b> bila nomornya tidak terdaftar. Pilihan yang Anda isi

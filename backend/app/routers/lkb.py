@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/lk2")
 
 
 def blok_hari_ini() -> int:
-    """Sesi isian hari ini, mengikuti rentang hari di judul SESI tab WEEK aktif (mis. Senin–Selasa / Rabu–Jumat)."""
+    """Sesi isian hari ini, mengikuti rentang hari di judul SESI tab WEEK aktif (Senin–Rabu / Kamis–Sabtu)."""
     return lk_baru.blok_untuk(schedule.now().date())
 
 

@@ -166,7 +166,7 @@ JUDUL_KOLOM = {
     "status submit 50%": "submit",
     "status reviu 50%": "reviu",
 }
-# "A1. Alasan ...", "A.2. Tindak Lanjut", "C2. Tindak Lanjut": kemunculan pertama = sesi Senin–Rabu, kedua = Rabu–Jumat
+# "A1. Alasan ...", "A.2. Tindak Lanjut", "C2. Tindak Lanjut": kemunculan pertama = sesi Senin–Rabu, kedua = Kamis–Sabtu
 _RE_ISIAN = re.compile(r"^([abc])\.?\s*([12])\.")
 
 
