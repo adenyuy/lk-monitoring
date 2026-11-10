@@ -4,6 +4,7 @@ import logging
 import re
 from collections import Counter
 from dataclasses import asdict
+from datetime import date, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -30,6 +31,35 @@ def _terakhir_blast(nomor: set[str]) -> dict[str, str]:
                       "AND hash_pesan LIKE 'blast:%' AND substr(waktu, 1, 10) = ?", (hari,)):
         if r["nomor"] in nomor:
             out[r["nomor"]] = r["waktu"][11:16].replace(":", ".")
+    return out
+
+
+HARI = ("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+
+
+def rentang_sesi(hari: date) -> tuple[date, date]:
+    """Hari pertama dan terakhir sesi yang sedang berjalan: Senin–Selasa = sesi 1, Rabu–Minggu = sesi 2
+    (sama dengan blok isian LK hari ini)."""
+    senin = hari - timedelta(days=hari.weekday())
+    return (senin, senin + timedelta(days=1)) if hari.weekday() <= 1 else (senin + timedelta(days=2), senin + timedelta(days=6))
+
+
+def _blast_sesi(nomor: set[str]) -> dict[str, list[dict[str, str]]]:
+    """{nomor: [{waktu: 'Sel 09.12', topik}]} blast terkirim di sesi ini, terbaru dulu, satu per topik."""
+    awal, akhir = rentang_sesi(schedule.now().date())
+    out: dict[str, list[dict[str, str]]] = {}
+    for r in db.query("SELECT nomor, waktu, topik FROM sends WHERE coba = 0 AND status = 'terkirim' "
+                      "AND hash_pesan LIKE 'blast:%' AND substr(waktu, 1, 10) BETWEEN ? AND ? ORDER BY waktu DESC",
+                      (awal.isoformat(), akhir.isoformat())):
+        if r["nomor"] not in nomor:
+            continue
+        daftar = out.setdefault(r["nomor"], [])
+        topik = r["topik"] or ""
+        if any(x["topik"] == topik for x in daftar):
+            continue
+        w = r["waktu"]
+        hari = HARI[date.fromisoformat(w[:10]).weekday()]
+        daftar.append({"waktu": f"{hari} {w[11:16].replace(':', '.')}", "topik": topik})
     return out
 
 
@@ -140,11 +170,13 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
         raise HTTPException(400, "Jenis penerima tidak dikenal.")
     nomor = {x["nomor"] for x in out if x["nomor"]}
     terakhir = _terakhir_blast(nomor)
+    sesi = _blast_sesi(nomor)
     hari_ini = _chat_hari_ini(nomor)
     tgl = schedule.now().date()
     put = kom_siklus.putaran(tgl)
     for x in out:
         x["terakhir_blast"] = terakhir.get(x["nomor"], "")
+        x["blast_sesi"] = sesi.get(x["nomor"], [])
         x["chat_hari_ini"] = hari_ini.get(x["nomor"], "")
         # status chat di putaran blast terakhir: dibalas | dibaca | terkirim | '' (tidak ikut putaran / belum di-chat)
         x["chat"] = kom_siklus.status_sekarang(x["nomor"], tgl, put) if x["nomor"] else ""
@@ -193,6 +225,7 @@ class Kirim(BaseModel):
 class StartReq(BaseModel):
     jenis: Literal["fasil", "koor", "sekolah"]
     judul: str = Field("Blast", max_length=80)
+    topik: str = Field("", max_length=80)
     coba: bool = False
     aturan: AturanIn
     kirim: list[Kirim] = Field(min_length=1, max_length=1000)
@@ -242,7 +275,8 @@ def start(req: StartReq, _=Depends(wa_blast)) -> dict[str, Any]:
             raise HTTPException(400, f"Pesan untuk {nama} masih berisi variabel yang belum terisi.")
         daftar.append(blast.Penerima(nomor=nomor, nama=nama, pesan=teks, jenis=req.jenis, kunci=x.kunci))
     try:
-        snap = blast.mesin.start(daftar, blast.Aturan(**req.aturan.model_dump()), req.judul, req.coba)
+        snap = blast.mesin.start(daftar, blast.Aturan(**req.aturan.model_dump()), req.judul, req.coba,
+                                 topik=req.topik.strip())
     except blast.BlastError as e:
         raise HTTPException(400, str(e)) from e
     return {"state": snap, "dilewati": len(dilewati)}

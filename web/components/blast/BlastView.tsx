@@ -51,6 +51,19 @@ const KELOMPOK_KOOR: { kode: string; label: string }[] = [
 const LANGKAH: { n: Langkah; label: string }[] = [{ n: 1, label: "Target" }, { n: 2, label: "Pesan" }, { n: 3, label: "Tinjau & kirim" }];
 const CUSTOM = "custom";
 
+/** Pilihan penerima (yang di-uncentang + angkatan) disimpan di browser ini per jenis penerima. */
+type Pilihan = { buang: string[]; angkatan: string[] };
+const kunciPilihan = (j: JenisPenerima) => `lkm_blast_pilihan:${j}`;
+function bacaPilihan(j: JenisPenerima): Pilihan {
+  try {
+    const x = JSON.parse(localStorage.getItem(kunciPilihan(j)) ?? "null");
+    return { buang: Array.isArray(x?.buang) ? x.buang : [], angkatan: Array.isArray(x?.angkatan) ? x.angkatan : [] };
+  } catch { return { buang: [], angkatan: [] }; }
+}
+function tulisPilihan(j: JenisPenerima, p: Pilihan) {
+  try { localStorage.setItem(kunciPilihan(j), JSON.stringify(p)); } catch { /* penyimpanan browser tidak tersedia */ }
+}
+
 function durasi(detik: number) {
   const m = Math.round(detik / 60);
   if (m < 1) return "kurang dari 1 menit";
@@ -67,14 +80,15 @@ export function BlastView() {
   // saringan
   const [kel, setKel] = useState<string[]>([]);
   const [tag, setTag] = useState("");
-  const [angkatan, setAngkatan] = useState("");
+  const [angkatan, setAngkatan] = useState<string[]>([]);
   const [kab, setKab] = useState("");
   const [komp, setKomp] = useState("");
   const [statChat, setStatChat] = useState("");
   const [hanyaTodo, setHanyaTodo] = useState(true);
-  const [lewatiHariIni, setLewatiHariIni] = useState(true);
+  const [lewatiHariIni, setLewatiHariIni] = useState(false);
   const [cari, setCari] = useState("");
   const [buang, setBuang] = useState<Set<string>>(new Set());
+  const [pilihanSiap, setPilihanSiap] = useState<JenisPenerima | null>(null);
   // pesan
   const [tpl, setTpl] = useState<string>(() => templateBawaan("fasil")[0].kode);
   const [teks, setTeks] = useState(() => templateBawaan("fasil")[0].teks);
@@ -119,6 +133,16 @@ export function BlastView() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void muatPenerima(jenis); }, [jenis, muatPenerima]);
 
+  // pilihan penerima tersimpan: dibaca saat jenis berganti, ditulis setiap berubah
+  useEffect(() => {
+    const x = bacaPilihan(jenis);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBuang(new Set(x.buang)); setAngkatan(x.angkatan); setPilihanSiap(jenis);
+  }, [jenis]);
+  useEffect(() => {
+    if (pilihanSiap === jenis) tulisPilihan(jenis, { buang: [...buang], angkatan });
+  }, [buang, angkatan, jenis, pilihanSiap]);
+
   const muatBc = useCallback(async (refresh = false) => {
     setBcMuat(true);
     try { setBc(await api<BcResp>(`/api/blast/bc${refresh ? "?refresh=true" : ""}`)); }
@@ -152,8 +176,9 @@ export function BlastView() {
     if (j === jenis) return;
     const t = templateBawaan(j)[0];
     setJenis(j); setData(null);
-    setTpl(t.kode); setTeks(t.teks); setJudul(t.judul); setKel([]); setTag(""); setAngkatan(""); setKab("");
-    setBuang(new Set()); setLihat(0);
+    setPilihanSiap(null);
+    setTpl(t.kode); setTeks(t.teks); setJudul(t.judul); setKel([]); setTag(""); setKab("");
+    setLihat(0);
   }
 
   function ke(n: Langkah) {
@@ -167,7 +192,7 @@ export function BlastView() {
     if (!data) return [];
     const q = cari.trim().toLowerCase();
     return data.penerima.filter((p) => (!kel.length || kel.includes(p.kelompok)) && (!tag || p.tag.includes(tag))
-      && (!angkatan || p.angkatan.includes(angkatan)) && (!kab || p.kab.includes(kab))
+      && (!angkatan.length || p.angkatan.some((a) => angkatan.includes(a))) && (!kab || p.kab.includes(kab))
       && (!hanyaTodo || p.perlu > 0) && (!statChat || (p.chat ?? "") === (statChat === "belum" ? "" : statChat))
       && (!q || p.nama.toLowerCase().includes(q)));
   }, [data, kel, tag, angkatan, kab, hanyaTodo, statChat, cari]);
@@ -178,6 +203,15 @@ export function BlastView() {
   const alasanTarget = (p: Penerima) => !p.punya_nomor ? "Nomor kosong"
     : lewatiHariIni && (p.chat_hari_ini || p.terakhir_blast)
       ? `Sudah di-chat hari ini ${p.chat_hari_ini || p.terakhir_blast}` : "";
+  /** Topik blast ini, disimpan bersama kiriman supaya tampil sebagai "sudah di-blast … · topik". */
+  const topik = labelKomp || judul;
+  const sudahSesi = (p: Penerima) => (p.blast_sesi ?? []).length > 0;
+  /** Centang/uncentang sekelompok penerima tanpa mengubah pilihan penerima lain (yang tidak tampil). */
+  function aturPilih(daftar: Penerima[], pilih: boolean) {
+    const b = new Set(buang);
+    for (const p of daftar) { if (pilih) b.delete(p.kunci); else b.add(p.kunci); }
+    setBuang(b);
+  }
   const target = terpilih.filter((p) => !alasanTarget(p) && !buang.has(p.kunci));
   const tplAktif: Template = { kode: tpl, judul, ket: "", teks, bawaan: false };
   const siap = target.filter((p) => !tanpaPesan(tplAktif, p));
@@ -240,7 +274,7 @@ export function BlastView() {
     setMulai({ busy: true });
     try {
       await post("/api/blast/start", {
-        jenis, judul, coba, aturan,
+        jenis, judul, topik, coba, aturan,
         kirim: siap.map((p) => ({ kunci: p.kunci, pesan: pesanUntuk(p, true) })),
       });
       setMulai({ busy: false });
@@ -351,14 +385,24 @@ export function BlastView() {
                     );
                   })}
                 </div>
+                {data.angkatan.length > 1 && (
+                  <div className={s.chipGrup} aria-label="Angkatan">
+                    <span className={s.chipLabel}>Angkatan</span>
+                    {data.angkatan.map((a) => {
+                      const on = angkatan.includes(a);
+                      const jml = data.penerima.filter((p) => p.angkatan.includes(a)).length;
+                      return (
+                        <button key={a} type="button" aria-pressed={on}
+                          onClick={() => setAngkatan(on ? angkatan.filter((x) => x !== a) : [...angkatan, a].sort())}>
+                          Akt {a}<i>{jml}</i>
+                        </button>
+                      );
+                    })}
+                    {angkatan.length > 0 && <button type="button" className={s.linkBtn} onClick={() => setAngkatan([])}>Semua angkatan</button>}
+                  </div>
+                )}
                 <div className={s.saringBaris}>
                   <input type="search" placeholder="Cari nama" value={cari} onChange={(e) => setCari(e.target.value)} aria-label="Cari penerima" />
-                  {data.angkatan.length > 1 && (
-                    <select value={angkatan} onChange={(e) => setAngkatan(e.target.value)} aria-label="Angkatan">
-                      <option value="">Semua angkatan</option>
-                      {data.angkatan.map((a) => <option key={a} value={a}>Angkatan {a}</option>)}
-                    </select>
-                  )}
                   {data.kab.length > 1 && (
                     <select value={kab} onChange={(e) => setKab(e.target.value)} aria-label="Kabupaten/kota">
                       <option value="">Semua kab/kota</option>
@@ -386,8 +430,12 @@ export function BlastView() {
                 <b>{target.length} penerima dipilih</b>
                 <span>dari {terpilih.length} yang cocok saringan{labelKomp ? ` · pesan hanya memuat ${labelKomp}` : ""}{data.jumlah_tanpa_nomor ? ` · ${data.jumlah_tanpa_nomor} tanpa nomor` : ""}</span>
                 <div>
-                  <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set())}>Pilih semua</button>
-                  <button type="button" className={s.linkBtn} onClick={() => setBuang(new Set(terpilih.map((p) => p.kunci)))}>Kosongkan</button>
+                  <button type="button" className={s.linkBtn} onClick={() => aturPilih(terpilih, true)}>Pilih semua</button>
+                  <button type="button" className={s.linkBtn} onClick={() => aturPilih(terpilih, false)}>Kosongkan</button>
+                  {terpilih.some(sudahSesi) && (
+                    <button type="button" className={s.linkBtn} title="Untuk blast gelombang berikutnya"
+                      onClick={() => aturPilih(terpilih.filter(sudahSesi), false)}>Buang yang sudah di-blast sesi ini</button>
+                  )}
                 </div>
               </div>
               <ul className={s.penerima}>
@@ -410,6 +458,11 @@ export function BlastView() {
                             <Chip tone={KELOMPOK_INFO[p.kelompok as Kelompok].tone}>{KELOMPOK_INFO[p.kelompok as Kelompok].label}</Chip>
                           ) : <Chip tone="muted">Belum di-chat</Chip>}
                         {ket && <small className={s.alasan}>{ket}</small>}
+                        {!ket && sudahSesi(p) && (
+                          <small className={s.sudahBlast} title="Blast terkirim di sesi ini. Tetap bisa dikirim lagi.">
+                            Sudah di-blast {(p.blast_sesi ?? []).map((b) => `${b.waktu}${b.topik ? ` · ${b.topik}` : ""}`).join("; ")}
+                          </small>
+                        )}
                       </label>
                     </li>
                   );

@@ -1,4 +1,4 @@
-"""Isi Tindak Lanjut di LK otomatis dari balasan fasil di WhatsApp. Kendala tetap diisi petugas.
+"""Isi Tindak Lanjut di LK otomatis dari balasan fasil di WhatsApp (Kendala hanya bila selnya masih kosong).
 
 Dipanggil setiap kali chat fasil dibaca (pembaruan chat berkala). Polanya:
 1. Cari pesan keluar terakhir yang meminta "Kendala / Tindak lanjut" (template "Tanya kendala per sekolah").
@@ -34,11 +34,19 @@ _siap = False
 
 
 @dataclass
-class Jawaban:
-    no: int
+class Poin:
     judul: str
     kendala: str = ""
     tl: str = ""
+
+
+@dataclass
+class Jawaban:
+    no: int
+    judul: str
+    kendala: str = ""  # isian tingkat sekolah (format lama: satu Kendala/TL untuk semua to-do)
+    tl: str = ""
+    poin: list[Poin] = field(default_factory=list)  # isian per to-do ("• To-do / Kendala / Tindak lanjut")
 
 
 @dataclass
@@ -60,32 +68,107 @@ def norm(s: str) -> str:
 
 
 def baca_balasan(teks: str) -> list[Jawaban]:
-    """'1. SD A … Kendala: x … Tindak lanjut: y' -> per nomor. Baris lanjutan ikut isian di atasnya."""
+    """'1. SD A / • To-do / Kendala: x / Tindak lanjut: y' -> per nomor sekolah, per to-do. Kendala/TL sebelum
+    poin pertama berlaku untuk sekolah itu. Baris lanjutan ikut isian di atasnya."""
     out: list[Jawaban] = []
     cur: Jawaban | None = None
+    poin: Poin | None = None
     isian = ""
     for baris in teks.replace("\r", "").split("\n"):
         k = _KEPALA.match(baris)
         if k and not _KENDALA.match(k.group(2)) and not _TL.match(k.group(2)):
             cur = Jawaban(int(k.group(1)), _bersih(k.group(2)))
             out.append(cur)
-            isian = ""
+            poin, isian = None, ""
             continue
         if not cur:
             continue
+        tuju = poin or cur
         a, b = _KENDALA.match(baris), _TL.match(baris)
         if a:
-            cur.kendala, isian = _bersih(a.group(1)), "kendala"
+            tuju.kendala, isian = _bersih(a.group(1)), "kendala"
             continue
         if b:
-            cur.tl, isian = _bersih(b.group(1)), "tl"
+            tuju.tl, isian = _bersih(b.group(1)), "tl"
+            continue
+        if p := _POIN.match(baris):
+            poin, isian = Poin(_bersih(p.group(1))), ""
+            cur.poin.append(poin)
             continue
         lanjut = _bersih(baris)
         if not baris.strip():
             isian = ""  # baris kosong mengakhiri isian (mis. paragraf penutup)
-        elif isian and lanjut and not baris.strip().startswith("•"):
-            setattr(cur, isian, f"{getattr(cur, isian)} {lanjut}".strip())
-    return [x for x in out if x.kendala or x.tl]
+        elif isian and lanjut:
+            setattr(tuju, isian, f"{getattr(tuju, isian)} {lanjut}".strip())
+    for x in out:
+        x.poin = [p for p in x.poin if p.kendala or p.tl]
+    return [x for x in out if x.kendala or x.tl or x.poin]
+
+
+def isian_todo(j: Jawaban, judul: str, jumlah_todo: int) -> tuple[str, str] | None:
+    """(kendala, tl) untuk satu to-do: poin yang judulnya cocok, bila tidak ada isian tingkat sekolah, bila tidak
+    ada dan hanya ada satu poin untuk satu to-do, poin itu."""
+    n = norm(judul)
+    for p in j.poin:
+        m = norm(p.judul)
+        if n and (m.startswith(n) or (len(m) > 8 and n.startswith(m))):
+            return p.kendala, p.tl
+    if j.kendala or j.tl:
+        return j.kendala, j.tl
+    if len(j.poin) == 1 and jumlah_todo == 1:
+        return j.poin[0].kendala, j.poin[0].tl
+    return None
+
+
+_TIDAK_ADA = re.compile(r"^(tidak ada|tdk ada|ga ada|gak ada|tidak ada kendala|aman|lancar|ok|nihil|belum ada|-)$")
+
+
+def pilih_kendala(teks: str, opsi: list[str]) -> str:
+    """Pilihan dropdown Kendala yang cocok dengan teks jawaban, atau '' (sama dengan pilihKendala di web/lib/pesan.ts)."""
+    t = norm(teks)
+    if not t:
+        return ""
+    for o in opsi:
+        if norm(o) == t or norm(re.sub(r"^\d+\.\s*", "", o)) == t:
+            return o
+    no = re.match(r"^(\d{1,2})\s*[.)]?$", teks.strip()) or re.match(r"^(\d{1,2})\s*[.)]\s", teks.strip())
+    if no:
+        o = next((x for x in opsi if x.startswith(f"{no.group(1)}.")), "")
+        if o:
+            return o
+    if _TIDAK_ADA.match(t):
+        return next((o for o in opsi if "tidak ada kendala" in norm(o)), "")
+    if re.match(r"^lainnya\b", t):
+        return next((o for o in opsi if "lainnya" in o.lower()), "")
+    kata = {k for k in t.split() if len(k) > 3}
+    terbaik, skor = "", 0.0
+    for o in opsi:
+        ko = [k for k in norm(re.sub(r"^\d+\.\s*", "", o)).split() if len(k) > 3]
+        if not ko:
+            continue
+        sk = sum(1 for k in ko if k in kata) / len(ko)
+        if sk > skor:
+            terbaik, skor = o, sk
+    return terbaik if skor >= 0.6 else ""
+
+
+def isi_kendala(kendala: str, tl: str, opsi: list[str]) -> tuple[str, str]:
+    """(kendala, tl) siap isi: kendala yang ada di dropdown dipakai apa adanya; yang tidak ada jadi pilihan
+    "Lainnya" dan teksnya digabung ke depan Tindak lanjut ("Dana sudah cair, Sedang proses …")."""
+    k, t = " ".join(kendala.split()), " ".join(tl.split())
+    if not k:
+        return "", t
+    cocok = pilih_kendala(k, opsi)
+    if cocok:
+        return cocok, t
+    lain = next((o for o in opsi if "lainnya" in o.lower()), "")
+    if not lain:
+        return k, t
+    if not t:
+        return lain, k
+    if norm(t).startswith(norm(k)):
+        return lain, t
+    return lain, f"{k.rstrip(' ,.;')}, {t}"
 
 
 def baca_daftar(teks: str) -> list[Butir]:
@@ -137,9 +220,13 @@ def aktif() -> bool:
 
 
 def rencana_isi(pesan: str, balasan: str, sekolah: list[lk_baru.Sekolah], blok: int,
-                kolom: set[str]) -> list[tuple[lk_baru.Sekolah, int, str, str, str]]:
-    """Tindak Lanjut yang akan ditulis: [(sekolah, blok, kode komponen, kendala lama, tindak lanjut baru)]."""
-    jawab = [j for j in baca_balasan(balasan) if j.tl]
+                kolom: set[str], opsi: dict[str, list[str]] | None = None
+                ) -> list[tuple[lk_baru.Sekolah, int, str, str, str]]:
+    """Isian yang akan ditulis: [(sekolah, blok, kode komponen, kendala, tindak lanjut baru)], per to-do.
+    Kendala di sheet hanya diisi bila masih kosong (selain itu kendala lama yang dikembalikan); kendala yang
+    tidak ada di dropdown (`opsi`) jadi "Lainnya" dan teksnya digabung ke depan Tindak lanjut."""
+    opsi = opsi or {}
+    jawab = baca_balasan(balasan)
     if not jawab:
         return []
     per_nama = {norm(s.nama): s for s in sekolah}
@@ -164,15 +251,22 @@ def rencana_isi(pesan: str, balasan: str, sekolah: list[lk_baru.Sekolah], blok: 
         isi = s.isian.get(blok, {})
         sudah: set[str] = set()
         for t in ts:
+            ji = isian_todo(j, t.judul, len(ts))
+            if not ji:
+                continue
             for k in t.komponen:
                 if k in sudah or k not in kolom:
                     continue
                 sudah.add(k)
-                kendala, lama = isi.get(k, ("", ""))
+                kendala_lama, lama = isi.get(k, ("", ""))
                 if lama and not todo.otomatis(lama):
                     continue  # sudah diisi petugas
-                baru = " ".join(j.tl.split())
-                if baru != lama:
+                kendala, baru = isi_kendala(ji[0], ji[1], opsi.get(k, []))
+                if not baru:
+                    continue
+                if kendala_lama and not todo.otomatis(kendala_lama) or k not in opsi:
+                    kendala = kendala_lama  # Kendala petugas tidak ditimpa; tanpa dropdown tidak diisi
+                if baru != lama or kendala != kendala_lama:
                     out.append((s, blok, k, kendala, baru))
     return out
 
@@ -182,7 +276,7 @@ def proses(nomor: str, rows: list[Row]) -> int:
     if not nomor or not rows or not aktif():
         return 0
     potong = potong_balasan(rows)
-    if not potong or not any(j.tl for j in baca_balasan(potong[1])):
+    if not potong or not baca_balasan(potong[1]):
         return 0
     _db()
     kunci = hashlib.sha1(f"{nomor}\n{potong[0]}\n{potong[1]}".encode()).hexdigest()
@@ -196,9 +290,20 @@ def proses(nomor: str, rows: list[Row]) -> int:
         week = lk_baru.week_aktif()
         blok = blok_hari_ini()
         kolom = set(lk_baru.tata(week).isian.get(blok, {}))
-        tulis = rencana_isi(potong[0], potong[1], f.sekolah, blok, kolom)
+        try:
+            opsi = lk_baru.opsi_kendala(week)
+        except Exception:  # noqa: BLE001 - tanpa dropdown: Kendala tidak diisi, Tindak lanjut tetap
+            log.warning("Dropdown Kendala tidak terbaca", exc_info=True)
+            opsi = {}
+        tulis = rencana_isi(potong[0], potong[1], f.sekolah, blok, kolom, opsi)
         if tulis:
-            lk_baru.tulis_isian(week, tulis, hanya_tl=True)
+            # Kendala ikut ditulis hanya untuk sel yang berubah (sebelumnya kosong / keterangan otomatis).
+            dua = [x for x in tulis if x[3] != x[0].isian.get(blok, {}).get(x[2], ("", ""))[0]]
+            satu = [x for x in tulis if x not in dua]
+            if dua:
+                lk_baru.tulis_isian(week, dua)
+            if satu:
+                lk_baru.tulis_isian(week, satu, hanya_tl=True)
             nama = sorted({s.nama for s, *_ in tulis})
             n = len(nama)
             aktivitas.catat(nomor, "lk", f"Tindak lanjut otomatis dari balasan WhatsApp ({lk_baru.BLOK_LABEL[blok]}): "

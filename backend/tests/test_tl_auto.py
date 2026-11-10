@@ -78,3 +78,68 @@ def test_potong_balasan_ambil_setelah_permintaan_terakhir():
     pesan, balas = ta.potong_balasan(rows)
     assert pesan == PESAN and balas == BALAS
     assert ta.potong_balasan(rows[:3]) is None
+
+
+OPSI_LP = ["1. Tidak ada kendala", "2. Sekolah belum mengakses aplikasi", "3. Kendala akun / login",
+           "4. Dokumen Laporan Pendahuluan belum lengkap", "7. Lainnya (jelaskan di tindak lanjut)"]
+
+
+def test_kendala_di_luar_dropdown_jadi_lainnya_digabung_koma():
+    assert ta.isi_kendala("Dana sudah cair", "Sedang proses pembuatan Laporan", OPSI_LP) == (
+        "7. Lainnya (jelaskan di tindak lanjut)", "Dana sudah cair, Sedang proses pembuatan Laporan")
+    assert ta.isi_kendala("Dana sudah cair", "", OPSI_LP) == ("7. Lainnya (jelaskan di tindak lanjut)", "Dana sudah cair")
+    assert ta.isi_kendala("tidak ada", "aman", OPSI_LP) == ("1. Tidak ada kendala", "aman")
+    assert ta.isi_kendala("Dokumen laporan pendahuluan belum lengkap", "dilengkapi", OPSI_LP)[0].startswith("4.")
+    assert ta.isi_kendala("3", "reset", OPSI_LP) == ("3. Kendala akun / login", "reset")
+    assert ta.isi_kendala("Lainnya", "x", OPSI_LP) == ("7. Lainnya (jelaskan di tindak lanjut)", "x")
+    assert ta.isi_kendala("Dana sudah cair", "y", []) == ("Dana sudah cair", "y")  # tanpa dropdown: apa adanya
+
+
+def test_balasan_per_todo():
+    teks = """1. SD NEGERI 7 CONTOH
+   • Lengkapi Laporan Mingguan (20/21 terunggah)
+   Kendala: sinyal
+   Tindak lanjut: minggu depan
+   • Unggah Bulanan + BKU + BPP (4/5 terunggah)
+   Kendala: bendahara cuti
+   Tindak lanjut: menunggu bendahara"""
+    j = ta.baca_balasan(teks)
+    assert len(j) == 1 and not j[0].kendala
+    assert ta.isian_todo(j[0], "Lengkapi Laporan Mingguan", 2) == ("sinyal", "minggu depan")
+    assert ta.isian_todo(j[0], "Unggah Bulanan + BKU + BPP", 2) == ("bendahara cuti", "menunggu bendahara")
+    assert ta.isian_todo(j[0], "Kirim Laporan Pendahuluan", 2) is None
+    # contoh balasan satu to-do
+    j = ta.baca_balasan("9. SD NEGERI 12 UJI\n   • Kirim Laporan Pendahuluan\n"
+                        "   Kendala: Dana sudah cair\n   Tindak lanjut: Sedang proses pembuatan Laporan")
+    assert ta.isian_todo(j[0], "Kirim Laporan Pendahuluan", 1) == ("Dana sudah cair", "Sedang proses pembuatan Laporan")
+
+
+def test_rencana_isi_kendala_kosong_ikut_diisi(monkeypatch):
+    a = _sekolah("1", "SD NEGERI 20 CONTOH", {"lp": ("", "")})
+    b = _sekolah("2", "SD NEGERI 3 UJI", {"lp": ("Kendala petugas", "")})
+    rencana = {"1": [_todo("Kirim Laporan Pendahuluan", ["lp"])], "2": [_todo("Kirim Laporan Pendahuluan", ["lp"])]}
+    monkeypatch.setattr(todo, "rencana", lambda s: SimpleNamespace(todo=rencana[s.npsn]))
+    balas = """1. SD NEGERI 20 CONTOH
+   • Kirim Laporan Pendahuluan
+   Kendala: Dana sudah cair
+   Tindak lanjut: Sedang proses pembuatan Laporan
+2. SD NEGERI 3 UJI
+   • Kirim Laporan Pendahuluan
+   Kendala: Dana sudah cair
+   Tindak lanjut: proses"""
+    out = ta.rencana_isi(PESAN, balas, [a, b], 2, {"lp"}, {"lp": OPSI_LP})
+    assert [(s.npsn, k, kd, tl) for s, _, k, kd, tl in out] == [
+        ("1", "lp", "7. Lainnya (jelaskan di tindak lanjut)", "Dana sudah cair, Sedang proses pembuatan Laporan"),
+        ("2", "lp", "Kendala petugas", "Dana sudah cair, proses"),
+    ]
+
+
+def test_rentang_sesi_blast():
+    from datetime import date
+
+    from app.routers.blast import rentang_sesi
+
+    assert rentang_sesi(date(2026, 11, 9)) == (date(2026, 11, 9), date(2026, 11, 10))    # Senin: sesi 1
+    assert rentang_sesi(date(2026, 11, 10)) == (date(2026, 11, 9), date(2026, 11, 10))   # Selasa: sesi 1
+    assert rentang_sesi(date(2026, 11, 11)) == (date(2026, 11, 11), date(2026, 11, 15))  # Rabu: sesi 2
+    assert rentang_sesi(date(2026, 11, 14)) == (date(2026, 11, 11), date(2026, 11, 15))  # Sabtu: sesi 2

@@ -8,13 +8,13 @@ from . import db
 
 def record_send(
     *, tanggal: str, waktu: str, sesi: int, nama_fasil: str, nomor: str, hash_pesan: str,
-    status: str, keterangan: str = "", coba: bool = False,
+    status: str, keterangan: str = "", coba: bool = False, topik: str = "",
 ) -> None:
     with db.tx() as c:
         c.execute(
-            "INSERT INTO sends(tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, coba) "
-            "VALUES(?,?,?,?,?,?,?,?,?)",
-            (tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, int(coba)),
+            "INSERT INTO sends(tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, coba, topik) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, int(coba), topik),
         )
     if status == "gagal" and not coba and "nomor_tidak_terdaftar" in keterangan:
         from . import lk_otomatis

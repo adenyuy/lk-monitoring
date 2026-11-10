@@ -69,7 +69,7 @@ export function sekolahTodo(p: Pick<Penerima, "sekolah">) {
 
 function daftarTanya(p: Penerima) {
   return sekolahTodo(p).map((x, i) =>
-    `${i + 1}. *${x.nama}*\n${x.todo.map((t) => `   ${poin(t, true)}`).join("\n")}\n   Kendala: ...\n   Tindak lanjut: ...`,
+    `${i + 1}. *${x.nama}*\n${x.todo.map((t) => `   ${poin(t, true)}\n   Kendala: ...\n   Tindak lanjut: ...`).join("\n")}`,
   ).join("\n\n");
 }
 
@@ -350,43 +350,66 @@ ${TERIMA_KASIH}` },
 
 // ---------- membaca balasan ----------
 
-export type JawabanSekolah = { no: number; judul: string; kendala: string; tl: string };
+export type IsianPoin = { judul: string; kendala: string; tl: string };
+/** Jawaban satu sekolah. `kendala`/`tl` = isian di tingkat sekolah (format lama, satu untuk semua to-do);
+ *  `poin` = isian per to-do (format "• To-do / Kendala / Tindak lanjut"). */
+export type JawabanSekolah = { no: number; judul: string; kendala: string; tl: string; poin: IsianPoin[] };
 
 const RE_KEPALA = /^\s*(\d{1,3})\s*[.)]\s*(.*)$/;
 const RE_KENDALA = /^\s*[•*\-]?\s*\*?kendala\*?\s*[:：=-]\s*(.*)$/i;
 const RE_TL = /^\s*[•*\-]?\s*\*?(?:tindak\s*lanjut|tl|rencana(?:\s*tindak\s*lanjut)?)\*?\s*[:：=-]\s*(.*)$/i;
+const RE_POIN = /^\s*[•\-]\s*(.+)$/;
 
 function bersih(s: string) {
   return s.replace(/\*/g, "").replace(/^\.{2,}$/, "").replace(/\s*\.{3,}\s*$/, "").trim();
 }
 
-/** "1. SD A … Kendala: x … Tindak lanjut: y" -> per nomor. Baris lanjutan ikut isian di atasnya. */
+/** "1. SD A / • To-do / Kendala: x / Tindak lanjut: y" -> per nomor sekolah, per to-do. Kendala/TL sebelum
+ *  poin pertama berlaku untuk sekolah itu. Baris lanjutan ikut isian di atasnya. */
 export function bacaBalasan(teks: string): JawabanSekolah[] {
   const out: JawabanSekolah[] = [];
   let cur: JawabanSekolah | null = null;
+  let poin: IsianPoin | null = null;
   let isian: "kendala" | "tl" | null = null;
   for (const baris of teks.replace(/\r/g, "").split("\n")) {
     const k = RE_KEPALA.exec(baris);
     if (k && !RE_KENDALA.test(k[2]) && !RE_TL.test(k[2])) {
-      cur = { no: Number(k[1]), judul: bersih(k[2]), kendala: "", tl: "" };
+      cur = { no: Number(k[1]), judul: bersih(k[2]), kendala: "", tl: "", poin: [] };
       out.push(cur);
+      poin = null;
       isian = null;
       continue;
     }
     if (!cur) continue;
     const a = RE_KENDALA.exec(baris);
     const b = RE_TL.exec(baris);
-    if (a) { cur.kendala = bersih(a[1]); isian = "kendala"; continue; }
-    if (b) { cur.tl = bersih(b[1]); isian = "tl"; continue; }
+    const tuju: { kendala: string; tl: string } = poin ?? cur;
+    if (a) { tuju.kendala = bersih(a[1]); isian = "kendala"; continue; }
+    if (b) { tuju.tl = bersih(b[1]); isian = "tl"; continue; }
+    const p = RE_POIN.exec(baris);
+    if (p) { poin = { judul: bersih(p[1]), kendala: "", tl: "" }; cur.poin.push(poin); isian = null; continue; }
     const lanjut = bersih(baris);
     if (!baris.trim()) { isian = null; continue; } // baris kosong mengakhiri isian (mis. paragraf penutup)
-    if (isian && lanjut && !/^[•]/.test(baris.trim())) cur[isian] = `${cur[isian]} ${lanjut}`.trim();
+    if (isian && lanjut) tuju[isian] = `${tuju[isian]} ${lanjut}`.trim();
   }
-  return out.filter((x) => x.kendala || x.tl);
+  for (const x of out) x.poin = x.poin.filter((p) => p.kendala || p.tl);
+  return out.filter((x) => x.kendala || x.tl || x.poin.length);
 }
 
 function norm(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/** Isian untuk satu to-do: poin yang judulnya cocok, bila tidak ada isian tingkat sekolah, bila tidak ada dan
+ *  hanya ada satu poin untuk satu to-do, poin itu. */
+export function isianTodo(j: JawabanSekolah, judul: string, jumlahTodo: number): { kendala: string; tl: string } | null {
+  const n = norm(judul);
+  const p = n ? j.poin.find((x) => { const m = norm(x.judul); return m.startsWith(n) || (m.length > 8 && n.startsWith(m)); })
+    : undefined;
+  if (p) return p;
+  if (j.kendala || j.tl) return { kendala: j.kendala, tl: j.tl };
+  if (j.poin.length === 1 && jumlahTodo === 1) return j.poin[0];
+  return null;
 }
 
 /** Cocokkan jawaban ke sekolah: lewat nama di baris judul, bila tidak ketemu lewat nomor urut. */
@@ -402,13 +425,18 @@ export function cocokkan<T extends { nama: string }>(jawab: JawabanSekolah[], se
   return out;
 }
 
-/** Pilihan dropdown Kendala yang paling cocok dengan teks jawaban, atau teks aslinya. */
+/** Pilihan dropdown Kendala yang cocok dengan teks jawaban, atau "" bila tidak ada yang cocok. */
 export function pilihKendala(teks: string, opsi: string[]) {
   const t = norm(teks);
   if (!t) return "";
-  if (/^(tidak ada|tdk ada|aman|lancar|ok|nihil|-)$/.test(t)) {
-    return opsi.find((o) => norm(o).includes("tidak ada kendala")) ?? teks;
+  const persis = opsi.find((o) => norm(o) === t || norm(o.replace(/^\d+\.\s*/, "")) === t);
+  if (persis) return persis;
+  const no = /^(\d{1,2})\s*[.)]?$/.exec(teks.trim()) ?? /^(\d{1,2})\s*[.)]\s/.exec(teks.trim());
+  if (no) { const o = opsi.find((x) => x.startsWith(`${no[1]}.`)); if (o) return o; }
+  if (/^(tidak ada|tdk ada|ga ada|gak ada|tidak ada kendala|aman|lancar|ok|nihil|belum ada|-)$/.test(t)) {
+    return opsi.find((o) => norm(o).includes("tidak ada kendala")) ?? "";
   }
+  if (/^lainnya\b/.test(t)) return opsi.find((o) => /lainnya/i.test(o)) ?? "";
   let terbaik = "";
   let skor = 0;
   const kata = new Set(t.split(" ").filter((k) => k.length > 3));
@@ -418,7 +446,26 @@ export function pilihKendala(teks: string, opsi: string[]) {
     const s = ko.filter((k) => kata.has(k)).length / ko.length;
     if (s > skor) { skor = s; terbaik = o; }
   }
-  return skor >= 0.6 ? terbaik : teks;
+  return skor >= 0.6 ? terbaik : "";
+}
+
+/** Kendala + Tindak lanjut siap isi: kendala yang ada di dropdown dipakai apa adanya; yang tidak ada jadi
+ *  pilihan "Lainnya" dan teksnya digabung ke depan Tindak lanjut ("Dana sudah cair, Sedang proses …"). */
+export function isiKendala(kendala: string, tl: string, opsi: string[]): { kendala: string; tl: string } {
+  const k = kendala.split(/\s+/).filter(Boolean).join(" ");
+  const t = tl.trim();
+  if (!k) return { kendala: "", tl: t };
+  const cocok = pilihKendala(k, opsi);
+  if (cocok) return { kendala: cocok, tl: t };
+  const lain = opsi.find((o) => /lainnya/i.test(o));
+  if (!lain) return { kendala: k, tl: t };
+  return { kendala: lain, tl: gabungKoma(k, t) };
+}
+
+function gabungKoma(a: string, b: string) {
+  if (!b) return a;
+  if (norm(b).startsWith(norm(a))) return b;
+  return `${a.replace(/[\s,.;]+$/, "")}, ${b}`;
 }
 
 // ---------- hubungi koordinator dari panel fasil ----------

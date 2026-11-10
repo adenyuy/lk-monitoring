@@ -111,6 +111,9 @@ def _tambah_kolom(conn: sqlite3.Connection) -> None:
     ada = {r[1] for r in conn.execute("PRAGMA table_info(chat_status)")}
     if "perlu_balas" not in ada:
         conn.execute("ALTER TABLE chat_status ADD COLUMN perlu_balas INTEGER NOT NULL DEFAULT 0")
+    ada = {r[1] for r in conn.execute("PRAGMA table_info(sends)")}
+    if "topik" not in ada:  # topik blast, mis. "Laporan Pendahuluan" (label "sudah di-blast" di halaman Blast)
+        conn.execute("ALTER TABLE sends ADD COLUMN topik TEXT NOT NULL DEFAULT ''")
 
 
 def close() -> None:

@@ -66,6 +66,7 @@ class State:
     paused: bool = False
     coba: bool = False
     judul: str = ""
+    topik: str = ""        # komponen yang dibahas (mis. "Laporan Pendahuluan"), untuk label "sudah di-blast"
     total: int = 0
     diproses: int = 0
     terkirim: int = 0
@@ -112,7 +113,8 @@ class Mesin:
         t = self.clock().time()
         return JAM_MULAI <= t <= JAM_SAMPAI
 
-    def start(self, penerima: list[Penerima], aturan: Aturan, judul: str, coba: bool = False) -> dict:
+    def start(self, penerima: list[Penerima], aturan: Aturan, judul: str, coba: bool = False,
+              topik: str = "") -> dict:
         with self._lock:
             from .sender import sender
 
@@ -126,7 +128,8 @@ class Mesin:
             db.set_setting("blast_aturan", asdict(aturan))
             antrian = penerima[:3] if coba else penerima
             self._antrian = antrian
-            self.state = State(running=True, coba=coba, judul=judul[:80], total=len(antrian), mulai=time.time(),
+            self.state = State(running=True, coba=coba, judul=judul[:80], topik=topik[:80],
+                               total=len(antrian), mulai=time.time(),
                                aturan=asdict(aturan))
             self._thread = threading.Thread(target=self._run, args=(antrian, aturan), name="blast", daemon=True)
             self._thread.start()
@@ -181,7 +184,7 @@ class Mesin:
                 store.record_send(tanggal=schedule.tanggal_str(t.date()), waktu=t.isoformat(timespec="seconds"),
                                   sesi=0, nama_fasil=p.nama, nomor=p.nomor,
                                   hash_pesan=AWALAN + message_hash(p.pesan), status=status, keterangan=ket,
-                                  coba=st.coba)
+                                  coba=st.coba, topik=st.topik or st.judul)
                 st.hasil.append({"nama": p.nama, "jenis": p.jenis, "status": status, "keterangan": ket,
                                  "waktu": t.strftime("%H.%M")})
                 events.publish("kirim_hasil", nama=p.nama, status=status, keterangan=ket)

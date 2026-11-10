@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import { KELOMPOK_INFO, KODE_WARNA, TAHAP_LABEL, HARI_PENDEK, inisial, type FasilDetail, type OpsiLk,
   type Penerima, type SekolahDetail } from "@/lib/lk";
-import { bacaBalasan, cocokkan, isi as isiTemplate, kosong, pilihKendala, templateBawaan, templateKoorFasil, templateSekolah,
+import { bacaBalasan, cocokkan, isi as isiTemplate, isiKendala, isianTodo, kosong, templateBawaan, templateKoorFasil, templateSekolah,
   type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { BantuanDialog } from "@/components/today/BantuanDialog";
@@ -161,9 +161,12 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
       hasil.forEach((j, sk) => {
         baru[sk.npsn] = { ...baru[sk.npsn] };
         for (const t of sk.todo) {
+          const ji = isianTodo(j, t.judul, sk.todo.length);
+          if (!ji) continue;
           const o = opsi?.kendala[t.komponen[0]] ?? [];
-          baru[sk.npsn][t.kode] = { kendala: j.kendala ? pilihKendala(j.kendala, o) : baru[sk.npsn][t.kode]?.kendala ?? "",
-            tl: j.tl || baru[sk.npsn][t.kode]?.tl || "" };
+          const lama = baru[sk.npsn][t.kode];
+          const v = isiKendala(ji.kendala, ji.tl, o);
+          baru[sk.npsn][t.kode] = { kendala: v.kendala || lama?.kendala || "", tl: v.tl || lama?.tl || "" };
         }
       });
       return baru;

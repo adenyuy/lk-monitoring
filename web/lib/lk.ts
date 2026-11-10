@@ -186,6 +186,8 @@ export type Penerima = {
   jumlah_sekolah: number;
   perlu: number;
   terakhir_blast: string;
+  /** Blast yang sudah terkirim di sesi ini (Sen–Sel / Rab–Sab), satu per topik, terbaru dulu. */
+  blast_sesi?: { waktu: string; topik: string }[];
   /** Jam chat keluar terakhir hari ini (aplikasi atau terdeteksi di WhatsApp), '' bila belum. */
   chat_hari_ini?: string;
   /** Status chat minggu ini. */
