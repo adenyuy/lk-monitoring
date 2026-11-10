@@ -134,16 +134,24 @@ def balas(nomor: str, req: BalasReq, _=Depends(wa_blast)) -> dict[str, Any]:
     teks = req.pesan.strip()
     if not teks:
         raise HTTPException(400, "Balasan masih kosong.")
-    _siap()
+    from ..wa import pendengar, pengirim
 
-    def run(b):
-        res = actions.reply(b, n, teks)
-        if res.status != "terkirim":
-            return res, None
-        b.page.wait_for_timeout(800)
-        return res, actions.read_thread(b, n)
+    lewat_neo = pengirim.kirim_satu(n, teks) if not _sibuk() else None
+    if lewat_neo is not None:
+        res, _ = lewat_neo
+        rows = pendengar.baris_chat(n)
+        thread = (actions.chat_info(rows), rows)
+    else:
+        _siap()
 
-    res, thread = _jalan(run, timeout=120)
+        def run(b):
+            res = actions.reply(b, n, teks)
+            if res.status != "terkirim":
+                return res, None
+            b.page.wait_for_timeout(800)
+            return res, actions.read_thread(b, n)
+
+        res, thread = _jalan(run, timeout=120)
     if res.status != "terkirim":
         raise HTTPException(502, f"Balasan belum terkirim: {res.keterangan}")
     if req.jenis == "tanya_lk":

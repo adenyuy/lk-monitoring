@@ -237,3 +237,8 @@
 .qr { flex: none; background: #fff; padding: 6px; border-radius: 8px; line-height: 0; }
 .qr svg { width: 280px; height: 280px; display: block; }
 .qrBox ol { flex: 1 1 200px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+
+.pilihLewat { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 12px; margin: 4px 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.pilihLewat legend { font-size: 13px; font-weight: 600; padding: 0 4px; }
+.pilihLewat label { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.45; cursor: pointer; }
+.pilihLewat input { margin-top: 3px; accent-color: var(--primary); }

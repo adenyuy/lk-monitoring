@@ -9,9 +9,10 @@ import s from "./blast.module.css";
 export type PendengarStatus = {
   status: "mati" | "menghubungkan" | "qr" | "tersambung" | "putus" | "keluar" | "galat";
   tertaut: boolean; sehat: boolean; qr_svg: string; akun: string; galat: string; sejak: string; terakhir: string;
+  kirim_lewat?: "neonize" | "waweb"; mesin_kirim?: "neonize" | "waweb";
 };
 
-/** Kartu kecil di halaman Blast: status chat dibaca langsung (neonize) atau lewat WA Web (cadangan). */
+/** Kartu kecil di halaman Blast: WhatsApp langsung (neonize) untuk kirim & baca chat, WA Web sebagai cadangan. */
 export function PendengarKartu({ onUbah }: { onUbah?: (p: PendengarStatus) => void }) {
   const [p, setP] = useState<PendengarStatus | null>(null);
   const [buka, setBuka] = useState(false);
@@ -28,7 +29,7 @@ export function PendengarKartu({ onUbah }: { onUbah?: (p: PendengarStatus) => vo
   usePolling(muat, buka ? 2000 : 20000, true);
 
   const label = !p ? "Memeriksa…"
-    : p.status === "tersambung" ? `Langsung${p.akun ? ` · ${p.akun}` : ""}`
+    : p.status === "tersambung" ? `${p.mesin_kirim === "neonize" ? "Kirim & baca langsung" : "Baca langsung, kirim lewat WA Web"}${p.akun ? ` · ${p.akun}` : ""}`
     : p.sehat ? "Menyambung ulang…"
     : p.tertaut ? "Terputus · pakai WA Web" : "Lewat WA Web (cadangan)";
 
@@ -37,7 +38,7 @@ export function PendengarKartu({ onUbah }: { onUbah?: (p: PendengarStatus) => vo
       <div className={s.waKartu}>
         <span className={`${s.waTitik} ${p?.status === "tersambung" ? s.waOn : p?.sehat ? s.waTunggu : ""}`}
           aria-hidden="true" />
-        <span><small>Status chat</small><b>{label}</b></span>
+        <span><small>WhatsApp</small><b>{label}</b></span>
         <button type="button" onClick={() => setBuka(true)}>{p?.tertaut ? "Atur" : "Tautkan"}</button>
       </div>
       {buka && p && <DialogPendengar p={p} onMuat={muat} onTutup={() => setBuka(false)} />}
@@ -56,6 +57,10 @@ function DialogPendengar({ p, onMuat, onTutup }: { p: PendengarStatus; onMuat: (
     try { await post("/api/pendengar/tautkan"); await onMuat(); } catch (e) { setGalat(e instanceof Error ? e.message : String(e)); }
     finally { setJalan(false); }
   };
+  const pilihLewat = async (lewat: "neonize" | "waweb") => {
+    setGalat("");
+    try { await post("/api/pendengar/kirim-lewat", { lewat }); await onMuat(); } catch (e) { setGalat(e instanceof Error ? e.message : String(e)); }
+  };
   const lepas = async () => {
     setJalan(true);
     try { await post("/api/pendengar/lepas"); await onMuat(); setYakin(false); } catch (e) { setGalat(e instanceof Error ? e.message : String(e)); }
@@ -66,15 +71,17 @@ function DialogPendengar({ p, onMuat, onTutup }: { p: PendengarStatus; onMuat: (
   return (
     <div className={s.scrim} role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onTutup(); }}>
       <div className={s.dialog} role="dialog" aria-modal="true" aria-labelledby="pendengar-judul">
-        <h2 id="pendengar-judul">Status chat langsung</h2>
+        <h2 id="pendengar-judul">WhatsApp langsung</h2>
         <p>
-          Aplikasi ditautkan sebagai perangkat tambahan di WhatsApp kamu, <b>hanya untuk mendengar</b>: pesan yang
-          terkirim (dari aplikasi maupun HP), centang dibaca, dan balasan fasil masuk seketika. Chat tidak perlu dibuka
-          satu per satu, jadi pesan fasil tidak ikut berubah jadi centang biru. Kirim pesan tetap lewat jendela WhatsApp.
+          Aplikasi ditautkan sebagai perangkat tambahan di WhatsApp kamu. Pesan blast dan balasan dikirim langsung tanpa
+          membuka jendela WhatsApp, dan centang serta balasan fasil masuk seketika. Jeda antar pesan, batas harian, dan
+          status &quot;sedang mengetik…&quot; tetap berlaku. Bila sambungan terputus, aplikasi otomatis memakai jendela
+          WhatsApp Web.
         </p>
 
         {tersambung && (
           <Notice tone="ok" title={`Tersambung${p.akun ? ` · ${p.akun}` : ""}`}>
+            {p.mesin_kirim === "neonize" ? "Pesan dikirim langsung. " : "Pesan dikirim lewat jendela WhatsApp Web. "}
             Status chat, Log Komunikasi, dan blast lewat HP terbaca otomatis.
           </Notice>
         )}
@@ -102,6 +109,20 @@ function DialogPendengar({ p, onMuat, onTutup }: { p: PendengarStatus; onMuat: (
             Status chat sementara dibaca lewat jendela WhatsApp. Pastikan internet tersambung; aplikasi menyambung ulang
             sendiri.
           </Notice>
+        )}
+        {p.tertaut && (
+          <fieldset className={s.pilihLewat}>
+            <legend>Kirim pesan lewat</legend>
+            <label>
+              <input type="radio" name="lewat" checked={(p.kirim_lewat ?? "neonize") === "neonize"}
+                onChange={() => void pilihLewat("neonize")} />
+              <span><b>Langsung</b> (disarankan). WhatsApp Web hanya dipakai bila sambungan terputus.</span>
+            </label>
+            <label>
+              <input type="radio" name="lewat" checked={p.kirim_lewat === "waweb"} onChange={() => void pilihLewat("waweb")} />
+              <span><b>Jendela WhatsApp Web</b>. Seperti dulu; chat tetap dibaca langsung.</span>
+            </label>
+          </fieldset>
         )}
         {(p.galat || galat) && <Notice tone="bad">{galat || p.galat}</Notice>}
 

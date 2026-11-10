@@ -103,7 +103,11 @@ class Sender:
         rng: random.Random | None = None,
         load_lk: Callable[[], list] | None = None,
     ) -> None:
-        self.wa = wa or WorkerWA()
+        if wa is None:
+            from .wa.pengirim import PengirimWA  # neonize utama, WA Web cadangan
+
+            wa = PengirimWA()
+        self.wa = wa
         self.sleep = sleep
         self.clock = clock
         self.load_rows = load_rows or _baris_lk

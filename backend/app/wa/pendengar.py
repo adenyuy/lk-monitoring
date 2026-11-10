@@ -1,4 +1,5 @@
-"""Pendengar WhatsApp (neonize): perangkat tertaut yang HANYA mendengarkan, tidak pernah mengirim pesan.
+"""Pendengar WhatsApp (neonize): perangkat tertaut yang mendengarkan chat. Pengiriman lewat sesi yang sama ada di
+wa/pengirim.py (neonize utama, WA Web cadangan).
 
 Sumber utama status chat fasil: pesan keluar (dari aplikasi, WA Web, atau HP), centang diterima / dibaca, dan
 balasan fasil masuk seketika, termasuk yang terjadi saat aplikasi mati (disusulkan WhatsApp saat tersambung lagi).

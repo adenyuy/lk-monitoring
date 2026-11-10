@@ -90,9 +90,9 @@ class Mesin:
     def __init__(self, wa=None, sleep: Callable[[float], None] = time.sleep, clock=schedule.now,
                  rng: random.Random | None = None) -> None:
         if wa is None:
-            from .sender import WorkerWA
+            from .wa.pengirim import PengirimWA  # neonize utama, WA Web cadangan
 
-            wa = WorkerWA()
+            wa = PengirimWA()
         self.wa = wa
         self.sleep = sleep
         self.clock = clock
