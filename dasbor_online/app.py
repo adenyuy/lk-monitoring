@@ -215,3 +215,70 @@ def log_online(pic: str = Query("", max_length=120), _: str = Depends(auth.wajib
     d = _jalan(_log, pic)
     _log_simpan[k] = (time.time(), d)
     return d
+
+
+# ---------- ranking PIC ----------
+
+HARI_RANKING = 5  # pengisian Log Komunikasi: hari kerja terakhir
+
+
+def _ranking() -> dict[str, Any]:
+    """Per PIC: komponen sudah diisi / yang seharusnya (sudah due), per komponen dan total, plus pengisian
+    Log Komunikasi. Satu kali baca data nasional untuk semua PIC."""
+    sekolah = lk_baru.baca_semua()
+    try:
+        logkom = lk_baru.baca_log_kom()
+    except Exception:
+        logkom = lk_baru.LogKom({}, {}, {})
+    hari_ini = schedule.now().date().isoformat()
+    tanggal = [d for d in sorted(logkom.tanggal) if d <= hari_ini][-HARI_RANKING:]
+
+    per_pic: dict[str, tuple[str, list[lk_baru.Sekolah]]] = {}
+    for s in sekolah:
+        if s.petugas:
+            per_pic.setdefault(normalize_petugas(s.petugas), (s.petugas, []))[1].append(s)
+
+    def hitung(nama: str, daftar: list[lk_baru.Sekolah]) -> dict[str, Any]:
+        st = [todo.semua_status(s) for s in daftar]
+        komp = []
+        tot_a = tot_b = 0
+        for k in lk_baru.KOMPONEN:
+            a = sum(1 for x in st if x[k.kode].status == "selesai")
+            b = a + sum(1 for x in st if x[k.kode].status == "belum")
+            tot_a += a
+            tot_b += b
+            komp.append({"kode": k.kode, "label": k.label, "selesai": a, "harus": b,
+                         "persen": round(a / b * 100, 1) if b else None})
+        fasil = komunikasi.kelompokkan(daftar)
+        kode = [komunikasi.kode_fasil(f, logkom) for f in fasil.values()]
+        isi = sum(1 for x in kode for d in tanggal if x.get(d))
+        slot = len(fasil) * len(tanggal)
+        p = [x["progres"].persen for x in st if x["progres"].persen is not None]
+        return {"nama": nama, "sekolah": len(daftar), "fasil": len(fasil),
+                "selesai": tot_a, "harus": tot_b, "persen": round(tot_a / tot_b * 100, 1) if tot_b else None,
+                "komponen": komp,
+                "log_isi": isi, "log_slot": slot, "log_persen": round(isi / slot * 100, 1) if slot else None,
+                "progres": round(sum(p) / len(p), 1) if p else None}
+
+    pic = [hitung(n, d) for n, d in per_pic.values()]
+    pic.sort(key=lambda x: (-(x["persen"] or 0), x["nama"].casefold()))
+    for i, x in enumerate(pic, 1):
+        x["peringkat"] = i
+    return {"pic": pic, "nasional": hitung("Nasional", sekolah), "hari_log": tanggal,
+            "komponen": [{"kode": k.kode, "label": k.label} for k in lk_baru.KOMPONEN],
+            "dibuat": schedule.now().strftime("%d/%m %H.%M")}
+
+
+_rank_simpan: tuple[float, dict[str, Any]] | None = None
+_rank_lock = threading.Lock()
+
+
+@app.get("/api/ranking")
+def ranking(_: str = Depends(auth.wajib_login)) -> dict[str, Any]:
+    global _rank_simpan
+    with _rank_lock:
+        if _rank_simpan and time.time() - _rank_simpan[0] < 600:
+            return _rank_simpan[1]
+        d = _jalan(_ranking)
+        _rank_simpan = (time.time(), d)
+        return d

@@ -110,3 +110,88 @@
   .gulir { margin: 0 -16px; padding: 0 16px; }
   .kartu { padding: 16px; }
 }
+
+/* ---------- dashboard online ---------- */
+.kontrol { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.kpi5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.kpi2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tiga { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.duaSeimbang { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; align-items: start; }
+.ketKecil { font-size: 12.5px; color: var(--muted); }
+.inline { display: inline !important; margin-left: 4px; }
+
+/* ranking */
+.rankAlat { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-bottom: 12px; }
+.legendaRank { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.legendaRank i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-left: 6px; }
+.thTombol { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; font-weight: 600; }
+.thTombol:hover { color: var(--ink); }
+.barisAktif td { background: var(--primary-soft); }
+.rasio { display: grid; grid-template-columns: minmax(80px, 1fr) 52px 96px; align-items: center; gap: 10px; min-width: 260px; }
+.rasio b { font-variant-numeric: tabular-nums; text-align: right; font-size: 13.5px; }
+.rasio small { display: inline !important; font-variant-numeric: tabular-nums; }
+.rasioBar { position: relative; height: 10px; background: var(--line-soft); border-radius: 99px; }
+.rasioBar > span { position: absolute; inset: 0 auto 0 0; border-radius: 99px; }
+.rasioBar em { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); transform: translateX(-1px); }
+.tBaik { background: #2f8f5b; }
+.tSedang { background: #d9a23a; }
+.tKurang { background: #c8484b; }
+.tNetral { background: var(--primary); }
+.tBaikT { color: var(--ok-fg); font-weight: 600; }
+.tSedangT { color: var(--warn-fg); font-weight: 600; }
+.tKurangT { color: var(--bad-fg); font-weight: 600; }
+
+/* banding */
+.banding { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.kolomBanding { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.judulKolom { font-size: 18px; font-weight: 600; padding-bottom: 4px; border-bottom: 2px solid var(--primary); }
+.barisTebal td { font-weight: 600; background: var(--bg); }
+
+/* log progres per cutoff */
+.lpGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.lpKartu { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.lpKartu header h3 { font-size: 14px; font-weight: 600; }
+.lpKartu header span { font-size: 12px; color: var(--muted); }
+.lpBatang { display: flex; align-items: flex-end; gap: 8px; height: 190px; }
+.lpKolom { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.lpLabel { display: flex; flex-direction: column; align-items: center; line-height: 1.2; margin-bottom: 4px; text-align: center; }
+.lpLabel b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.lpLabel small { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lpLabel em { font-style: normal; font-size: 10.5px; }
+.lpTiang { flex: 1; width: 100%; max-width: 44px; display: flex; align-items: flex-end; background: var(--line-soft); border-radius: 6px 6px 0 0; }
+.lpIsi, .lpIsiAkhir { width: 100%; border-radius: 6px 6px 0 0; min-height: 2px; }
+.lpIsi { background: #9fb2e3; }
+.lpIsiAkhir { background: var(--primary); }
+.lpNama { margin-top: 6px; font-size: 11px; color: var(--ink); text-align: center; white-space: nowrap; display: flex; flex-direction: column; }
+.lpNama i { font-style: normal; color: var(--muted); }
+.lpLain { width: 100%; border-collapse: collapse; font-size: 12px; }
+.lpLain td { padding: 4px 4px; border-top: 1px solid var(--line-soft); }
+.lpLain td:first-child { color: var(--muted); }
+.lpTabel { margin-top: 14px; font-size: 13px; }
+.lpTabel summary { cursor: pointer; color: var(--primary); font-weight: 600; margin-bottom: 8px; }
+.lpTabel small { display: block; font-size: 11px; color: var(--muted); }
+
+@media (max-width: 1100px) {
+  .kpi5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tiga, .duaSeimbang { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .banding { grid-template-columns: minmax(0, 1fr); }
+  .kpi5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* log progres: kartu tren per komponen */
+.lpKartu header span { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.lpTren { display: flex; flex-direction: column; gap: 4px; }
+.lpAngka { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lpAngka b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lpAngka span { font-size: 12px; }
+.lpSvg { display: block; overflow: visible; }
+.lpDasar { stroke: var(--line); stroke-width: 1; }
+.lpGaris { fill: none; stroke: var(--primary); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.lpTitik { fill: #fff; stroke: var(--primary); stroke-width: 2; }
+.lpTitikAkhir { fill: var(--primary); stroke: #fff; stroke-width: 2; }
+.lpNilai { font-size: 11.5px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.lpJumlah { font-size: 9.5px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.lpSumbu { font-size: 10.5px; fill: var(--ink); }
+.lpSumbuTgl { font-size: 10px; fill: var(--muted); }

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { DashboardView } from "@/components/dashboard/DashboardView";
+import { DashboardOnline } from "@/components/online/DashboardOnline";
 
 export const metadata: Metadata = { title: "Dashboard – LK Monitoring" };
 
 export default function DashboardPage() {
-  return <DashboardView online />;
+  return <DashboardOnline />;
 }

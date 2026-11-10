@@ -10,7 +10,7 @@ import { LogProgresNasional } from "./LogProgres";
 
 type Capaian = { kode: string; label: string; tahap: Tahap; pelaku: string; selesai: number; belum: number; due: number;
   kosong: number; tanpa_data: number; relevan: number; persen: number | null; rasio: [number, number] | null };
-type Dash = {
+export type Dash = {
   pic: string; nasional: boolean; week: number; cutoff: string; dibuat: string; umur_detik: number; menghitung: boolean;
   distribusi: { sekolah: number; fasil: number; koor: number; jml_ptn: number; jml_kab: number; rata_sekolah_per_fasil: number;
     maks_sekolah_per_fasil: number; tanpa_hp_fasil: number;
@@ -38,8 +38,7 @@ const KODE_BATANG: Record<string, string> = {
 const fmt = (n: number) => n.toLocaleString("id-ID");
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 
-/** `online`: dashboard online (Vercel) — bawaannya nasional, tanpa pilihan "Saya sendiri". */
-export function DashboardView({ online = false }: { online?: boolean } = {}) {
+export function DashboardView() {
   const [pic, setPic] = useState("");
   const [d, setD] = useState<Dash | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,9 +87,8 @@ export function DashboardView({ online = false }: { online?: boolean } = {}) {
           <label className={s.pilihPic}>
             <span>Lihat</span>
             <select value={pic} onChange={(e) => setPic(e.target.value)} aria-label="Pilih PIC">
-              {online
-                ? <option value="">Nasional (semua PIC)</option>
-                : <><option value="">Saya sendiri</option><option value="__semua__">Nasional (semua PIC)</option></>}
+              <option value="">Saya sendiri</option>
+              <option value="__semua__">Nasional (semua PIC)</option>
               {d.pilihan_pic.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </label>
@@ -177,7 +175,7 @@ export function DashboardView({ online = false }: { online?: boolean } = {}) {
   );
 }
 
-function Kpi({ label, nilai, ket, aksen }: { label: string; nilai: string; ket: string; aksen?: boolean }) {
+export function Kpi({ label, nilai, ket, aksen }: { label: string; nilai: string; ket: string; aksen?: boolean }) {
   return (
     <div className={`${s.kpiItem} ${aksen ? s.kpiAksen : ""}`}>
       <span>{label}</span>
@@ -187,7 +185,7 @@ function Kpi({ label, nilai, ket, aksen }: { label: string; nilai: string; ket: 
   );
 }
 
-function Capaian({ data, rata }: { data: Capaian[]; rata: Record<string, number | null> }) {
+export function Capaian({ data, rata }: { data: Capaian[]; rata: Record<string, number | null> }) {
   const grup: { tahap: Tahap; label: string }[] = [
     { tahap: "pendahuluan", label: "Pendahuluan" }, { tahap: "berkala", label: "Berkala" },
     { tahap: "l50", label: "Laporan 50%" }, { tahap: "l100", label: "Laporan 100%" },
@@ -218,7 +216,7 @@ function Capaian({ data, rata }: { data: Capaian[]; rata: Record<string, number 
   );
 }
 
-function Batang({ data }: { data: { nama: string; jumlah: number }[] }) {
+export function Batang({ data }: { data: { nama: string; jumlah: number }[] }) {
   const maks = Math.max(1, ...data.map((x) => x.jumlah));
   if (!data.length) return <p className={s.kosong}>Belum ada data.</p>;
   return (
@@ -234,7 +232,7 @@ function Batang({ data }: { data: { nama: string; jumlah: number }[] }) {
   );
 }
 
-function Komunikasi({ data }: { data: Dash["komunikasi"] }) {
+export function Komunikasi({ data }: { data: Dash["komunikasi"] }) {
   const [sorot, setSorot] = useState<string | null>(null);
   if (!data.hari.length) return <p className={s.kosong}>Log Komunikasi belum punya kolom tanggal.</p>;
   const maks = Math.max(1, ...data.hari.map((h) => h.fasil));
