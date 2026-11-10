@@ -432,7 +432,8 @@ def siapkan_format(week: int) -> None:
                 "startColumnIndex": a0, "endColumnIndex": a1 + 1}]
         abu = {"backgroundColor": {"red": 0.933, "green": 0.941, "blue": 0.957},
                "textFormat": {"foregroundColor": {"red": 0.54, "green": 0.576, "blue": 0.65}, "italic": True}}
-        for cond in ({"type": "TEXT_STARTS_WITH", "values": [{"userEnteredValue": "Menunggu "}]},
+        # sama persis (bukan "diawali Menunggu"): pilihan petugas seperti "Menunggu pencairan" tidak ikut abu-abu
+        for cond in (*({"type": "TEXT_EQ", "values": [{"userEnteredValue": m}]} for m in sorted(todo.MENUNGGU)),
                      {"type": "TEXT_EQ", "values": [{"userEnteredValue": todo.BERJALAN}]},
                      {"type": "TEXT_EQ", "values": [{"userEnteredValue": todo.TANPA_DATA}]}):
             req.append({"addConditionalFormatRule": {"index": 0, "rule": {

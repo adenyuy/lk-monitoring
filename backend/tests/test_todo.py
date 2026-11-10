@@ -109,3 +109,14 @@ def test_kelompok_komunikasi():
     assert tentukan({"2026-11-10": "T2"}, "2026-11-10", False, minggu) == "menunggu"
     assert tentukan({"2026-11-10": "TP"}, "2026-11-10", False, minggu) == "terhubung"
     assert tentukan({}, "2026-11-10", True, minggu) == "beres"
+
+
+def test_kendala_petugas_berawalan_menunggu_bukan_otomatis():
+    # "Menunggu pencairan" adalah pilihan Kendala petugas, bukan keterangan otomatis aplikasi
+    assert not todo.otomatis("Menunggu pencairan")
+    assert todo.otomatis("Menunggu Lap. Pendahuluan") and todo.otomatis(" Menunggu progres 50% ")
+    s = sekolah(mg="3/4")
+    s.isian[1]["mg"] = ("Menunggu pencairan", "Sedang proses pembuatan Laporan")
+    r = todo.rencana(s)
+    assert (1, "mg") not in {(b, k) for b, k, _, _ in todo.keterangan_baru(s, r)}
+    assert todo.ringkas(s, r, 1)["todo"][0]["isian"]["mg"]["kendala"] == "Menunggu pencairan"

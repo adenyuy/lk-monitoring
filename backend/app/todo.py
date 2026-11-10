@@ -19,13 +19,14 @@ from .lk_baru import KOMP, KOMPONEN, Sekolah
 
 SELESAI, DUE, KOSONG, BERJALAN, TANPA_DATA = "✓ Selesai", "Belum due", "Belum ada laporan", "Berjalan", "Belum ada data"
 AWALAN_MENUNGGU = "Menunggu "
-OTOMATIS = {SELESAI, DUE, KOSONG, BERJALAN, TANPA_DATA}
+MENUNGGU = {AWALAN_MENUNGGU + x for x in ("Lap. Pendahuluan", "progres 50%", "Lap. 50%", "progres 100%")}
+OTOMATIS = {SELESAI, DUE, KOSONG, BERJALAN, TANPA_DATA} | MENUNGGU
 
 
 def otomatis(teks: str) -> bool:
-    """Keterangan yang ditulis aplikasi (boleh ditimpa lagi oleh aplikasi)."""
-    t = (teks or "").strip()
-    return t in OTOMATIS or t.startswith(AWALAN_MENUNGGU)
+    """Keterangan yang ditulis aplikasi (boleh ditimpa lagi oleh aplikasi). Harus sama persis:
+    pilihan Kendala petugas seperti "Menunggu pencairan" bukan keterangan otomatis."""
+    return (teks or "").strip() in OTOMATIS
 
 
 # ---------- status satu komponen ----------
