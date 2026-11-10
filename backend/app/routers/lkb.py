@@ -16,8 +16,8 @@ router = APIRouter(prefix="/api/lk2")
 
 
 def blok_hari_ini() -> int:
-    """Senin–Selasa isi sesi Senin–Rabu, Rabu dan seterusnya sesi Rabu–Jumat."""
-    return 1 if schedule.now().weekday() <= 1 else 2
+    """Sesi isian hari ini, mengikuti rentang hari di judul SESI tab WEEK aktif (mis. Senin–Selasa / Rabu–Jumat)."""
+    return lk_baru.blok_untuk(schedule.now().date())
 
 
 def _jalan(fn, *a, **kw):
@@ -58,7 +58,7 @@ def _info(k: dict[str, Any]) -> dict[str, Any]:
         "week": _jalan(lk_baru.week_aktif),
         "hari": hari,
         "tanggal_panjang": schedule.tanggal_panjang(schedule.now().date()),
-        "blok": k["blok"], "blok_label": lk_baru.BLOK_LABEL[k["blok"]],
+        "blok": k["blok"], "blok_label": lk_baru.label_blok(k["blok"]),
         "log_hari_ini": hari in k["logkom"].tanggal,
         "log_rentang": [tgl[0], tgl[-1]] if tgl else [],
         "wa_otomatis": komunikasi.wa_otomatis(),
@@ -181,7 +181,7 @@ def isi(req: IsiReq, _=Depends(require_access)) -> dict[str, Any]:
     s0 = tulis[0][0]
     nomor = s0.nomor_fasil()
     aktivitas.catat(nomor[0] if nomor else f"nama:{s0.fasil}", "lk",
-                    f"Kendala/TL {len(tulis)} isian ({lk_baru.BLOK_LABEL[blok]}): " + ", ".join(nama[:3])
+                    f"Kendala/TL {len(tulis)} isian ({lk_baru.label_blok(blok)}): " + ", ".join(nama[:3])
                     + (f", +{len(nama) - 3} lagi" if len(nama) > 3 else ""), s0.fasil)
     return {"ok": True, "ditulis": len(tulis), "blok": blok}
 
@@ -331,7 +331,7 @@ def pengingat(_=Depends(require_access)) -> dict[str, Any]:
     total_perlu = sum(f["perlu"] for f in daftar.values())
     lengkap = sum(f["lengkap"] for f in daftar.values())
     if hari_kerja and total_perlu > lengkap:
-        items.append({"jenis": "lanjut", "judul": f"Isian sesi {lk_baru.BLOK_LABEL[k['blok']]}: {lengkap}/{total_perlu} sekolah",
+        items.append({"jenis": "lanjut", "judul": f"Isian sesi {lk_baru.label_blok(k['blok'])}: {lengkap}/{total_perlu} sekolah",
                       "isi": "Kendala dan Tindak Lanjut cukup diisi di komponen yang jadi to-do; sisanya terisi otomatis."})
     st = blast.mesin.state
     if st.running:
@@ -350,7 +350,7 @@ def bubble(_=Depends(require_access)) -> dict[str, Any]:
               for f in k["fasil"].values()]
     perlu = sum(x["perlu"] for x in daftar)
     st = blast.mesin.state
-    return {"blok_label": lk_baru.BLOK_LABEL[k["blok"]], "perlu": perlu, "lengkap": sum(x["lengkap"] for x in daftar),
+    return {"blok_label": lk_baru.label_blok(k["blok"]), "perlu": perlu, "lengkap": sum(x["lengkap"] for x in daftar),
             "fasil": len(daftar), "dicatat": sum(1 for x in daftar if x["kode_hari_ini"]),
             "log_hari_ini": k["hari"] in k["logkom"].tanggal,
             "blast": {"berjalan": st.running, "diproses": st.diproses, "total": st.total, "jeda": st.paused}}

@@ -4,7 +4,7 @@ import logging
 import re
 from collections import Counter
 from dataclasses import asdict
-from datetime import date, timedelta
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -37,11 +37,9 @@ def _terakhir_blast(nomor: set[str]) -> dict[str, str]:
 HARI = ("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
 
 
-def rentang_sesi(hari: date) -> tuple[date, date]:
-    """Hari pertama dan terakhir sesi yang sedang berjalan: Senin–Selasa = sesi 1, Rabu–Minggu = sesi 2
-    (sama dengan blok isian LK hari ini)."""
-    senin = hari - timedelta(days=hari.weekday())
-    return (senin, senin + timedelta(days=1)) if hari.weekday() <= 1 else (senin + timedelta(days=2), senin + timedelta(days=6))
+def rentang_sesi(hari: date, sesi: dict[int, tuple[int, int, str]] | None = None) -> tuple[date, date]:
+    """Hari pertama dan terakhir sesi yang sedang berjalan (sama dengan sesi isian LK, dari judul SESI di sheet)."""
+    return lk_baru.rentang_blok(hari, sesi)
 
 
 def _blast_sesi(nomor: set[str]) -> dict[str, list[dict[str, str]]]:

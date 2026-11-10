@@ -17,7 +17,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from . import config, paths
@@ -96,7 +96,19 @@ KOMPONEN: tuple[Komponen, ...] = (
              "Waktu Tunggu Reviu Laporan 100%"),
 )
 KOMP = {k.kode: k for k in KOMPONEN}
-BLOK_LABEL = {1: "Senin–Rabu", 2: "Rabu–Jumat"}
+# Sesi isian bila judul "SESI ..." di baris 1 tidak menyebut hari: (hari pertama, hari terakhir, label), Senin = 0.
+SESI_BAWAAN = {1: (0, 1, "Senin–Selasa"), 2: (2, 4, "Rabu–Jumat")}
+_HARI = {"senin": 0, "selasa": 1, "rabu": 2, "kamis": 3, "jumat": 4, "sabtu": 5, "minggu": 6}
+
+
+def rentang_hari(judul: str) -> tuple[int, int, str] | None:
+    """'SESI SENIN – SELASA · DIISI PETUGAS' -> (0, 1, 'Senin–Selasa'). None bila tidak ada nama hari."""
+    kata = [k for k in re.findall(r"[a-z']+", judul.lower().replace("'", "")) if k in _HARI]
+    if not kata:
+        return None
+    a, b = _HARI[kata[0]], _HARI[kata[-1]]
+    label = kata[0].title() if a == b else f"{kata[0].title()}–{kata[-1].title()}"
+    return a, max(a, b), label
 
 
 class LkError(Exception):
@@ -215,6 +227,7 @@ class Tata:
     tunggu: dict[str, int]
     isian: dict[int, dict[str, tuple[int, int]]]  # {blok: {kode: (kolom Kendala, kolom Tindak Lanjut)}}
     lebar: int
+    sesi: dict[int, tuple[int, int, str]] = field(default_factory=dict)  # {blok: (hari awal, hari akhir, label)}
 
     @property
     def kolom_terakhir(self) -> str:
@@ -260,7 +273,8 @@ def parse_tata(r1: list[Any], r2: list[Any], r3: list[Any]) -> Tata:
         raise LkError("Judul kolom LK tidak ketemu: " + "; ".join(hilang[:6])
                       + ". Kemungkinan judulnya diganti; samakan lagi judulnya atau kabari pengembang.")
     lebar = max(max(c) for b in isian.values() for c in b.values()) + 1
-    return Tata(ident, komp, tunggu, isian, lebar)
+    hari = {b: rentang_hari(r1[i]) or SESI_BAWAAN[b] for b, i in enumerate(sesi[:2], start=1)}
+    return Tata(ident, komp, tunggu, isian, lebar, hari)
 
 
 def tata(week: int, refresh: bool = False) -> Tata:
@@ -270,6 +284,43 @@ def tata(week: int, refresh: bool = False) -> Tata:
         return parse_tata(*got[:3])
 
     return cache.get(f"lk2_tata:{week}", CACHE_DETIK, load, refresh)
+
+
+# ---------- sesi isian (mengikuti judul SESI di tab WEEK aktif) ----------
+
+def sesi_hari() -> dict[int, tuple[int, int, str]]:
+    try:
+        return tata(week_aktif()).sesi or SESI_BAWAAN
+    except Exception:  # noqa: BLE001 - LK tidak terbaca: pakai pembagian bawaan
+        return SESI_BAWAAN
+
+
+def blok_untuk(hari: date, sesi: dict[int, tuple[int, int, str]] | None = None) -> int:
+    """Sesi untuk tanggal `hari`: sesi yang rentang harinya memuat hari itu; hari sesudah sesi terakhir (mis. Sabtu,
+    Minggu) ikut sesi yang paling akhir dimulai."""
+    sesi = sesi or sesi_hari()
+    wd = hari.weekday()
+    for b, (a, z, _) in sorted(sesi.items()):
+        if a <= wd <= z:
+            return b
+    mulai = [b for b, (a, _, _) in sorted(sesi.items()) if a <= wd]
+    return mulai[-1] if mulai else min(sesi)
+
+
+def label_blok(blok: int, sesi: dict[int, tuple[int, int, str]] | None = None) -> str:
+    return (sesi or sesi_hari()).get(blok, SESI_BAWAAN.get(blok, (0, 0, f"Sesi {blok}")))[2]
+
+
+def rentang_blok(hari: date, sesi: dict[int, tuple[int, int, str]] | None = None) -> tuple[date, date]:
+    """Tanggal pertama dan terakhir sesi yang memuat `hari` (sesi terakhir berlanjut sampai Minggu)."""
+    sesi = sesi or sesi_hari()
+    blok = blok_untuk(hari, sesi)
+    senin = hari - timedelta(days=hari.weekday())
+    urut = sorted(sesi)
+    awal = sesi[blok][0]
+    lanjut = [sesi[b][0] for b in urut if b > blok]
+    akhir = lanjut[0] - 1 if lanjut else 6
+    return senin + timedelta(days=awal), senin + timedelta(days=max(awal, akhir))
 
 
 @dataclass

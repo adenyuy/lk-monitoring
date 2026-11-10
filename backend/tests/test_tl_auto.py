@@ -137,9 +137,18 @@ def test_rencana_isi_kendala_kosong_ikut_diisi(monkeypatch):
 def test_rentang_sesi_blast():
     from datetime import date
 
+    from app import lk_baru
     from app.routers.blast import rentang_sesi
 
-    assert rentang_sesi(date(2026, 11, 9)) == (date(2026, 11, 9), date(2026, 11, 10))    # Senin: sesi 1
-    assert rentang_sesi(date(2026, 11, 10)) == (date(2026, 11, 9), date(2026, 11, 10))   # Selasa: sesi 1
-    assert rentang_sesi(date(2026, 11, 11)) == (date(2026, 11, 11), date(2026, 11, 15))  # Rabu: sesi 2
-    assert rentang_sesi(date(2026, 11, 14)) == (date(2026, 11, 11), date(2026, 11, 15))  # Sabtu: sesi 2
+    lama = lk_baru.SESI_BAWAAN  # judul sheet sekarang: SESI SENIN – SELASA / SESI RABU – JUMAT
+    assert rentang_sesi(date(2026, 11, 10), lama) == (date(2026, 11, 9), date(2026, 11, 10))   # Selasa: sesi 1
+    assert rentang_sesi(date(2026, 11, 14), lama) == (date(2026, 11, 11), date(2026, 11, 15))  # Sabtu: sesi 2
+    baru = {1: lk_baru.rentang_hari("SESI SENIN – RABU · DIISI PETUGAS"),
+            2: lk_baru.rentang_hari("SESI KAMIS – SABTU · DIISI PETUGAS")}
+    assert baru == {1: (0, 2, "Senin–Rabu"), 2: (3, 5, "Kamis–Sabtu")}
+    assert lk_baru.blok_untuk(date(2026, 11, 11), baru) == 1  # Rabu
+    assert lk_baru.blok_untuk(date(2026, 11, 12), baru) == 2  # Kamis
+    assert lk_baru.blok_untuk(date(2026, 11, 15), baru) == 2  # Minggu ikut sesi terakhir
+    assert rentang_sesi(date(2026, 11, 11), baru) == (date(2026, 11, 9), date(2026, 11, 11))
+    assert lk_baru.label_blok(2, baru) == "Kamis–Sabtu"
+    assert lk_baru.rentang_hari("SESI RABU – JUMAT · DIISI PETUGAS") == (2, 4, "Rabu–Jumat")

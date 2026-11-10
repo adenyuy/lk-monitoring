@@ -156,7 +156,7 @@ export type SekolahLk = {
   submit: string;
   reviu: string;
   komunikasi: string;
-  isian: Record<string, Isian>; // per blok: "1" Senin–Rabu, "2" Rabu–Jumat
+  isian: Record<string, Isian>; // per blok: "1" sesi pertama, "2" sesi kedua (hari dari judul SESI di LK)
   /** Peserta bimtek yang laporan 50%-nya belum direviu (dari file yang diunggah di Rekap) */
   bimtek?: { hotel: string; submit: string } | null;
 };

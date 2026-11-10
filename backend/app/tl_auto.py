@@ -306,7 +306,7 @@ def proses(nomor: str, rows: list[Row]) -> int:
                 lk_baru.tulis_isian(week, satu, hanya_tl=True)
             nama = sorted({s.nama for s, *_ in tulis})
             n = len(nama)
-            aktivitas.catat(nomor, "lk", f"Tindak lanjut otomatis dari balasan WhatsApp ({lk_baru.BLOK_LABEL[blok]}): "
+            aktivitas.catat(nomor, "lk", f"Tindak lanjut otomatis dari balasan WhatsApp ({lk_baru.label_blok(blok)}): "
                             + ", ".join(nama[:3]) + (f", +{n - 3} lagi" if n > 3 else ""), f.nama)
             events.publish("lk_diperbarui", jumlah=n)
     with db.tx() as c:

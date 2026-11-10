@@ -41,8 +41,8 @@ function ContohHari() {
 }
 
 const MINGGU = [
-  { hari: "Senin", kerja: "Broadcast", lk: "Senin–Rabu" },
-  { hari: "Selasa", kerja: "Broadcast", lk: "Senin–Rabu" },
+  { hari: "Senin", kerja: "Broadcast", lk: "Senin–Selasa" },
+  { hari: "Selasa", kerja: "Broadcast", lk: "Senin–Selasa" },
   { hari: "Rabu", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
   { hari: "Kamis", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
   { hari: "Jumat", kerja: "Tindak lanjut", lk: "Rabu–Jumat" },
@@ -159,7 +159,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
         q: "Apa yang berubah di hari Senin?",
         a: (
           <p>Hitungan &quot;sudah dikirimi&quot; berlaku per minggu, Senin sampai Minggu. Hari Senin semua fasil di Broadcast
-            masuk antrean lagi, dan isian LK pindah ke kolom sesi Senin–Rabu.</p>
+            masuk antrean lagi, dan isian LK pindah ke kolom sesi pertama.</p>
         ),
       },
       {
@@ -228,7 +228,7 @@ const GRUP: { judul: string; isi: T[] }[] = [
         id: "blok-lk",
         q: "Isian LK masuk ke kolom sesi yang mana?",
         a: (
-          <p>Senin dan Selasa otomatis ke sesi <b>Senin–Rabu</b>, Rabu sampai Jumat ke sesi <b>Rabu–Jumat</b>. Anda bisa
+          <p>Mengikuti judul SESI di tab WEEK LK (saat ini <b>Senin–Selasa</b> dan <b>Rabu–Jumat</b>; Sabtu ikut sesi kedua). Anda bisa
             menggantinya di panel LK. Status komunikasi diisi sekali per fasil untuk semua sekolahnya, dan terisi
             otomatis dari chat minggu ini: <b>Terhubung</b> bila fasil membalas, <b>Chat hanya di Read</b> bila pesan
             hanya dibaca, dan <b>Nomor Tidak Terhubung Whatsapp</b> bila nomornya tidak terdaftar. Pilihan yang Anda isi
