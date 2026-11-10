@@ -195,16 +195,30 @@ class _KlienUlang(BackOffHTTPClient):
     (mis. 'Connection aborted' / 'RemoteDisconnected' saat mengirim data besar atau Wi-Fi sempat goyah)."""
 
     _COBA_KONEKSI = 4
+    # Koneksi yang lama menganggur (laptop sleep, Wi-Fi pindah) sering sudah mati tanpa kabar: dipakai lagi, permintaan
+    # menunggu sampai batas waktu (60 s) sebelum dicoba ulang. Setelah menganggur selama ini, buka koneksi baru.
+    _MAKS_ANGGUR = 90
 
     def request(self, *args, **kwargs):
+        if time.monotonic() - getattr(self, "_terakhir", 0.0) > self._MAKS_ANGGUR:
+            self._segarkan()
         for i in range(self._COBA_KONEKSI):
             try:
-                return super().request(*args, **kwargs)
+                hasil = super().request(*args, **kwargs)
+                self._terakhir = time.monotonic()
+                return hasil
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
                     requests.exceptions.ChunkedEncodingError):
                 if i == self._COBA_KONEKSI - 1:
                     raise
+                self._segarkan()  # coba ulang lewat koneksi baru, bukan koneksi lain yang mungkin sama-sama mati
                 time.sleep(3 * 2 ** i)
+
+    def _segarkan(self) -> None:
+        try:
+            self.session.close()  # tutup semua koneksi tersimpan; koneksi baru dibuat otomatis saat dipakai
+        except Exception:
+            pass
 
 
 _gc_cache: dict[int, gspread.Client] = {}
