@@ -5,7 +5,7 @@ import { api, post } from "@/lib/api";
 import { useCountdown, useEvents, usePolling } from "@/lib/hooks";
 import { KELOMPOK_INFO, TAHAP_LABEL, type Aturan, type BlastState, type JenisPenerima, type Kelompok, type Penerima,
   type TemplateSaya } from "@/lib/lk";
-import { SALAM, VARIABEL, isi as isiTemplate, kosong, persempit, templateBawaan, type Template } from "@/lib/pesan";
+import { SALAM, VARIABEL, isi as isiTemplate, kosong, persempit, salamSekarang, templateBawaan, type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { formatWa } from "@/components/today/WaPanel";
 import { GantiWa, WaKartu } from "./GantiWa";
@@ -20,6 +20,9 @@ type DataPenerima = {
 type StateResp = { state: BlastState; aturan: Aturan; wa_terbuka: boolean; wa_otomatis: boolean; jam_kirim: boolean;
   template: TemplateSaya[] };
 type Langkah = 1 | 2 | 3;
+/** Template dari tab "BC - ..." sheet Draft Broadcast: pesan siap kirim per penerima (kunci -> teks). */
+type BcTpl = { kode: string; judul: string; tab: string; jenis: JenisPenerima; per: Record<string, string>; tanpa_cocok: string[] };
+type BcResp = { ada_link: boolean; template: BcTpl[]; error: string };
 
 const CHAT_INFO = {
   dibalas: { label: "Sudah membalas", tone: "ok" },
@@ -81,6 +84,8 @@ export function BlastView() {
   const [aturanBuka, setAturanBuka] = useState(false);
   const [gantiWa, setGantiWa] = useState(false);
   const [mulai, setMulai] = useState<{ busy: boolean; error?: string; konfirmasi?: boolean }>({ busy: false });
+  const [bc, setBc] = useState<BcResp | null>(null);
+  const [bcMuat, setBcMuat] = useState(false);
   const teksRef = useRef<HTMLTextAreaElement>(null);
   const atasRef = useRef<HTMLDivElement>(null);
 
@@ -114,11 +119,34 @@ export function BlastView() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void muatPenerima(jenis); }, [jenis, muatPenerima]);
 
+  const muatBc = useCallback(async (refresh = false) => {
+    setBcMuat(true);
+    try { setBc(await api<BcResp>(`/api/blast/bc${refresh ? "?refresh=true" : ""}`)); }
+    catch (e) { setBc({ ada_link: true, template: [], error: e instanceof Error ? e.message : String(e) }); }
+    finally { setBcMuat(false); }
+  }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void muatBc(); }, [muatBc]);
+  const bcJenis = useMemo(() => (bc?.template ?? []).filter((t) => t.jenis === jenis), [bc, jenis]);
+  const bcAktif = bcJenis.find((t) => t.kode === tpl);
+
   const daftarTpl: Template[] = useMemo(() => [
     ...templateBawaan(jenis),
     ...(st?.template ?? []).filter((t) => t.jenis === jenis)
       .map((t) => ({ kode: `saya:${t.id}`, judul: t.judul, ket: "Template simpanan Anda", teks: t.teks, bawaan: false })),
-  ], [jenis, st?.template]);
+    ...bcJenis.map((t) => ({ kode: t.kode, judul: t.judul, ket: `Dari sheet Draft Broadcast, tab ${t.tab}`, teks: "", bawaan: false })),
+  ], [jenis, st?.template, bcJenis]);
+
+  /** Pesan untuk satu penerima: dari sheet (template BC) atau dari template dengan variabel. */
+  const pesanUntuk = (p: Penerima, salamNanti: boolean) => {
+    if (!bcAktif) return isiTemplate(teks, p, data?.petugas ?? "", salamNanti);
+    const x = bcAktif.per[p.kunci] ?? "";
+    return salamNanti ? x : x.split(SALAM).join(salamSekarang().replace(/^Selamat /, ""));
+  };
+  const tanpaPesan = (t: Template, p: Penerima) => {
+    const b = bcJenis.find((x) => x.kode === t.kode);
+    return b ? !b.per[p.kunci] : kosong(t.teks, p).length > 0;
+  };
 
   function gantiJenis(j: JenisPenerima) {
     if (j === jenis) return;
@@ -151,11 +179,12 @@ export function BlastView() {
     : lewatiHariIni && (p.chat_hari_ini || p.terakhir_blast)
       ? `Sudah di-chat hari ini ${p.chat_hari_ini || p.terakhir_blast}` : "";
   const target = terpilih.filter((p) => !alasanTarget(p) && !buang.has(p.kunci));
-  const siap = target.filter((p) => !kosong(teks, p).length);
-  const tanpaIsi = target.filter((p) => kosong(teks, p).length);
+  const tplAktif: Template = { kode: tpl, judul, ket: "", teks, bawaan: false };
+  const siap = target.filter((p) => !tanpaPesan(tplAktif, p));
+  const tanpaIsi = target.filter((p) => tanpaPesan(tplAktif, p));
 
   const contoh = siap[Math.min(lihat, Math.max(0, siap.length - 1))];
-  const sisaVar = teks.match(/\{[a-z_]+\}/g)?.filter((v) => !VARIABEL[jenis].some((x) => x.kode === v)) ?? [];
+  const sisaVar = bcAktif ? [] : teks.match(/\{[a-z_]+\}/g)?.filter((v) => !VARIABEL[jenis].some((x) => x.kode === v)) ?? [];
   const rata = (aturan.jeda_min + aturan.jeda_max) / 2;
   const n = siap.length;
   const istirahat = aturan.istirahat_setiap ? Math.floor(Math.max(0, n - 1) / aturan.istirahat_setiap) : 0;
@@ -212,7 +241,7 @@ export function BlastView() {
     try {
       await post("/api/blast/start", {
         jenis, judul, coba, aturan,
-        kirim: siap.map((p) => ({ kunci: p.kunci, pesan: isiTemplate(teks, p, data.petugas, true) })),
+        kirim: siap.map((p) => ({ kunci: p.kunci, pesan: pesanUntuk(p, true) })),
       });
       setMulai({ busy: false });
       await muatState();
@@ -225,7 +254,7 @@ export function BlastView() {
   const state = st?.state;
   const jalan = !!state?.running;
   const bisaLanjut2 = target.length > 0;
-  const bisaLanjut3 = n > 0 && sisaVar.length === 0 && !!teks.trim();
+  const bisaLanjut3 = n > 0 && (!!bcAktif || (sisaVar.length === 0 && !!teks.trim()));
 
   return (
     <div className={s.page}>
@@ -404,7 +433,7 @@ export function BlastView() {
           </div>
           <div className={s.tplGrid}>
             {daftarTpl.map((t) => {
-              const cocok = target.filter((p) => !kosong(t.teks, p).length).length;
+              const cocok = target.filter((p) => !tanpaPesan(t, p)).length;
               return (
                 <button key={t.kode} type="button" aria-pressed={tpl === t.kode} onClick={() => pakaiTpl(t)}>
                   <b>{t.judul}</b><small>{t.ket}</small>
@@ -416,12 +445,22 @@ export function BlastView() {
               <b>+ Tulis sendiri</b><small>Pesan custom dari nol. Bisa disimpan jadi template.</small>
             </button>
           </div>
+          {bc?.error && <Notice tone="warn" title="Template BC dari sheet belum terbaca">{bc.error}</Notice>}
           <div className={s.tulis}>
             <div className={s.editor}>
               <label className={s.judulInput}>
                 <span>Judul blast (untuk riwayat)</span>
                 <input value={judul} maxLength={80} onChange={(e) => setJudul(e.target.value)} />
               </label>
+              {bcAktif ? (
+                <Notice tone="info" title={`Pesan dari tab ${bcAktif.tab}`}>
+                  Tiap penerima mendapat pesan siap kirim dari sheet Draft Broadcast (sudah berisi daftar sekolahnya sendiri).
+                  Salam menyesuaikan jam kirim. Ubah isinya langsung di sheet, lalu muat ulang.
+                  {bcAktif.tanpa_cocok.length > 0 && <> {bcAktif.tanpa_cocok.length} nama di tab ini tidak ditemukan di LK Anda:
+                    {" "}{bcAktif.tanpa_cocok.slice(0, 3).join(", ")}{bcAktif.tanpa_cocok.length > 3 ? ", dst." : ""}</>}
+                  <div><Button variant="secondary" size="sm" loading={bcMuat} onClick={() => void muatBc(true)}>Muat ulang dari sheet</Button></div>
+                </Notice>
+              ) : (<>
               <textarea ref={teksRef} value={teks} rows={14} maxLength={4000} aria-label="Isi pesan"
                 onChange={(e) => { setTeks(e.target.value); if (tpl !== CUSTOM && !tpl.startsWith("saya:")) setTpl(CUSTOM); }} />
               <div className={s.varBar} aria-label="Sisipkan variabel">
@@ -429,19 +468,20 @@ export function BlastView() {
                   <button key={v.kode} type="button" title={v.arti} onClick={() => sisip(v.kode)}>{v.kode}</button>
                 ))}
               </div>
+              </>)}
               {sisaVar.length > 0 && <p className={s.err}>Variabel tidak dikenal: {sisaVar.join(", ")}</p>}
               {tanpaIsi.length > 0 && (
                 <Notice tone="warn" title={`${tanpaIsi.length} penerima dilewati`}>
-                  Variabel di pesan ini tidak punya isi untuk {tanpaIsi.slice(0, 3).map((p) => p.nama).join(", ")}
+                  {bcAktif ? "Tab ini tidak punya pesan untuk" : "Variabel di pesan ini tidak punya isi untuk"} {tanpaIsi.slice(0, 3).map((p) => p.nama).join(", ")}
                   {tanpaIsi.length > 3 ? `, dan ${tanpaIsi.length - 3} lainnya` : ""}. Pilih template lain bila semua perlu dikirimi.
                 </Notice>
               )}
               <div className={s.editorAksi}>
-                <Button variant="secondary" size="sm" disabled={!teks.trim()} onClick={() => void simpanTpl()}>Simpan sebagai template</Button>
+                {!bcAktif && <Button variant="secondary" size="sm" disabled={!teks.trim()} onClick={() => void simpanTpl()}>Simpan sebagai template</Button>}
                 {tpl.startsWith("saya:") && <Button variant="ghost" size="sm" onClick={() => void hapusTpl(tpl)}>Hapus template ini</Button>}
               </div>
             </div>
-            <Pratinjau siap={siap} lihat={lihat} setLihat={setLihat} contoh={contoh} teks={teks} petugas={data?.petugas ?? ""} />
+            <Pratinjau siap={siap} lihat={lihat} setLihat={setLihat} contoh={contoh} pesan={(p) => pesanUntuk(p, false)} />
           </div>
           <div className={s.navBar}>
             <Button variant="ghost" onClick={() => ke(1)}>Kembali</Button>
@@ -466,7 +506,7 @@ export function BlastView() {
               <div className={s.ringkasAksen}><dt>Perkiraan selesai</dt><dd><b>{n ? durasi(perkiraan) : "–"}</b>
                 <small>{n} pesan{istirahat ? `, ${istirahat}× istirahat` : ""}</small></dd></div>
             </dl>
-            <Pratinjau siap={siap} lihat={lihat} setLihat={setLihat} contoh={contoh} teks={teks} petugas={data?.petugas ?? ""} />
+            <Pratinjau siap={siap} lihat={lihat} setLihat={setLihat} contoh={contoh} pesan={(p) => pesanUntuk(p, false)} />
           </div>
           {aturan.jeda_min < 15 && (
             <Notice tone="warn" title="Jeda sangat pendek">Di bawah 15 detik meningkatkan risiko nomor dibatasi WhatsApp.</Notice>
@@ -503,8 +543,8 @@ export function BlastView() {
   );
 }
 
-function Pratinjau({ siap, lihat, setLihat, contoh, teks, petugas }: {
-  siap: Penerima[]; lihat: number; setLihat: (n: number) => void; contoh: Penerima | undefined; teks: string; petugas: string;
+function Pratinjau({ siap, lihat, setLihat, contoh, pesan }: {
+  siap: Penerima[]; lihat: number; setLihat: (n: number) => void; contoh: Penerima | undefined; pesan: (p: Penerima) => string;
 }) {
   return (
     <div className={s.preview}>
@@ -519,7 +559,7 @@ function Pratinjau({ siap, lihat, setLihat, contoh, teks, petugas }: {
         )}
       </div>
       <div className={s.hp}>
-        {contoh ? <div className={s.bubble}>{formatWa(isiTemplate(teks, contoh, petugas, false))}</div>
+        {contoh ? <div className={s.bubble}>{formatWa(pesan(contoh))}</div>
           : <p className={s.kosong}>Belum ada penerima yang bisa dikirimi pesan ini.</p>}
       </div>
     </div>

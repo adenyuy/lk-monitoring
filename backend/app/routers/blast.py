@@ -262,6 +262,25 @@ def stop(_=Depends(wa_blast)) -> dict[str, Any]:
     return {"state": blast.mesin.stop()}
 
 
+@router.get("/bc")
+def template_bc(refresh: bool = False, _=Depends(wa_blast)) -> dict[str, Any]:
+    """Template dari tab "BC - ..." sheet Draft Broadcast: pesan siap kirim per penerima milik petugas ini."""
+    from .. import bc_draft
+
+    if not bc_draft.sheet_id():
+        return {"ada_link": False, "template": [], "error": ""}
+    try:
+        fasil = komunikasi.fasil_saya()
+        kunci_nama = {
+            "fasil": {normalize_petugas(f.nama): f.kunci for f in fasil.values() if f.nama},
+            "koor": {normalize_petugas(f.koor): "koor:" + normalize_petugas(f.koor) for f in fasil.values() if f.koor},
+        }
+        return {"ada_link": True, "template": bc_draft.template(komunikasi.petugas_saya(), kunci_nama, refresh),
+                "error": ""}
+    except (bc_draft.BcError, lk_baru.LkError) as e:
+        return {"ada_link": True, "template": [], "error": str(e)}
+
+
 class TemplateSaya(BaseModel):
     id: str = Field(min_length=1, max_length=40)
     judul: str = Field(min_length=1, max_length=60)

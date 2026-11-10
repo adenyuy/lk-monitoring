@@ -116,7 +116,11 @@ def susun(p: Pengaturan, nama: str) -> str:
 
 
 def isi_salam(teks: str, t: datetime) -> str:
-    return teks.replace(TANDA_SALAM, salam(t))
+    """"Selamat {salam}" -> "Selamat sore"; {salam} tanpa "Selamat" di depannya (template halaman Blast:
+    "{salam} Bapak/Ibu") -> "Selamat sore" juga, bukan "sore Bapak/Ibu"."""
+    w = salam(t)
+    teks = re.sub(r"(?i)\b(selamat)\s+\{salam\}", lambda m: f"{m.group(1)} {w}", teks)
+    return teks.replace(TANDA_SALAM, f"Selamat {w}")
 
 
 def penerima(rows: list[BroadcastRow], petugas: str, lk: list | None) -> list[BroadcastRow]:
