@@ -88,14 +88,15 @@ def _status_pesan(pid: str) -> str:
 
 def kirim_neo(nomor: str, teks: str, jid=None, sleep: Callable[[float], None] = time.sleep) -> SendResult:
     """Kirim satu pesan teks lewat neonize. Tidak pernah dicoba ulang lewat jalur lain."""
-    from neonize.utils.enum import ChatPresence, ChatPresenceMedia
-
     k = _klien()
     if jid is None:
         jid = jid_nomor(nomor)
         if jid is None:
             return SendResult("gagal", "Nomor tidak terdaftar di WhatsApp.")
     try:
+        # diimpor di sini: neonize hanya terpasang di Windows (tes CI & Mac tetap jalan tanpa status mengetik)
+        from neonize.utils.enum import ChatPresence, ChatPresenceMedia
+
         k.send_chat_presence(jid, ChatPresence.CHAT_PRESENCE_COMPOSING, ChatPresenceMedia.CHAT_PRESENCE_MEDIA_TEXT)
         sleep(lama_ketik(teks))
         k.send_chat_presence(jid, ChatPresence.CHAT_PRESENCE_PAUSED, ChatPresenceMedia.CHAT_PRESENCE_MEDIA_TEXT)

@@ -8,6 +8,12 @@ from app import db
 from app.wa import pendengar, pengirim
 from app.wa.actions import OpenResult, SendResult
 
+try:  # neonize hanya terpasang di Windows; CI Linux dan Mac tanpa status mengetik
+    import neonize.utils.enum  # noqa: F401
+    ADA_NEONIZE = True
+except ImportError:
+    ADA_NEONIZE = False
+
 
 class KlienPalsu:
     def __init__(self, terdaftar=("6281200000001",), gagal_cek=False, gagal_kirim=False):
@@ -67,7 +73,8 @@ def test_kirim_lewat_neonize_bila_tersambung(neo):
     assert r.status == "terkirim"
     assert neo.terkirim == [("6281200000001", "Halo")]
     assert web.dibuka == [] and web.dikirim == 0
-    assert any("COMPOSING" in x for x in neo.presence)  # "sedang mengetik…" dulu
+    if ADA_NEONIZE:  # CI Linux / Mac tanpa neonize: tanpa status mengetik
+        assert any("COMPOSING" in x for x in neo.presence)  # "sedang mengetik…" dulu
     # pesan tersimpan sebagai pesan keluar supaya chat & Log Komunikasi ikut terisi
     rows = pendengar.baris_chat("6281200000001")
     assert rows and rows[-1].out and rows[-1].text == "Halo"
