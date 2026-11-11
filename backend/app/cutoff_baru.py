@@ -39,7 +39,9 @@ WAJIB = ("NPSN", "Nama Sekolah", "Pendahuluan - Status Kirim", "Capaian Progres 
 KIRIM = {"Sudah Dikirim": "Sudah", "Belum Dikirim": "Belum", "Belum Due": "Belum Due"}
 REVIU_LP = {"Disetujui": "Sudah", "Revisi": "Revisi", "Belum Direviu": "Belum", "Belum Dikirim": "-"}
 REVIU_LAP = {"Selesai (TTD Koordinator)": "Sudah", "Disetujui Fasil, belum TTD Koordinator": "Belum TTD Koor",
-             "Dikembalikan": "Dikembalikan", "Belum Direviu": "Belum", "Belum Dikirim": "-", "Belum Due": "Belum Due"}
+             "Dikembalikan": "Dikembalikan", "Belum Direviu": "Belum",
+             "Disetujui Fasil": "Sudah",  # Reviu Lap. 100%: sudah direviu dan sesuai
+             "Belum Dikirim": "-", "Belum Due": "Belum Due"}
 KETERANGAN_BARU = (todo.SELESAI, todo.DUE, todo.KOSONG, todo.BERJALAN, todo.TANPA_DATA,
                    "Menunggu Lap. Pendahuluan", "Menunggu progres 50%", "Menunggu Lap. 50%", "Menunggu progres 100%")
 

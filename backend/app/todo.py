@@ -74,7 +74,8 @@ def status(kode: str, v: Any) -> Status:
         if b <= 0:
             return Status(kode, "kosong", "Belum ada laporan")
         return Status(kode, "selesai" if a >= b else "belum", f"{a:g}/{b:g}", rasio=(a, b))
-    return Status(kode, "selesai" if t == "Sudah" else "belum", t)
+    # "Disetujui Fasil" (Reviu Lap. 100%) = sudah direviu dan sesuai
+    return Status(kode, "selesai" if t.casefold() in ("sudah", "disetujui fasil") else "belum", t)
 
 
 def semua_status(s: Sekolah) -> dict[str, Status]:

@@ -91,7 +91,7 @@ def warna_komponen(kode: str, v: Any) -> dict[str, Any]:
         except ValueError:
             return POLOS
         return HIJAU if a >= b else MERAH
-    if k == "sudah":
+    if k in ("sudah", "disetujui fasil"):
         return HIJAU
     if k == "belum":
         return MERAH

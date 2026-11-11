@@ -5,6 +5,7 @@ from app.lk_baru import Sekolah, Tata
 def test_warna_komponen_sama_dengan_aturan_lama():
     assert w.warna_komponen("lp", "Sudah") is w.HIJAU
     assert w.warna_komponen("lp", "Belum") is w.MERAH
+    assert w.warna_komponen("l100_rev", "Disetujui Fasil") is w.HIJAU
     assert w.warna_komponen("lp_rev", "Belum Due") is w.ABU
     assert w.warna_komponen("lp_rev", "-") is w.ABU
     assert w.warna_komponen("lp_rev", "Dikembalikan") is w.MERAH
