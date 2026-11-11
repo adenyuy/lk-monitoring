@@ -30,7 +30,7 @@ const CHAT_INFO = {
   terkirim: { label: "Terkirim, belum dibaca", tone: "info" },
 } as const;
 const CHAT_PILIH = [
-  { k: "belum", label: "Belum di-chat di putaran ini" },
+  { k: "belum", label: "Belum di-chat di sesi ini" },
   { k: "terkirim", label: CHAT_INFO.terkirim.label },
   { k: "dibaca", label: CHAT_INFO.dibaca.label },
   { k: "dibalas", label: CHAT_INFO.dibalas.label },

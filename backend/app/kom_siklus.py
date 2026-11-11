@@ -1,7 +1,10 @@
-"""Kode Log Komunikasi per siklus kirim: satu blast berlaku sampai putaran blast berikutnya.
+"""Kode Log Komunikasi per siklus kirim: satu pesan ke fasil berlaku sampai akhir sesinya.
 
-Putaran blast = hari ada blast/Broadcast ke banyak fasil (dari aplikasi, atau terbaca dari chat bila lewat HP).
-Siklus fasil berakhir sehari sebelum putaran berikutnya; fasil yang tidak ikut putaran itu kosong sejak hari itu.
+Sesi = pembagian hari di tab WEEK (bawaan Senin–Rabu dan Kamis–Sabtu): fasil cukup di-chat sekali per sesi,
+jadi dua kali seminggu. Siklus fasil berakhir di akhir sesi tempat siklus dimulai, atau sehari sebelum fasil itu
+dikirimi pesan baru. Bila fasil membalas di sesi berikutnya (mis. blast Jumat dibalas Senin), siklusnya
+diperpanjang sampai akhir sesi balasan itu. Blast ke fasil lain tidak mengakhiri siklus fasil ini.
+Putaran blast (blast ke banyak fasil di hari yang sama) hanya dipakai untuk mengenali blast lewat HP.
 Survei dan undangan WAG bukan blast monitoring, jadi tidak memulai siklus.
 
 Siklus dimulai pada hari pesan terakhir terkirim (blast atau chat dari aplikasi). Setiap hari kerja (Senin–Sabtu)
@@ -94,7 +97,7 @@ def konfirmasi(teks: str) -> bool:
 class Siklus:
     awal: date
     gagal: bool = False  # kiriman gagal permanen (nomor tidak ada WA), tidak ada yang terkirim di hari itu
-    akhir: date | None = None  # hari terakhir siklus (sehari sebelum siklus berikutnya); None = sampai hari ini
+    akhir: date | None = None  # hari terakhir siklus (akhir sesi, atau sehari sebelum siklus berikutnya)
 
 
 _BUKAN_BLAST = " AND ".join(f"hash_pesan NOT LIKE '{x}%'" for x in TIPE_SURVEI_WAG)
@@ -143,13 +146,32 @@ def putaran(hari: date, fasil: set[str] | None = None) -> list[date]:
     return sorted(date.fromisoformat(w) for w in tgl)
 
 
-def daftar_siklus(nomor: str, hari: date, putaran_: list[date] | None = None) -> list[Siklus]:
+def _sesi() -> dict[int, tuple[int, int, str]]:
+    from . import lk_baru
+
+    return lk_baru.sesi_hari()
+
+
+def sesi_dari(d: date, sesi: dict[int, tuple[int, int, str]]) -> tuple[date, date]:
+    """(hari pertama, hari terakhir) sesi yang memuat tanggal `d`. Minggu ikut sesi hari Senin sesudahnya."""
+    from .lk_baru import blok_untuk
+
+    if d.weekday() == 6:
+        d += timedelta(days=1)
+    wd = d.weekday()
+    a, z, _ = sesi[blok_untuk(d, sesi)]
+    return d - timedelta(days=max(wd - a, 0)), d + timedelta(days=max(z - wd, 0))
+
+
+def daftar_siklus(nomor: str, hari: date, putaran_: list[date] | None = None,
+                  sesi: dict[int, tuple[int, int, str]] | None = None) -> list[Siklus]:
     """Semua siklus kirim fasil ini dalam MAKS_HARI terakhir, urut dari yang lama.
 
     Awal siklus "kuat": blast/Broadcast dari aplikasi, atau pesan keluar di hari putaran (blast lewat HP).
     Chat satuan (pesan keluar lain yang terbaca di chat, mis. "gimana kak?") hanya memulai siklus bila fasil itu
     sedang tidak punya siklus aktif, jadi chat lanjutan di tengah siklus blast tidak mengulang kodenya dari awal.
-    Tiap siklus berlaku sampai sehari sebelum awal siklus berikutnya atau putaran blast berikutnya."""
+    Tiap siklus berlaku sampai akhir sesinya (diperpanjang bila fasil membalas di sesi berikutnya), dan paling lama
+    sehari sebelum awal siklus berikutnya."""
     if not nomor:
         return []
     _db()
@@ -172,14 +194,20 @@ def daftar_siklus(nomor: str, hari: date, putaran_: list[date] | None = None) ->
         "SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'gagal' "
         "AND lower(keterangan) LIKE '%tidak terdaftar%' AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
     gagal -= kuat
+    sesi = sesi or _sesi()
+    balas = sorted(date.fromisoformat(r["tanggal"]) for r in db.query(
+        "SELECT tanggal FROM kom_balas WHERE nomor = ? AND tanggal >= ? AND tanggal < ?", (nomor, batas, akhir)))
 
     def susun_akhir(daftar: list[Siklus]) -> list[Siklus]:
         daftar.sort(key=lambda s: s.awal)
         for i, s in enumerate(daftar):
-            s.akhir = None
-            batas_akhir = [b.awal for b in daftar[i + 1:i + 2]] + [p for p in put if p > s.awal][:1]
-            if batas_akhir:
-                s.akhir = min(batas_akhir) - timedelta(days=1)
+            batas_berikut = daftar[i + 1].awal - timedelta(days=1) if i + 1 < len(daftar) else None
+            ujung = sesi_dari(s.awal, sesi)[1]
+            if not s.gagal:  # balasan di sesi berikutnya: fasil masih terhubung sampai akhir sesi balasan itu
+                for b in balas:
+                    if ujung < b and (batas_berikut is None or b <= batas_berikut):
+                        ujung = sesi_dari(b, sesi)[1]
+            s.akhir = min(ujung, batas_berikut) if batas_berikut else ujung
         return daftar
 
     out = susun_akhir([Siklus(date.fromisoformat(w), gagal=w in gagal) for w in sorted(kuat | gagal)])
@@ -327,8 +355,8 @@ def kode_kejadian(k: Kejadian, s: Siklus, d: date) -> str:
 
 
 def status_sekarang(nomor: str, hari: date, putaran_: list[date] | None = None) -> str:
-    """Status chat di siklus yang masih berlaku hari ini: dibalas | dibaca | terkirim | '' (tidak ikut putaran
-    terakhir / belum dikirimi)."""
+    """Status chat di siklus yang masih berlaku hari ini: dibalas | dibaca | terkirim | '' (belum dikirimi di
+    sesi ini)."""
     semua = daftar_siklus(nomor, hari, putaran_)
     if not semua:
         return ""
@@ -367,15 +395,21 @@ def susun(s: Siklus, k: Kejadian, hari: date, isi_lk: dict[str, str], auto: dict
 
 
 def susun_semua(nomor: str, hari: date, isi_lk: dict[str, str], auto: dict[str, str],
-                putaran_: list[date] | None = None) -> dict[str, str]:
-    """{tanggal: kode} untuk semua siklus fasil ini. Sel buatan aplikasi di luar siklus mana pun dikosongkan."""
+                putaran_: list[date] | None = None,
+                sesi: dict[int, tuple[int, int, str]] | None = None) -> dict[str, str]:
+    """{tanggal: kode} untuk semua siklus fasil ini. Sel buatan aplikasi di luar siklus mana pun dikosongkan, tapi
+    hanya mulai hari ini: hari yang sudah lewat tidak pernah dihapus. Sesi yang sudah lewat hanya diisi bila selnya
+    masih kosong (mis. laptop mati), supaya log lama tetap."""
+    sesi = sesi or _sesi()
+    kini = sesi_dari(hari, sesi)[0].isoformat()
     tulis: dict[str, str] = {}
     tercakup: set[str] = set()
-    for s in daftar_siklus(nomor, hari, putaran_):
+    for s in daftar_siklus(nomor, hari, putaran_, sesi):
         tulis.update(susun(s, kejadian(nomor, s), hari, isi_lk, auto))
         sampai = min(hari, s.akhir) if s.akhir else hari
         tercakup |= {d.isoformat() for d in hari_kerja(s.awal, sampai)}
     for t, v in auto.items():
         if v and t not in tercakup and isi_lk.get(t, "") == v:
             tulis[t] = ""
-    return tulis
+    h = hari.isoformat()
+    return {t: v for t, v in tulis.items() if t >= h or (v and (t >= kini or not isi_lk.get(t, "")))}

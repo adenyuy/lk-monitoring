@@ -61,7 +61,7 @@ def test_pesan_keluar_lid_lalu_centang_lalu_balasan(siap):
     s = kom_siklus.siklus(FASIL, schedule.now().date())
     assert s.awal.isoformat() == "2026-11-06"
     hasil = kom_siklus.susun(s, kom_siklus.kejadian(FASIL, s), schedule.now().date(), {}, {})
-    assert hasil["2026-11-07"] == "T" and hasil["2026-11-09"] == "T"
+    assert hasil["2026-11-07"] == "T" and "2026-11-09" not in hasil  # Senin sesi baru
 
 
 def test_nomor_bukan_fasil_diabaikan(siap):

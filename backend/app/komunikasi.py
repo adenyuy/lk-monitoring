@@ -256,10 +256,11 @@ def sinkron_wa(hari: str | None = None) -> int:
             auto.setdefault(r["npsn"], {})[r["tanggal"]] = r["kode"]
         per_hari: dict[str, dict[str, str]] = {}
         put = kom_siklus.putaran(hari_d)
+        sesi = lk_baru.sesi_hari()
         for f in fasil.values():
             for sk in f.sekolah:
                 isi = logkom.kode.get(sk.npsn, {})
-                for t, kode in kom_siklus.susun_semua(f.nomor, hari_d, isi, auto.get(sk.npsn, {}), put).items():
+                for t, kode in kom_siklus.susun_semua(f.nomor, hari_d, isi, auto.get(sk.npsn, {}), put, sesi).items():
                     per_hari.setdefault(t, {})[sk.npsn] = kode
         if any("C2" in x.values() for x in per_hari.values()) and not lk_baru.pastikan_kode_dropdown("C2"):
             # Dropdown di sheet tidak bisa ditambah C2. C2 TIDAK boleh diganti C (C = centang satu, maknanya beda):

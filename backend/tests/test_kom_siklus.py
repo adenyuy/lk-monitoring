@@ -4,6 +4,7 @@ from types import SimpleNamespace as Row
 import pytest
 
 from app import db, kom_siklus as ks
+from app.lk_baru import SESI_BAWAAN
 
 JUM, SAB, SEN, SEL = date(2026, 11, 6), date(2026, 11, 7), date(2026, 11, 9), date(2026, 11, 10)
 NO = "6281200000001"
@@ -14,7 +15,8 @@ def tgl(w):
 
 
 @pytest.fixture(autouse=True)
-def bersih():
+def bersih(monkeypatch):
+    monkeypatch.setattr(ks, "_sesi", lambda: SESI_BAWAAN)
     ks._db()
     with db.tx() as c:
         for t in ("kom_amat", "kom_balas", "kom_mulai"):
@@ -44,27 +46,28 @@ def test_skenario_jumat_sabtu_senin():
     rows = [Row(out=True, status="read", text="blast", waktu="2026-11-06"),
             Row(out=False, status="", text="siap kak, nanti saya cek", waktu="2026-11-07")]
     ks.catat_chat(NO, rows, tgl, SEN)
-    assert kode(SEN) == {"2026-11-06": "C2", "2026-11-07": "T1", "2026-11-09": "T1"}
+    assert kode(SEN) == {"2026-11-06": "C2", "2026-11-07": "T1"}  # Senin sesi baru: harus di-chat lagi
     # Selasa fasil kirim Kendala / Tindak lanjut -> T mulai Selasa
     rows.append(Row(out=False, status="", text="1. SD A\nKendala: hujan\nTindak lanjut: lembur", waktu="2026-11-10"))
     ks.catat_chat(NO, rows, tgl, SEL)
+    # ...kecuali fasil membalas di sesi baru: siklus diperpanjang sampai akhir sesi itu
     assert kode(SEL)["2026-11-10"] == "T" and kode(SEL)["2026-11-09"] == "T1"
 
 
 def test_minggu_tidak_diisi_dan_dibaca_tanpa_balas():
     kirim(JUM)
     ks.catat_chat(NO, [Row(out=True, status="read", text="blast", waktu="2026-11-06")], tgl, SEN)
-    # dibaca baru terlihat Senin; Jumat & Sabtu dianggap sudah diterima, Minggu dilewati
-    assert kode(SEN) == {"2026-11-06": "C2", "2026-11-07": "C2", "2026-11-09": "R"}
+    # dibaca baru terlihat Senin; Jumat & Sabtu dianggap sudah diterima, Minggu dilewati, Senin sesi baru
+    assert kode(SEN) == {"2026-11-06": "C2", "2026-11-07": "C2"}
 
 
 def test_isian_petugas_dipertahankan_dan_diteruskan():
     kirim(JUM)
     ks.catat_chat(NO, [Row(out=True, status="read", text="b", waktu="2026-11-06"),
                        Row(out=False, status="", text="ok", waktu="2026-11-06")], tgl, JUM)
-    # petugas menulis T sendiri di hari Jumat -> tidak ditimpa, Sabtu & Senin ikut T
+    # petugas menulis T sendiri di hari Jumat -> tidak ditimpa, Sabtu ikut T (Senin sesi baru)
     hasil = kode(SEN, isi={"2026-11-06": "T"})
-    assert "2026-11-06" not in hasil and hasil == {"2026-11-07": "T", "2026-11-09": "T"}
+    assert "2026-11-06" not in hasil and hasil == {"2026-11-07": "T"}
     # sel yang dulu ditulis aplikasi boleh diperbarui
     assert kode(JUM, isi={"2026-11-06": "C"}, auto={"2026-11-06": "C"}) == {"2026-11-06": "T1"}
 
@@ -110,8 +113,7 @@ def test_sinkron_menulis_semua_hari(monkeypatch):
         c.execute("DELETE FROM kom_auto")
     komunikasi.sinkron_wa()
     assert tulis == {  # 06/11 = C2 tapi dropdown terkunci: dilewati, TIDAK diganti C (maknanya beda)
-                     "2026-11-07": {"111": "T1"},              # 222 diisi TP oleh petugas
-                     "2026-11-09": {"111": "T1", "222": "TP"}}
+                     "2026-11-07": {"111": "T1"}}              # 222 diisi TP oleh petugas; Senin sesi baru
 
 
 KAM = date(2026, 11, 5)
@@ -124,7 +126,7 @@ def test_blast_lewat_hp_terbaca_dari_chat():
             Row(out=True, status="read", text="makasih kak", waktu="2026-11-07")]  # membalas fasil: bukan blast
     ks.catat_chat(NO, rows, tgl, SEN)
     assert ks.siklus(NO, SEN).awal == KAM
-    assert kode(SEN) == {"2026-11-05": "C2", "2026-11-06": "C2", "2026-11-07": "T1", "2026-11-09": "T1"}
+    assert kode(SEN) == {"2026-11-05": "C2", "2026-11-06": "C2", "2026-11-07": "T1"}
     from app import store
     assert NO in store.to_refresh("2026-11-03")  # sesudahnya ikut dipantau tiap 10 menit
 
@@ -186,10 +188,13 @@ def test_cek_baris_log_kom_satu_permintaan(monkeypatch):
 
 def test_tanpa_bukti_kosong_dan_tebakan_lama_dihapus():
     kirim(JUM)  # terkirim dari aplikasi, chat belum pernah terbaca
-    assert ks.susun_semua(NO, SEN, {}, {}) == {}  # tidak menebak C
-    # C lama buatan aplikasi dihapus; isian petugas dibiarkan
-    hasil = ks.susun_semua(NO, SEN, {"2026-11-06": "C", "2026-11-07": "TP"}, {"2026-11-06": "C", "2026-11-07": "C"})
-    assert hasil == {"2026-11-06": "", "2026-11-09": "TP"}  # isian petugas diteruskan ke Senin
+    assert ks.susun_semua(NO, JUM, {}, {}) == {}  # tidak menebak C
+    # C buatan aplikasi hari ini dihapus
+    assert ks.susun_semua(NO, JUM, {"2026-11-06": "C"}, {"2026-11-06": "C"}) == {"2026-11-06": ""}
+    # isian petugas dibiarkan dan diteruskan; hari yang sudah lewat tidak pernah dihapus
+    hasil = ks.susun_semua(NO, SAB, {"2026-11-06": "C", "2026-11-07": "TP"}, {"2026-11-06": "C", "2026-11-07": "C"})
+    assert hasil == {}
+    assert ks.susun_semua(NO, SEN, {"2026-11-06": "C"}, {"2026-11-06": "C"}) == {}
 
 
 def test_siklus_lama_berhenti_sebelum_siklus_baru():
@@ -200,26 +205,43 @@ def test_siklus_lama_berhenti_sebelum_siklus_baru():
     ks.catat_chat(NO, [Row(out=True, status="read", text="a", waktu="2026-11-02"),
                        Row(out=False, status="", text="ok", waktu="2026-11-02"),
                        Row(out=True, status="delivered", text="b", waktu="2026-11-06")], tgl, SEN)
-    h = ks.susun_semua(NO, SEN, {}, {})
-    assert h["2026-11-05"] == "T1" and h["2026-11-06"] == "C2" and h["2026-11-09"] == "C2"
+    h = ks.susun_semua(NO, SAB, {}, {})
+    assert h["2026-11-04"] == "T1" and "2026-11-05" not in h and h["2026-11-06"] == "C2"
 
 
 def test_fasil_tanpa_kiriman_tebakan_dihapus():
-    assert ks.susun_semua(NO, SEN, {"2026-11-06": "C"}, {"2026-11-06": "C"}) == {"2026-11-06": ""}
+    assert ks.susun_semua(NO, JUM, {"2026-11-06": "C"}, {"2026-11-06": "C"}) == {"2026-11-06": ""}
+    assert ks.susun_semua(NO, SAB, {"2026-11-06": "C"}, {"2026-11-06": "C"}) == {}  # hari lewat tidak dihapus
     assert ks.susun_semua(NO, SEN, {"2026-11-06": "R"}, {}) == {}  # isian petugas
 
 
-def test_putaran_mengakhiri_siklus_fasil_yang_tidak_ikut():
-    # putaran 2 Nov (fasil ini ikut) lalu putaran Jumat 6 Nov ke fasil lain: fasil ini kosong sejak 6 Nov
+def test_siklus_berakhir_di_akhir_sesi():
+    # blast Senin 2 Nov, dibalas hari itu: Senin–Rabu T1, Kamis sesi baru -> kosong (harus di-chat lagi)
     kirim(date(2026, 11, 2))
     ks.catat_chat(NO, [Row(out=True, status="read", text="a", waktu="2026-11-02"),
-                       Row(out=False, status="", text="ok", waktu="2026-11-02")], tgl, SEN)
-    put = [date(2026, 11, 2), JUM]
-    h = ks.susun_semua(NO, SEN, {}, {}, put)
-    assert h["2026-11-05"] == "T1" and "2026-11-06" not in h and "2026-11-09" not in h
-    assert ks.status_sekarang(NO, SEN, put) == ""  # di halaman Blast: belum di-chat di putaran terakhir
-    # sel buatan aplikasi sesudah putaran baru dikosongkan
-    assert ks.susun_semua(NO, SEN, {"2026-11-06": "T1"}, {"2026-11-06": "T1"}, put)["2026-11-06"] == ""
+                       Row(out=False, status="", text="ok", waktu="2026-11-02")], tgl, SAB)
+    h = ks.susun_semua(NO, SAB, {}, {})
+    assert h == {"2026-11-02": "T1", "2026-11-03": "T1", "2026-11-04": "T1"}
+    assert ks.status_sekarang(NO, SAB) == ""  # di halaman Blast: belum di-chat di sesi ini
+    # sel buatan aplikasi hari ini (sesi baru) dikosongkan; hari yang sudah lewat dibiarkan
+    kam = date(2026, 11, 5)
+    assert ks.susun_semua(NO, kam, {"2026-11-05": "T1"}, {"2026-11-05": "T1"})["2026-11-05"] == ""
+    assert "2026-11-05" not in ks.susun_semua(NO, SAB, {"2026-11-05": "T1"}, {"2026-11-05": "T1"})
+
+
+def test_blast_ke_fasil_lain_tidak_mengakhiri_siklus():
+    # blast Senin ke fasil ini, dibalas dengan Kendala; Rabu ada putaran blast ke fasil lain -> fasil ini tetap T
+    kirim(SEN)
+    ks.catat_chat(NO, [Row(out=True, status="read", text="a", waktu="2026-11-09"),
+                       Row(out=False, status="", text="Kendala: hujan", waktu="2026-11-10")], tgl, SEL)
+    rab = date(2026, 11, 11)
+    assert ks.susun_semua(NO, rab, {}, {}, [SEN, rab]) == {"2026-11-09": "C2", "2026-11-10": "T", "2026-11-11": "T"}
+
+
+def test_sesi_mengikuti_judul_week():
+    sesi = {1: (0, 1, "Senin–Selasa"), 2: (2, 5, "Rabu–Sabtu")}
+    assert ks.sesi_dari(date(2026, 11, 11), sesi) == (date(2026, 11, 11), date(2026, 11, 14))
+    assert ks.sesi_dari(date(2026, 11, 8), SESI_BAWAAN) == (SEN, date(2026, 11, 11))  # Minggu ikut Senin
 
 
 def test_putaran_dari_jumlah_fasil():
@@ -279,7 +301,7 @@ def test_chat_lanjutan_di_tengah_siklus_tidak_mengulang():
     put = [JUM]
     s = ks.daftar_siklus(NO, SEN, put)
     assert [x.awal for x in s] == [JUM]
-    assert ks.susun_semua(NO, SEN, {}, {}, put) == {"2026-11-06": "C2", "2026-11-07": "C2", "2026-11-09": "R"}
+    assert ks.susun_semua(NO, SEN, {}, {}, put) == {"2026-11-06": "C2", "2026-11-07": "C2"}  # Senin sesi baru
 
 
 def test_chat_satuan_di_luar_siklus_memulai_siklus():
