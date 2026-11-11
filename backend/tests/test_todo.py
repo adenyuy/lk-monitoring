@@ -24,6 +24,7 @@ def test_status_komponen():
     assert todo.status("mg", "-").status == "kosong"
     assert todo.status("mg", "Belum Due").status == "due"
     assert todo.status("progres", 1.0).status == "selesai"
+    assert todo.status("progres", 1.0033).status == "selesai"  # 100,33%, bukan 1%
     assert todo.status("progres", 0.42).tampil == "42%"
     assert todo.status("bku", "").status == "tanpa_data"
     assert todo.status("l50_rev", "Belum TTD Koor").status == "belum"

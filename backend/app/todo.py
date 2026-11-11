@@ -63,7 +63,8 @@ def status(kode: str, v: Any) -> Status:
         p = _angka(v)
         if p is None:
             return Status(kode, "tanpa_data", t)
-        p = p * 100 if p <= 1.0 and isinstance(v, (int, float)) else p
+        # angka dari sheet berupa pecahan (kolom berformat %): 1.0033 = 100,33%, bukan 1%
+        p = p * 100 if p <= 2.0 and isinstance(v, (int, float)) else p
         return Status(kode, "selesai" if p >= 100 else "belum", f"{p:.0f}%".replace(".", ","), persen=p)
     if "/" in t:
         try:

@@ -81,13 +81,10 @@ def warna_komponen(kode: str, v: Any) -> dict[str, Any]:
     if k in ("belum ttd koor", "revisi"):
         return OREN
     if kode == "progres":
-        # 0..1 (pecahan) atau 0..100 / "45%" (persen), sama seperti todo.status
-        p = _angka(t.replace("%", "")) if isinstance(v, str) else _angka(v)
+        p = todo.status("progres", v).persen  # cara baca angka sama dengan to-do
         if p is None:
             return POLOS
-        if "%" in t or p > 1:
-            p = p / 100
-        return MERAH if p < 0.5 else OREN if p < 1 else HIJAU
+        return MERAH if p < 50 else OREN if p < 100 else HIJAU
     if "/" in t:
         try:
             a, b = (float(x) for x in t.split("/", 1))

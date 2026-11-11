@@ -15,6 +15,8 @@ def test_warna_komponen_sama_dengan_aturan_lama():
     assert w.warna_komponen("progres", 0.3) is w.MERAH
     assert w.warna_komponen("progres", 0.75) is w.OREN
     assert w.warna_komponen("progres", 1) is w.HIJAU
+    assert w.warna_komponen("progres", 1.0033) is w.HIJAU  # 100,33%
+    assert w.warna_isian("progres", 1.0033, "") is w.ISI_SELESAI
     assert w.warna_komponen("progres", "80%") is w.OREN
     assert w.warna_komponen("progres", "") is w.POLOS
     assert w.warna_komponen("bku", "") is w.POLOS
