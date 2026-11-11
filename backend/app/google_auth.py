@@ -1,7 +1,7 @@
 """Login Google (OAuth installed app) dan klien gspread.
 
-Login berjalan di thread latar: browser terbuka, pengguna memilih akun, lalu
-token disimpan di folder data. UI memantau status lewat /api/me.
+Login berjalan di thread latar: browser terbuka, pengguna memilih akun, Google mengarahkan kembali ke server kecil
+di localhost, lalu token disimpan di folder data. UI memantau status lewat /api/me.
 """
 
 import json
@@ -9,7 +9,10 @@ import re
 import os
 import threading
 import time
+import webbrowser
 from dataclasses import dataclass
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 import requests
 
@@ -140,36 +143,105 @@ class LoginState:
 
 login_state = LoginState()
 _login_thread: threading.Thread | None = None
+_batal_login: threading.Event | None = None
+
+BATAS_LOGIN = 10 * 60  # detik menunggu pengguna menyelesaikan login di browser
+
+_HALAMAN_SELESAI = """<!doctype html><html lang="id"><head><meta charset="utf-8"><title>LK Monitoring</title></head>
+<body style="font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;color:#1d2433">
+<div style="text-align:center"><h2 style="margin:0 0 8px">{judul}</h2><p style="margin:0;color:#5b6474">{isi}</p></div>
+</body></html>"""
 
 
-def _run_login() -> None:
+class _Penangkap(BaseHTTPRequestHandler):
+    """Menerima redirect dari Google. Server berjalan multi-thread: koneksi kosong dari browser (preconnect, favicon)
+    tidak lagi menghalangi redirect yang sebenarnya, penyebab tab login 'loading terus'."""
+
+    timeout = 15  # koneksi kosong ditutup, tidak ditunggu selamanya
+
+    def do_GET(self):  # noqa: N802
+        q = parse_qs(urlsplit(self.path).query)
+        if "code" not in q and "error" not in q:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.server.hasil = self.path  # type: ignore[attr-defined]
+        ok = "code" in q
+        body = _HALAMAN_SELESAI.format(
+            judul="Login berhasil" if ok else "Login dibatalkan",
+            isi="Tutup tab ini dan kembali ke LK Monitoring." if ok else "Kembali ke LK Monitoring lalu coba lagi.",
+        ).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args) -> None:
+        pass
+
+
+def _tunggu_redirect(flow: InstalledAppFlow, batal: threading.Event) -> str:
+    """Buka halaman login Google lalu tunggu redirect ke server lokal. Kembalikan path redirect (berisi code)."""
+    srv = ThreadingHTTPServer(("localhost", 0), _Penangkap)
+    srv.daemon_threads = True
+    srv.timeout = 0.5
+    srv.hasil = ""  # type: ignore[attr-defined]
+    try:
+        flow.redirect_uri = f"http://localhost:{srv.server_port}/"
+        url, _ = flow.authorization_url(prompt="select_account")
+        webbrowser.open(url, new=1, autoraise=True)
+        batas = time.monotonic() + BATAS_LOGIN
+        while not srv.hasil and not batal.is_set():  # type: ignore[attr-defined]
+            if time.monotonic() > batas:
+                raise TimeoutError("waktu habis. Tekan Masuk dengan Google lagi.")
+            srv.handle_request()
+        return srv.hasil  # type: ignore[attr-defined]
+    finally:
+        srv.server_close()
+
+
+def _run_login(batal: threading.Event) -> None:
     global _creds
     try:
         flow = InstalledAppFlow.from_client_secrets_file(str(paths.CREDENTIALS_FILE), config.SCOPES)
-        creds = flow.run_local_server(
-            port=0,
-            open_browser=True,
-            authorization_prompt_message="",
-            success_message="Login berhasil. Tutup tab ini dan kembali ke LK Monitoring.",
-            prompt="select_account",
-        )
+        path = _tunggu_redirect(flow, batal)
+        if batal.is_set():
+            return  # diganti percobaan login yang lebih baru
+        q = parse_qs(urlsplit(path).query)
+        if "error" in q:
+            raise RuntimeError("dibatalkan di halaman Google." if q["error"][0] == "access_denied" else q["error"][0])
+        # oauthlib hanya menerima https; alamat ini tidak diakses, hanya dibaca parameternya
+        flow.fetch_token(authorization_response=f"https://localhost{path}")
+        creds = flow.credentials
         paths.TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
         with _creds_lock:
             _creds = creds
         db.set_setting("email", fetch_email(creds))
-        login_state.status, login_state.error = "done", ""
+        if not batal.is_set():
+            login_state.status, login_state.error = "done", ""
     except Exception as e:  # ditampilkan ke pengguna apa adanya
-        login_state.status, login_state.error = "error", f"Login gagal: {e}"
+        if not batal.is_set():
+            login_state.status, login_state.error = "error", f"Login gagal: {e}"
+
+
+def _hentikan_login() -> None:
+    if _batal_login is not None:
+        _batal_login.set()
 
 
 def start_login() -> LoginState:
-    global _login_thread
+    """Mulai login. Bila percobaan sebelumnya masih menunggu (mis. tabnya tertutup), percobaan itu dihentikan dan
+    tab login baru dibuka."""
+    global _login_thread, _batal_login
     if not has_credentials():
         raise FileNotFoundError("credentials.json belum dipasang.")
-    if login_state.status == "running" and _login_thread and _login_thread.is_alive():
-        return login_state
+    _hentikan_login()
+    _batal_login = threading.Event()
     login_state.status, login_state.error = "running", ""
-    _login_thread = threading.Thread(target=_run_login, name="google-login", daemon=True)
+    _login_thread = threading.Thread(target=_run_login, args=(_batal_login,), name="google-login", daemon=True)
     _login_thread.start()
     return login_state
 
@@ -181,6 +253,7 @@ def logout() -> None:
         if paths.TOKEN_FILE.exists():
             paths.TOKEN_FILE.unlink()
     db.delete_setting("email")
+    _hentikan_login()
     login_state.status, login_state.error = "idle", ""
     _gc_cache.clear()
 

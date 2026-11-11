@@ -163,6 +163,7 @@ export function StepLogin({ me, reload, onNext }: { me: Me; reload: () => Promis
         <div className={s.waiting}>
           <Spinner label="Menunggu login" />
           <span>Selesaikan login di tab browser yang baru terbuka. Halaman ini lanjut otomatis.</span>
+          <Button variant="ghost" loading={busy} onClick={login}>Tab tertutup atau macet? Buka ulang</Button>
         </div>
       ) : (
         <div className={s.actions}>
