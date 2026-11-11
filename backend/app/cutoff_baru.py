@@ -21,7 +21,7 @@ from typing import Any
 
 import pandas as pd
 
-from . import lk_baru, schedule, todo, warna_lk
+from . import lk_baru, proteksi, schedule, todo, warna_lk
 from .lk_baru import BARIS_DATA, KOMPONEN, Sekolah, komponen_dari_judul
 from .sheets import cache, clean_petugas, col_letter
 
@@ -834,6 +834,10 @@ def buat_week(senin: date) -> dict[str, Any]:
     semua = lk_baru.baca_semua(n + 1, refresh=True)
     tulis_keterangan(n + 1, semua)
     warna_lk.warnai_semua(n + 1, semua, dari_week=n)
+    try:
+        proteksi.pastikan(ss)
+    except Exception:  # noqa: BLE001 - WEEK baru tetap jadi; proteksi dicoba lagi tiap 30 menit
+        log.warning("Proteksi judul WEEK baru gagal", exc_info=True)
     tanggal = _tambah_tanggal_log(ss, n + 1, senin)
     cache.clear()
     return {"tab": baru_nama, "tanggal": tanggal}
@@ -1036,6 +1040,12 @@ def _loop_tanggal_log() -> None:
             pass
         except Exception:
             log.exception("Kolom tanggal Log Komunikasi gagal dibuat")
+        try:  # termasuk tab WEEK baru
+            proteksi.pastikan()
+        except lk_baru.LinkBelumAda:
+            pass
+        except Exception:
+            log.exception("Proteksi judul LK gagal dipasang")
         time.sleep(30 * 60)
 
 
