@@ -21,7 +21,7 @@ from typing import Any
 
 import pandas as pd
 
-from . import lk_baru, schedule, todo
+from . import lk_baru, schedule, todo, warna_lk
 from .lk_baru import BARIS_DATA, KOMPONEN, Sekolah, komponen_dari_judul
 from .sheets import cache, clean_petugas, col_letter
 
@@ -326,7 +326,7 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
             "pasteType": t}} for t in ("PASTE_FORMAT", "PASTE_DATA_VALIDATION")]})
         ss.values_update(f"'{tab}'!A{mulai}:{akhir}{mulai + len(rc.tambah) - 1}", params={"valueInputOption": "RAW"},
                          body={"values": rc.tambah})
-        warnai_sekolah_baru(ss, w, mulai, len(rc.tambah))
+        warnai_sekolah_baru(ss, w, mulai, len(rc.tambah), rc.kol_awal)
         rc.selesai.add("tambah")
 
     _langkah("Mengurutkan per PIC", 40)
@@ -339,10 +339,14 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
                       {"dimensionIndex": t.identitas["nama"], "sortOrder": "ASCENDING"}]}}]})
     cache.clear()
 
-    _langkah("Menulis keterangan otomatis Kendala/Tindak Lanjut", 55)
+    _langkah("Menulis keterangan otomatis Kendala/Tindak Lanjut", 50)
     siapkan_format(rc.week)
     semua = lk_baru.baca_semua(rc.week, refresh=True)
     n_ket = tulis_keterangan(rc.week, semua)
+
+    _langkah("Mewarnai sel komponen dan Kendala/TL", 55)
+    warna = warna_lk.warnai_semua(rc.week, semua, lambda a, b: _langkah(
+        f"Mewarnai sel ({a:,} dari {b:,} sel)".replace(",", "."), 55 + round(17 * a / max(b, 1))))
 
     if "logkom" not in rc.selesai:
         _langkah("Menyamakan Log Komunikasi (sekolah baru & PIC)", 72)
@@ -360,16 +364,16 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
         rc.selesai.add("catat")
     cache.clear()
     return {"tab": tab, "sekolah": total, "baru": len(rc.tambah), "keterangan": n_ket, "cutoff": label,
-            "log_kom": rc.logkom}
+            "log_kom": rc.logkom, "warna": warna}
 
 
 KUNING = {"red": 1, "green": 1, "blue": 0}
 
 
-def warnai_sekolah_baru(ss, w, mulai: int, jumlah: int) -> None:
-    """Baris sekolah baru diberi latar kuning selebar kolom berjudul. Warna ikut terbawa saat diurutkan dan
-    tidak hilang saat PIC diisi (isi PIC hanya menulis nilai), jadi tetap menandai sekolah baru."""
-    lebar = len(ss.values_get(f"'{w.title}'!A3:3").get("values", [[]])[0]) or w.col_count
+def warnai_sekolah_baru(ss, w, mulai: int, jumlah: int, lebar: int) -> None:
+    """Kolom Informasi Sekolah (A sampai sebelum kolom komponen pertama, `lebar` kolom) sekolah baru diberi latar
+    kuning. Warna ikut terbawa saat diurutkan dan tidak hilang saat PIC diisi (isi PIC hanya menulis nilai).
+    Kolom komponen dan Kendala/TL diwarnai sesuai status (warna_lk)."""
     ss.batch_update({"requests": [{"repeatCell": {
         "range": {"sheetId": w.id, "startRowIndex": mulai - 1, "endRowIndex": mulai - 1 + jumlah,
                   "startColumnIndex": 0, "endColumnIndex": lebar},
@@ -403,6 +407,10 @@ def tulis_keterangan(week: int, semua: list[Sekolah]) -> int:
                         baru = rencana[b].keterangan(kode)
                         if baru != cur:
                             ubah, n = True, n + 1
+                            # objek sekolah ikut diperbarui (dipakai pewarnaan sesudahnya)
+                            pasangan = list(s.isian.setdefault(blok, {}).get(kode, ("", "")))
+                            pasangan[pos] = baru
+                            s.isian[blok][kode] = (pasangan[0], pasangan[1])
                         cur = baru
                     kolom.append([cur])
                 if ubah:
@@ -415,7 +423,7 @@ def tulis_keterangan(week: int, semua: list[Sekolah]) -> int:
 
 
 def siapkan_format(week: int) -> None:
-    """Sekali per tab: keterangan baru masuk daftar dropdown Kendala, dan diberi warna abu-abu miring."""
+    """Sekali per tab: keterangan baru masuk daftar dropdown Kendala (warnanya ditulis warna_lk)."""
     ss = lk_baru._ss()
     tab = lk_baru.tab_week(week)
     w = ss.worksheet(tab)
@@ -424,7 +432,7 @@ def siapkan_format(week: int) -> None:
     a1 = max(c for cols in t.isian.values() for _, c in cols.values())
     meta = ss.fetch_sheet_metadata(params={
         "ranges": f"'{tab}'!{col_letter(a0)}{BARIS_DATA}:{col_letter(a1)}{BARIS_DATA}",
-        "fields": "sheets(conditionalFormats,data(rowData(values(dataValidation))))"})
+        "fields": "sheets(data(rowData(values(dataValidation))))"})
     sh = meta["sheets"][0]
     vals = sh["data"][0]["rowData"][0]["values"]
     req = []
@@ -441,18 +449,6 @@ def siapkan_format(week: int) -> None:
             req.append({"setDataValidation": {"range": {"sheetId": w.id, "startRowIndex": BARIS_DATA - 1,
                                                         "endRowIndex": w.row_count, "startColumnIndex": a,
                                                         "endColumnIndex": a + 1}, "rule": dv}})
-    sudah = any("Menunggu " in str(r) for r in sh.get("conditionalFormats", []))
-    if not sudah:
-        rng = [{"sheetId": w.id, "startRowIndex": BARIS_DATA - 1, "endRowIndex": w.row_count,
-                "startColumnIndex": a0, "endColumnIndex": a1 + 1}]
-        abu = {"backgroundColor": {"red": 0.933, "green": 0.941, "blue": 0.957},
-               "textFormat": {"foregroundColor": {"red": 0.54, "green": 0.576, "blue": 0.65}, "italic": True}}
-        # sama persis (bukan "diawali Menunggu"): pilihan petugas seperti "Menunggu pencairan" tidak ikut abu-abu
-        for cond in (*({"type": "TEXT_EQ", "values": [{"userEnteredValue": m}]} for m in sorted(todo.MENUNGGU)),
-                     {"type": "TEXT_EQ", "values": [{"userEnteredValue": todo.BERJALAN}]},
-                     {"type": "TEXT_EQ", "values": [{"userEnteredValue": todo.TANPA_DATA}]}):
-            req.append({"addConditionalFormatRule": {"index": 0, "rule": {
-                "ranges": rng, "booleanRule": {"condition": cond, "format": abu}}}})
     if req:
         ss.batch_update({"requests": req})
 
@@ -835,6 +831,7 @@ def buat_week(senin: date) -> dict[str, Any]:
     cache.clear()
     semua = lk_baru.baca_semua(n + 1, refresh=True)
     tulis_keterangan(n + 1, semua)
+    warna_lk.warnai_semua(n + 1, semua, dari_week=n)
     tanggal = _tambah_tanggal_log(ss, n + 1, senin)
     cache.clear()
     return {"tab": baru_nama, "tanggal": tanggal}

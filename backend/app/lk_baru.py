@@ -503,6 +503,12 @@ def tulis_isian(week: int, isi: list[tuple[Sekolah, int, str, str, str]], hanya_
             data.append({"range": f"'{tab}'!{col_letter(a)}{s.baris}:{col_letter(c)}{s.baris}",
                          "values": [[kendala, tl]]})
     ss.values_batch_update({"valueInputOption": "RAW", "data": data})
+    try:  # warna sel ditulis aplikasi (bukan conditional formatting): teks otomatis abu-abu -> isian petugas
+        from .warna_lk import warnai_isian
+
+        warnai_isian(week, isi, hanya_tl)
+    except Exception:  # noqa: BLE001 - isian sudah tersimpan; warna menyusul saat cutoff berikutnya
+        log.warning("Gagal mewarnai isian", exc_info=True)
     # Perbarui objek sekolah yang ada di cache supaya tampilan langsung benar tanpa membaca ulang sheet.
     for s, blok, kode, kendala, tl in isi:
         lama = s.isian.setdefault(blok, {}).get(kode, ("", ""))

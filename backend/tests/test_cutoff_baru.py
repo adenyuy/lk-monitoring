@@ -113,17 +113,13 @@ def test_sekolah_baru_diwarnai_kuning():
         def __init__(self):
             self.req = []
 
-        def values_get(self, rng):
-            assert rng == "'WEEK 4'!A3:3"
-            return {"values": [["PIC", "NPSN", "Nama"] + [""] * 75]}
-
         def batch_update(self, body):
             self.req += body["requests"]
 
     ss = SS()
-    cutoff_baru.warnai_sekolah_baru(ss, W(), 2000, 3)
+    cutoff_baru.warnai_sekolah_baru(ss, W(), 2000, 3, 13)  # hanya kolom Informasi Sekolah A..M
     rc = ss.req[0]["repeatCell"]
     assert rc["range"] == {"sheetId": 7, "startRowIndex": 1999, "endRowIndex": 2002,
-                           "startColumnIndex": 0, "endColumnIndex": 78}
+                           "startColumnIndex": 0, "endColumnIndex": 13}
     assert rc["cell"]["userEnteredFormat"]["backgroundColor"] == cutoff_baru.KUNING
     assert rc["fields"] == "userEnteredFormat.backgroundColor"
