@@ -28,7 +28,8 @@ Teman baru: kirim `scripts/install.bat` + `credentials.json`, daftarkan emailnya
 ```
 backend/   Python FastAPI: API, Google Sheets, WhatsApp Web (Playwright), tarik cutoff
 web/       Next.js (static export) untuk tampilan
-scripts/   install.bat (sekali), start.bat (buka + perbarui), stop.bat, dev.bat (developer)
+scripts/   install.bat (sekali), start.bat (buka + perbarui), stop.bat (matikan semua server), dev.bat (developer),
+           muat_ulang.bat (developer: matikan server, build web, jalankan lagi; pakai setiap habis ubah kode)
 docs/      PRD, alur, tugas
 ```
 
