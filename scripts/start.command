@@ -1,7 +1,8 @@
 #!/bin/bash
 # ============================================================
 #  Buka LK Monitoring (Mac)
-#  1. Bila server sudah jalan: langsung buka browser
+#  1. Matikan server yang masih jalan (juga server zombie), supaya selalu dibuka dengan versi terbaru.
+#     Kecuali sedang mengirim pesan: server dibiarkan dan browser langsung dibuka.
 #  2. Perbarui aplikasi dari branch release (dilewati bila offline)
 #  3. Pasang ulang paket Python bila requirements.txt berubah
 #  4. Jalankan server di latar lalu buka browser
@@ -23,7 +24,13 @@ LOG="$HOME/Library/Application Support/LKMonitoring/logs"
 hidup() { curl -fs -m 2 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; }
 buka() { [ -n "${LKM_TANPA_BROWSER:-}" ] || open "$URL"; }
 
-if hidup; then buka; exit 0; fi
+if curl -fs -m 3 "http://127.0.0.1:$PORT/api/health" 2>/dev/null | grep -q '"sibuk": *true'; then
+  echo "Pesan sedang dikirim, aplikasi tidak dimatikan. Pembaruan dipasang saat dibuka lagi setelah selesai."
+  buka; exit 0
+fi
+
+echo "Menutup LK Monitoring yang masih berjalan..."
+if [ -f "$APP/stop.command" ]; then bash "$APP/stop.command"; elif [ -f "$APP/scripts/stop.command" ]; then bash "$APP/scripts/stop.command"; fi
 
 echo "Memeriksa pembaruan..."
 if [ -d .git ]; then

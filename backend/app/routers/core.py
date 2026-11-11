@@ -22,7 +22,10 @@ router = APIRouter(prefix="/api")
 
 @router.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "version": config.VERSION}
+    from ..blast import sibuk
+
+    # sibuk: start.bat tidak mematikan server yang sedang mengirim pesan
+    return {"ok": True, "version": config.VERSION, "sibuk": sibuk()}
 
 
 # ---------- pembaruan ----------

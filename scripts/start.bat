@@ -1,7 +1,8 @@
 @echo off
 rem ============================================================
 rem  Buka LK Monitoring
-rem  1. Bila server sudah jalan: langsung buka browser
+rem  1. Matikan server yang masih jalan (juga server zombie), supaya selalu dibuka dengan versi terbaru.
+rem     Kecuali sedang mengirim pesan: server dibiarkan dan browser langsung dibuka.
 rem  2. Perbarui aplikasi dari branch release (dilewati bila offline)
 rem  3. Pasang ulang paket Python bila requirements.txt berubah
 rem  4. Jalankan server di latar (tanpa jendela) lalu buka browser
@@ -23,11 +24,16 @@ title LK Monitoring
 if not defined LKM_PORT set "LKM_PORT=8787"
 set "URL=http://127.0.0.1:%LKM_PORT%/"
 
-call :hidup
+powershell -NoProfile -Command "try { if ((Invoke-RestMethod -TimeoutSec 3 http://127.0.0.1:%LKM_PORT%/api/health).sibuk) { exit 0 } } catch {}; exit 1"
 if not errorlevel 1 (
+    echo Pesan sedang dikirim, aplikasi tidak dimatikan. Pembaruan dipasang saat dibuka lagi setelah selesai.
     if not defined LKM_TANPA_BROWSER start "" "%URL%"
+    ping -n 4 127.0.0.1 >nul
     exit /b 0
 )
+
+echo Menutup LK Monitoring yang masih berjalan...
+if exist "%APP%\stop.bat" (call "%APP%\stop.bat") else if exist "%APP%\scripts\stop.bat" call "%APP%\scripts\stop.bat"
 
 echo Memeriksa pembaruan...
 set "GIT="
