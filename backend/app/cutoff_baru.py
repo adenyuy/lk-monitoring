@@ -326,6 +326,7 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
             "pasteType": t}} for t in ("PASTE_FORMAT", "PASTE_DATA_VALIDATION")]})
         ss.values_update(f"'{tab}'!A{mulai}:{akhir}{mulai + len(rc.tambah) - 1}", params={"valueInputOption": "RAW"},
                          body={"values": rc.tambah})
+        warnai_sekolah_baru(ss, w, mulai, len(rc.tambah))
         rc.selesai.add("tambah")
 
     _langkah("Mengurutkan per PIC", 40)
@@ -360,6 +361,20 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
     cache.clear()
     return {"tab": tab, "sekolah": total, "baru": len(rc.tambah), "keterangan": n_ket, "cutoff": label,
             "log_kom": rc.logkom}
+
+
+KUNING = {"red": 1, "green": 1, "blue": 0}
+
+
+def warnai_sekolah_baru(ss, w, mulai: int, jumlah: int) -> None:
+    """Baris sekolah baru diberi latar kuning selebar kolom berjudul. Warna ikut terbawa saat diurutkan dan
+    tidak hilang saat PIC diisi (isi PIC hanya menulis nilai), jadi tetap menandai sekolah baru."""
+    lebar = len(ss.values_get(f"'{w.title}'!A3:3").get("values", [[]])[0]) or w.col_count
+    ss.batch_update({"requests": [{"repeatCell": {
+        "range": {"sheetId": w.id, "startRowIndex": mulai - 1, "endRowIndex": mulai - 1 + jumlah,
+                  "startColumnIndex": 0, "endColumnIndex": lebar},
+        "cell": {"userEnteredFormat": {"backgroundColor": KUNING}},
+        "fields": "userEnteredFormat.backgroundColor"}}]})
 
 
 # ---------- keterangan otomatis ----------

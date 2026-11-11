@@ -103,3 +103,27 @@ def test_rencana_log_kom_sekolah_baru_dan_pic():
     baru, ubah = cutoff_baru.rencana_log_kom(semua, log_rows)
     assert baru == [["", "4", "SD 4", "Q", "L", "G"]]
     assert ubah == [(4, "Budi"), (5, "Cici")]  # baris sheet mulai 3
+
+
+def test_sekolah_baru_diwarnai_kuning():
+    class W:
+        title, id, col_count = "WEEK 4", 7, 83
+
+    class SS:
+        def __init__(self):
+            self.req = []
+
+        def values_get(self, rng):
+            assert rng == "'WEEK 4'!A3:3"
+            return {"values": [["PIC", "NPSN", "Nama"] + [""] * 75]}
+
+        def batch_update(self, body):
+            self.req += body["requests"]
+
+    ss = SS()
+    cutoff_baru.warnai_sekolah_baru(ss, W(), 2000, 3)
+    rc = ss.req[0]["repeatCell"]
+    assert rc["range"] == {"sheetId": 7, "startRowIndex": 1999, "endRowIndex": 2002,
+                           "startColumnIndex": 0, "endColumnIndex": 78}
+    assert rc["cell"]["userEnteredFormat"]["backgroundColor"] == cutoff_baru.KUNING
+    assert rc["fields"] == "userEnteredFormat.backgroundColor"
