@@ -82,7 +82,7 @@ export function BlastView() {
   const [tag, setTag] = useState("");
   const [angkatan, setAngkatan] = useState<string[]>([]);
   const [kab, setKab] = useState("");
-  const [komp, setKomp] = useState("");
+  const [komp, setKomp] = useState<string[]>([]);
   const [statChat, setStatChat] = useState("");
   const [hanyaTodo, setHanyaTodo] = useState(true);
   const [lewatiHariIni, setLewatiHariIni] = useState(false);
@@ -198,7 +198,7 @@ export function BlastView() {
   }, [data, kel, tag, angkatan, kab, hanyaTodo, statChat, cari]);
   const terpilih = useMemo(() => dasar.map((p) => persempit(p, komp)).filter((p): p is Penerima => !!p),
     [dasar, komp]);
-  const labelKomp = data?.komponen?.find((k) => k.kode === komp)?.label;
+  const labelKomp = (data?.komponen ?? []).filter((k) => komp.includes(k.kode)).map((k) => k.label).join(" & ");
 
   const alasanTarget = (p: Penerima) => !p.punya_nomor ? "Nomor kosong"
     : lewatiHariIni && (p.chat_hari_ini || p.terakhir_blast)
@@ -357,15 +357,16 @@ export function BlastView() {
             <>
               <div className={s.saring}>
                 {!!data.komponen?.length && (
-                  <div className={s.komponenBar} role="radiogroup" aria-label="Komponen">
-                    <button type="button" role="radio" aria-checked={!komp} onClick={() => setKomp("")}>
+                  <div className={s.komponenBar} aria-label="Komponen (boleh pilih lebih dari satu)">
+                    <button type="button" aria-pressed={!komp.length} onClick={() => { setKomp([]); setBuang(new Set()); }}>
                       Semua komponen<i>{dasar.length}</i>
                     </button>
                     {data.komponen.map((k) => {
                       const jml = dasar.filter((p) => p.posisi?.[k.kode]).length;
+                      const on = komp.includes(k.kode);
                       return (
-                        <button key={k.kode} type="button" role="radio" aria-checked={komp === k.kode} disabled={!jml && komp !== k.kode}
-                          onClick={() => { setKomp(k.kode); setBuang(new Set()); }}>
+                        <button key={k.kode} type="button" aria-pressed={on} disabled={!jml && !on}
+                          onClick={() => { setKomp(on ? komp.filter((x) => x !== k.kode) : [...komp, k.kode]); setBuang(new Set()); }}>
                           {k.label}<i>{jml}</i>
                         </button>
                       );

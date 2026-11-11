@@ -34,8 +34,8 @@
 .komponenBar button i { font-style: normal; font-size: 12px; font-weight: 600; background: var(--line-soft); border-radius: 99px;
   padding: 0 8px; line-height: 20px; font-variant-numeric: tabular-nums; }
 .komponenBar button:hover:not(:disabled) { border-color: var(--primary); }
-.komponenBar button[aria-checked="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
-.komponenBar button[aria-checked="true"] i { background: rgba(255, 255, 255, .22); color: #fff; }
+.komponenBar button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+.komponenBar button[aria-pressed="true"] i { background: rgba(255, 255, 255, .22); color: #fff; }
 .komponenBar button:disabled { opacity: .5; cursor: default; }
 .saringBaris { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 .saringBaris input[type="search"], .saringBaris select { height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 10px;

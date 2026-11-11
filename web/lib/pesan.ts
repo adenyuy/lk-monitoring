@@ -118,19 +118,20 @@ function daftarFasil(p: Penerima) {
     }).join("\n");
 }
 
-/** Penerima yang dipersempit ke satu komponen papan LK: hanya sekolah, to-do, dan fasil di komponen itu.
- *  Mengembalikan null bila penerima tidak punya apa pun di komponen tersebut. */
-export function persempit(p: Penerima, komponen: string): Penerima | null {
-  if (!komponen) return p;
-  const n = p.posisi?.[komponen] ?? 0;
+/** Penerima yang dipersempit ke komponen papan LK yang dipilih (boleh lebih dari satu): hanya sekolah, to-do,
+ *  dan fasil di komponen itu. Mengembalikan null bila penerima tidak punya apa pun di komponen tersebut. */
+export function persempit(p: Penerima, komponen: string[]): Penerima | null {
+  if (!komponen.length) return p;
+  const jml = (posisi?: Record<string, number>) => komponen.reduce((n, k) => n + (posisi?.[k] ?? 0), 0);
+  const n = jml(p.posisi);
   if (!n) return null;
-  const kena = (t: TodoRingkas) => t.posisi === komponen;
+  const kena = (t: TodoRingkas) => komponen.includes(t.posisi ?? "");
   return {
     ...p,
     perlu: n,
     sekolah: p.sekolah?.map((x) => ({ ...x, todo: x.todo.filter(kena) })).filter((x) => x.todo.length),
     todo: p.todo?.filter(kena),
-    fasil: p.fasil?.filter((f) => f.posisi?.[komponen]).map((f) => ({ ...f, perlu: f.posisi?.[komponen] ?? 0 })),
+    fasil: p.fasil?.filter((f) => jml(f.posisi)).map((f) => ({ ...f, perlu: jml(f.posisi) })),
   };
 }
 
