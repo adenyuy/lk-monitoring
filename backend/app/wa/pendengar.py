@@ -22,6 +22,9 @@ from typing import Any
 
 from .. import db, paths, schedule
 from .actions import ChatInfo, Row, chat_info
+from . import neonize_siap
+
+neonize_siap.siapkan()  # Mac tanpa libmagic: neonize tetap bisa dimuat
 
 log = logging.getLogger(__name__)
 
