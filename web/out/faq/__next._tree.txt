@@ -1,0 +1,8 @@
+:HL["/_next/static/chunks/02e39szmicv86.css","style"]
+:HL["/_next/static/chunks/29jqpsolz1n6l.css","style"]
+:HL["/_next/static/media/48eea41d8317494f-s.p.0wiir8udbzjvx.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/_next/static/chunks/3-pqzfcvepju7.css","style"]
+3:[["children",{"s":"__PAGE__","h":160}]]
+2:[["children",{"s":"faq","h":96,"c":"$Q3"}]]
+1:[["children",{"s":"(app)","h":96,"c":"$Q2"}]]
+0:{"b":"k4RfnN2ggP0l0uW6R74o1","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
