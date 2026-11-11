@@ -37,11 +37,24 @@
 .angka span { font-size: 13px; color: var(--ink-2); }
 .angka b { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.25; }
 
-.insight { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.insight { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; align-items: start; }
 .insightItem { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px;
   background: var(--primary-soft); border: 1px solid #d5def4; color: #1a3478; font-size: 13px; }
 .insightItem b { font-size: 14px; }
 .insightWarn { background: var(--warn-bg); border-color: #f1d7a6; color: var(--warn-fg); }
+.insightKepala { display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0; background: none; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; }
+.insightKepala:disabled { cursor: default; }
+.insightKepala:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: 4px; }
+.insightLihat { margin-top: 6px; font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.insightDaftar { list-style: none; margin: 8px 0 0; padding: 6px 0 0; border-top: 1px solid currentColor;
+  border-top-color: color-mix(in srgb, currentColor 25%, transparent); max-height: 260px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px; }
+.insightDaftar button { width: 100%; display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border: 0;
+  border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.insightDaftar button:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.insightDaftar b { font-size: 13px; }
+.insightDaftar small { font-size: 12px; opacity: .8; }
 
 /* ---------- kartu daftar ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 0 4px; min-width: 0; }

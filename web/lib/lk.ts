@@ -54,7 +54,10 @@ export type FasilLk = {
 
 export type PosisiKolom = { kode: string; label: string; fasil: number; sekolah: number };
 
-export type Indikator = { kode: string; nada: "warn" | "info"; jumlah: number; judul: string; isi: string };
+export type Indikator = {
+  kode: string; nada: "warn" | "info"; jumlah: number; judul: string; isi: string;
+  fasil?: { kunci: string; nama: string; ptn: string; ket: string }[];
+};
 
 export type LkRingkasan = LkInfo & {
   total: { fasil: number; sekolah: number; perlu: number; lengkap: number; dihubungi: number; todo: number };

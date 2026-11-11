@@ -364,23 +364,30 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
     }
 
 
+def _daftar_fasil(xs: list[dict[str, Any]], ket=lambda x: "") -> list[dict[str, str]]:
+    return [{"kunci": x["kunci"], "nama": x["nama"], "ptn": x["ptn"], "ket": ket(x)} for x in xs]
+
+
 def indikator(daftar: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Insight singkat untuk petugas, dari ringkasan semua fasil."""
+    """Insight singkat untuk petugas, dari ringkasan semua fasil (beserta daftar fasilnya)."""
     out = []
-    telp = [x for x in daftar if x["belum_ditelepon"]]
+    urut = sorted(daftar, key=lambda x: x["nama"].casefold())
+    telp = [x for x in urut if x["belum_ditelepon"]]
     if telp:
-        out.append({"kode": "belum_ditelepon", "nada": "warn", "jumlah": len(telp),
+        out.append({"kode": "belum_ditelepon", "nada": "warn", "jumlah": len(telp), "fasil": _daftar_fasil(telp),
                     "judul": f"{len(telp)} fasil belum pernah ditelepon",
                     "isi": "Minggu ini chatnya berkali-kali hanya dibaca atau tidak sampai. Coba telepon lalu catat TP."})
-    ok = [x for x in daftar if x["tanpa_progres"]]
+    ok = [x for x in urut if x["tanpa_progres"]]
     if ok:
         out.append({"kode": "tanpa_progres", "nada": "warn", "jumlah": len(ok),
+                    "fasil": _daftar_fasil(ok, lambda x: f"{x['perlu']} sekolah to-do"),
                     "judul": f"{len(ok)} fasil merespons tapi laporannya tidak bergerak",
                     "isi": "Sering terhubung minggu ini, tapi tidak ada komponen yang bertambah selesai sejak cutoff "
                            "sebelumnya. Tanyakan kendalanya lebih spesifik, atau eskalasi ke koordinator."})
-    lama = [x for x in daftar if (x["tunggu_maks"] or 0) > 3]
+    lama = sorted((x for x in daftar if (x["tunggu_maks"] or 0) > 3), key=lambda x: -x["tunggu_maks"])
     if lama:
         out.append({"kode": "reviu_lama", "nada": "info", "jumlah": len(lama),
+                    "fasil": _daftar_fasil(lama, lambda x: f"menunggu {x['tunggu_maks']:.0f} hari"),
                     "judul": f"{len(lama)} fasil punya reviu yang menunggu lebih dari 3 hari",
                     "isi": "Laporan sekolah sudah masuk tapi belum direviu fasil. Ingatkan untuk mereviu."})
     return out

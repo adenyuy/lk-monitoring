@@ -125,16 +125,7 @@ export function LkView() {
         </div>
       </section>
 
-      {data.indikator.length > 0 && (
-        <section className={s.insight} aria-label="Perlu perhatian">
-          {data.indikator.map((x) => (
-            <div key={x.kode} className={`${s.insightItem} ${x.nada === "warn" ? s.insightWarn : ""}`}>
-              <b>{x.judul}</b>
-              <span>{x.isi}</span>
-            </div>
-          ))}
-        </section>
-      )}
+      {data.indikator.length > 0 && <Insight daftar={data.indikator} onBuka={setBuka} />}
 
       <Papan data={data} onBuka={setBuka} onKode={(f, k) => void setKode(f, k)} />
       <PapanKom data={data} onBuka={setBuka} onKode={(f, k) => void setKode(f, k)} />
@@ -178,6 +169,40 @@ const KET_POSISI: Record<string, string> = {
 };
 
 /** Papan kartu: tiap kolom satu komponen; fasil muncul di kolom tempat sekolah binaannya masih tertahan. */
+function Insight({ daftar, onBuka }: { daftar: LkRingkasan["indikator"]; onBuka: (kunci: string) => void }) {
+  const [buka, setBuka] = useState<string | null>(null);
+  return (
+    <section className={s.insight} aria-label="Perlu perhatian">
+      {daftar.map((x) => {
+        const terbuka = buka === x.kode;
+        const fasil = x.fasil ?? [];
+        return (
+          <div key={x.kode} className={`${s.insightItem} ${x.nada === "warn" ? s.insightWarn : ""}`}>
+            <button type="button" className={s.insightKepala} aria-expanded={terbuka} disabled={!fasil.length}
+              onClick={() => setBuka(terbuka ? null : x.kode)}>
+              <b>{x.judul}</b>
+              <span>{x.isi}</span>
+              {fasil.length > 0 && <small className={s.insightLihat}>{terbuka ? "Sembunyikan fasil ▴" : `Lihat ${fasil.length} fasil ▾`}</small>}
+            </button>
+            {terbuka && (
+              <ul className={s.insightDaftar}>
+                {fasil.map((f) => (
+                  <li key={f.kunci}>
+                    <button type="button" onClick={() => onBuka(f.kunci)} title={`Buka ${f.nama}`}>
+                      <b>{f.nama}</b>
+                      <small>{[f.ptn, f.ket].filter(Boolean).join(" · ")}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 function Papan({ data, onBuka, onKode }: {
   data: LkRingkasan; onBuka: (kunci: string) => void; onKode: (f: FasilLk, kode: string) => void;
 }) {
