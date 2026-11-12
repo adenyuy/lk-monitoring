@@ -88,6 +88,7 @@ export function BlastView() {
   const [lewatiHariIni, setLewatiHariIni] = useState(false);
   const [cari, setCari] = useState("");
   const [buang, setBuang] = useState<Set<string>>(new Set());
+  const [ambil, setAmbil] = useState("");
   const [pilihanSiap, setPilihanSiap] = useState<JenisPenerima | null>(null);
   // pesan
   const [tpl, setTpl] = useState<string>(() => templateBawaan("fasil")[0].kode);
@@ -212,7 +213,14 @@ export function BlastView() {
     for (const p of daftar) { if (pilih) b.delete(p.kunci); else b.add(p.kunci); }
     setBuang(b);
   }
-  const target = terpilih.filter((p) => !alasanTarget(p) && !buang.has(p.kunci));
+  /** Centang N penerima pertama (urutan daftar) yang bisa dikirimi; sisanya di saringan ini diuncentang. */
+  function ambilSejumlah(n: number) {
+    const bisa = terpilih.filter((p) => !alasanTarget(p));
+    const b = new Set(buang);
+    bisa.forEach((p, i) => { if (i < n) b.delete(p.kunci); else b.add(p.kunci); });
+    setBuang(b);
+  }
+  const target =terpilih.filter((p) => !alasanTarget(p) && !buang.has(p.kunci));
   const tplAktif: Template = { kode: tpl, judul, ket: "", teks, bawaan: false };
   const siap = target.filter((p) => !tanpaPesan(tplAktif, p));
   const tanpaIsi = target.filter((p) => tanpaPesan(tplAktif, p));
@@ -431,6 +439,13 @@ export function BlastView() {
                 <b>{target.length} penerima dipilih</b>
                 <span>dari {terpilih.length} yang cocok saringan{labelKomp ? ` · pesan hanya memuat ${labelKomp}` : ""}{data.jumlah_tanpa_nomor ? ` · ${data.jumlah_tanpa_nomor} tanpa nomor` : ""}</span>
                 <div>
+                  <form className={s.ambil} title="Centang sejumlah penerima dari atas daftar; sisanya diuncentang"
+                    onSubmit={(e) => { e.preventDefault(); const n = parseInt(ambil, 10); if (n > 0) ambilSejumlah(n); }}>
+                    <span>Blast</span>
+                    <input type="number" min={1} inputMode="numeric" placeholder="50" value={ambil}
+                      onChange={(e) => setAmbil(e.target.value)} aria-label="Jumlah penerima yang dicentang" />
+                    <button type="submit" className={s.linkBtn} disabled={!(parseInt(ambil, 10) > 0)}>Centang</button>
+                  </form>
                   <button type="button" className={s.linkBtn} onClick={() => aturPilih(terpilih, true)}>Pilih semua</button>
                   <button type="button" className={s.linkBtn} onClick={() => aturPilih(terpilih, false)}>Kosongkan</button>
                   {terpilih.some(sudahSesi) && (
