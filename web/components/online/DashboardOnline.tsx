@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { Batang, Capaian, Komunikasi, Kpi, type Dash } from "@/components/dashboard/DashboardView";
@@ -8,10 +8,22 @@ import d from "@/components/dashboard/dashboard.module.css";
 import { LogProgresOnline } from "./LogProgresOnline";
 import s from "./online.module.css";
 
-type Komp = { kode: string; label: string; selesai: number; harus: number; persen: number | null };
+/** belum = sekolah yang komponennya belum selesai; kendala/tl = berapa di antaranya sudah diisi petugas (null = tanpa kolom);
+ *  kom = kode Log Komunikasi terakhir FASIL dari sekolah-sekolah itu, jumlah fasil per kode ("-" = belum ada catatan). */
+type Komp = { kode: string; label: string; selesai: number; harus: number; persen: number | null;
+  belum: number; fasil_belum: number; kendala: number | null; tl: number | null; kom: Record<string, number> };
 type RankPic = { nama: string; peringkat?: number; sekolah: number; fasil: number; selesai: number; harus: number;
-  persen: number | null; komponen: Komp[]; log_isi: number; log_slot: number; log_persen: number | null; progres: number | null };
-type Rank = { pic: RankPic[]; nasional: RankPic; hari_log: string[]; komponen: { kode: string; label: string }[]; dibuat: string };
+  persen: number | null; komponen: Komp[]; belum: number; kendala: number; tl: number; kom: Record<string, number>;
+  log_isi: number; log_slot: number; log_persen: number | null; log_kode: Record<string, number>;
+  log_hari: LogHari[]; rinci: RinciFasil[]; progres: number | null };
+/** Per fasil: n nama, s jumlah sekolah, h kode Log Komunikasi per hari (urut hari_log),
+ *  k per komponen [belum, selesai, harus, kendala & TL terisi (sesi mana pun), lalu kendala & TL per sesi urut `blok`]. */
+type RinciFasil = { n: string; s: number; h: string[]; k: Record<string, number[]> };
+/** Log Komunikasi satu hari, per sekolah: isi = sekolah yang sudah diberi kode. */
+type LogHari = { tanggal: string; isi: number; slot: number; kode: Record<string, number> };
+type Rank = { pic: RankPic[]; nasional: RankPic; hari_log: string[]; komponen: { kode: string; label: string }[];
+  kode_kom: { kode: string; arti: string }[]; berkolom: string[];
+  blok: { blok: number; label: string }[]; blok_hari: number[]; dibuat: string };
 
 const NASIONAL = "__semua__";
 const fmt = (n: number) => n.toLocaleString("id-ID");
@@ -150,50 +162,171 @@ function Ringkasan({ x }: { x: Dash }) {
 
 /* ---------- ranking ---------- */
 
-type Urut = "persen" | "log" | "progres" | "nama";
+/** Urutan kode komunikasi dari yang paling baik; "-" = belum ada catatan di Log Komunikasi. */
+const URUT_KODE = ["T", "TP", "T1", "T2", "R", "C2", "C", "N", "-"];
+const KELAS_KODE: Record<string, string> = {
+  T: s.kT, TP: s.kTP, T1: s.kT1, T2: s.kT1, R: s.kR, C2: s.kC, C: s.kC, N: s.kN, "-": s.kKosong,
+};
+const kelasKode = (k: string) => KELAS_KODE[k] ?? s.kC;
+const HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+const tglPendek = (iso: string) => { const t = new Date(`${iso}T00:00:00`); return `${HARI_PENDEK[t.getDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`; };
+const bagi = (a: number | null, b: number) => (a === null || !b ? null : a / b * 100);
+const tambah = (c: Record<string, number>, k: string, n = 1) => { c[k] = (c[k] ?? 0) + n; };
+
+/** hari = indeks hari_log; sesi = indeks `blok` yang memuat hari-hari itu (isian Kendala/TL per sesi). */
+type Filter = { komp: string[]; kode: string[]; hari: number[]; sesi: number[]; nSesi: number };
+
+/** Posisi kendala & TL di array komponen fasil untuk sesi terpilih (semua sesi = gabungan, dihitung per sekolah). */
+const posIsian = (f: Filter) => (f.sesi.length === 1 && f.nSesi > 1 ? 5 + 2 * f.sesi[0] : 3);
+
+/** Hasil satu PIC (atau gabungan) untuk kombinasi filter. */
+type Hasil = {
+  selesai: number; harus: number; fasilBelum: number; cocok: number; belum: number; kendala: number | null; tl: number | null;
+  kom: Record<string, number>; logIsi: number; logSlot: number; logKode: Record<string, number>; fasil: FasilCocok[];
+};
+type FasilCocok = { f: RinciFasil; belum: number; kendala: number; tl: number; kode: string[] };
+
+function hitungFilter(rinci: RinciFasil[], f: Filter, semuaKomp: string[], berkolom: Set<string>, simpanFasil: boolean): Hasil {
+  const komps = f.komp.length ? f.komp : semuaKomp;
+  const adaKolom = komps.some((k) => berkolom.has(k));
+  const pos = posIsian(f);
+  const h: Hasil = { selesai: 0, harus: 0, fasilBelum: 0, cocok: 0, belum: 0, kendala: adaKolom ? 0 : null, tl: adaKolom ? 0 : null,
+    kom: {}, logIsi: 0, logSlot: 0, logKode: {}, fasil: [] };
+  for (const x of rinci) {
+    const kode = f.hari.map((i) => x.h[i] || "-");
+    const kodeCocok = !f.kode.length || kode.some((k) => f.kode.includes(k));
+    // Log Komunikasi: semua fasil, hari terpilih
+    for (const k of kode) {
+      h.logSlot += 1;
+      if (k !== "-") { h.logIsi += 1; tambah(h.logKode, k); }
+    }
+    if (!kodeCocok) continue;
+    let belum = 0, kendala = 0, tl = 0;
+    for (const kp of komps) {
+      const v = x.k[kp];
+      if (!v) continue;
+      belum += v[0]; h.selesai += v[1]; h.harus += v[2];
+      if (berkolom.has(kp)) { kendala += v[pos] ?? 0; tl += v[pos + 1] ?? 0; }
+    }
+    if (!belum) continue;
+    h.cocok += 1;
+    h.belum += belum;
+    if (h.kendala !== null) h.kendala += kendala;
+    if (h.tl !== null) h.tl += tl;
+    for (const k of kode) tambah(h.kom, k);
+    if (simpanFasil) h.fasil.push({ f: x, belum, kendala, tl, kode });
+  }
+  // fasil yang punya sekolah belum (tanpa filter komunikasi), pembanding kolom "Fasil cocok"
+  h.fasilBelum = rinci.filter((x) => komps.some((kp) => (x.k[kp]?.[0] ?? 0) > 0)).length;
+  return h;
+}
+
+type Urut = "persen" | "cocok" | "kendala" | "tl" | "log" | "progres" | "nama";
 
 function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif: string; lihat: (p: string) => void;
   bandingkan: (a: string, b: string) => void }) {
-  const [komp, setKomp] = useState("");
+  const [komp, setKomp] = useState<string[]>([]);
+  const [kode, setKode] = useState<string[]>([]);
+  const [hariPilih, setHariPilih] = useState<number[] | null>(null); // null = hari terakhir
   const [urut, setUrut] = useState<Urut>("persen");
   const [pilih, setPilih] = useState<string[]>([]);
+  const [buka, setBuka] = useState<string | null>(null);
+
+  const nHari = rank?.hari_log.length ?? 0;
+  const hari = useMemo(() => hariPilih ?? (nHari ? [nHari - 1] : []), [hariPilih, nHari]);
+  const filter = useMemo<Filter>(() => {
+    const blokIdx = (rank?.blok ?? []).map((b) => b.blok);
+    const sesi = [...new Set(hari.map((i) => blokIdx.indexOf(rank?.blok_hari[i] ?? -1)).filter((j) => j >= 0))].sort();
+    return { komp, kode, hari, sesi, nSesi: blokIdx.length };
+  }, [komp, kode, hari, rank]);
+  const semuaKomp = useMemo(() => rank?.komponen.map((k) => k.kode) ?? [], [rank]);
+  const berkolom = useMemo(() => new Set(rank?.berkolom ?? []), [rank]);
+
+  const hasil = useMemo(() => {
+    const m = new Map<string, Hasil>();
+    for (const p of rank?.pic ?? []) m.set(p.nama, hitungFilter(p.rinci, filter, semuaKomp, berkolom, true));
+    return m;
+  }, [rank, filter, semuaKomp, berkolom]);
+  const nas = useMemo(() => hitungFilter((rank?.pic ?? []).flatMap((p) => p.rinci), filter, semuaKomp, berkolom, false),
+    [rank, filter, semuaKomp, berkolom]);
 
   const baris = useMemo(() => {
     if (!rank) return [];
     const nilai = (p: RankPic) => {
-      if (urut === "log") return p.log_persen ?? -1;
+      const h = hasil.get(p.nama)!;
+      if (urut === "cocok") return h.cocok;
+      if (urut === "kendala") return bagi(h.kendala, h.belum) ?? -1;
+      if (urut === "tl") return bagi(h.tl, h.belum) ?? -1;
+      if (urut === "log") return bagi(h.logIsi, h.logSlot) ?? -1;
       if (urut === "progres") return p.progres ?? -1;
-      if (komp) return p.komponen.find((k) => k.kode === komp)?.persen ?? -1;
-      return p.persen ?? -1;
+      return bagi(h.selesai, h.harus) ?? -1;
     };
     const out = [...rank.pic];
     if (urut === "nama") out.sort((a, b) => a.nama.localeCompare(b.nama));
     else out.sort((a, b) => nilai(b) - nilai(a) || a.nama.localeCompare(b.nama));
     return out;
-  }, [rank, komp, urut]);
+  }, [rank, urut, hasil]);
 
   if (!rank) return <section className={d.card}><div className={s.memuat}><Spinner label="Memuat" /> Menyusun ranking PIC…</div></section>;
 
-  const nas = rank.nasional;
-  const nasKomp = komp ? nas.komponen.find((k) => k.kode === komp) : null;
-  const acuan = komp ? nasKomp?.persen ?? null : nas.persen;
-  const label = komp ? rank.komponen.find((k) => k.kode === komp)?.label : "Semua komponen";
+  const arti = Object.fromEntries(rank.kode_kom.map((k) => [k.kode, k.arti])) as Record<string, string>;
+  arti["-"] = "Belum ada catatan di Log Komunikasi";
+  const labelKomp = Object.fromEntries(rank.komponen.map((k) => [k.kode, k.label])) as Record<string, string>;
+  const ubah = <T,>(daftar: T[], v: T) => (daftar.includes(v) ? daftar.filter((x) => x !== v) : [...daftar, v]);
+  const ubahHari = (i: number) => {
+    const baru = ubah(hari, i).sort((a, b) => a - b);
+    setHariPilih(baru.length ? baru : null);
+  };
+  const adaFilter = komp.length > 0 || kode.length > 0 || hariPilih !== null;
   const centang = (n: string) => setPilih((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p.slice(-1), n]);
+  const th = (u: Urut, teks: string, panah = "↓") => (
+    <button type="button" className={s.thTombol} onClick={() => setUrut(u)}>{teks}{urut === u ? ` ${panah}` : ""}</button>
+  );
+  const teksKomp = komp.length ? komp.map((k) => labelKomp[k]).join(", ") : "semua komponen";
+  const teksHari = hari.map((i) => tglPendek(rank.hari_log[i])).join(", ");
+  const teksKode = kode.length ? kode.map((k) => (k === "-" ? "belum ada" : k)).join(", ") : "";
+  const nasCapai = bagi(nas.selesai, nas.harus);
 
   return (
     <section className={d.card}>
       <div className={d.cardHead}>
         <h2>Ranking PIC</h2>
-        <span>sudah diisi ÷ yang seharusnya (komponen yang sudah due) · dihitung {rank.dibuat}</span>
+        <span>dihitung {rank.dibuat} · klik judul kolom untuk mengurutkan</span>
       </div>
+
+      <div className={s.filter}>
+        <div className={s.filterBaris} role="group" aria-label="Filter komponen">
+          <span className={s.filterLabel}>Komponen</span>
+          <button type="button" aria-pressed={!komp.length} onClick={() => setKomp([])}>Semua</button>
+          {rank.komponen.map((k) => (
+            <button key={k.kode} type="button" aria-pressed={komp.includes(k.kode)} onClick={() => setKomp(ubah(komp, k.kode))}>{k.label}</button>
+          ))}
+        </div>
+        <div className={s.filterBaris} role="group" aria-label="Filter komunikasi">
+          <span className={s.filterLabel}>Komunikasi</span>
+          <button type="button" aria-pressed={!kode.length} onClick={() => setKode([])}>Semua</button>
+          {URUT_KODE.map((k) => (
+            <button key={k} type="button" aria-pressed={kode.includes(k)} title={arti[k]} onClick={() => setKode(ubah(kode, k))}>
+              <i className={kelasKode(k)} />{k === "-" ? "Belum ada" : k}
+            </button>
+          ))}
+        </div>
+        <div className={s.filterBaris} role="group" aria-label="Filter hari">
+          <span className={s.filterLabel}>Hari</span>
+          <button type="button" aria-pressed={hari.length === nHari} onClick={() => setHariPilih(rank.hari_log.map((_, i) => i))}>Semua</button>
+          {rank.hari_log.map((t, i) => (
+            <button key={t} type="button" aria-pressed={hari.includes(i)} onClick={() => ubahHari(i)}>{tglPendek(t)}</button>
+          ))}
+        </div>
+        <p className={s.filterRingkas}>
+          Menampilkan <b>{teksKomp}</b>{teksKode ? <> · fasil berkode <b>{teksKode}</b></> : null} · hari <b>{teksHari}</b>
+          {" "}· isian Kendala/TL <b>{filter.sesi.length === 1 && filter.nSesi > 1 ? `sesi ${rank.blok[filter.sesi[0]].label}` : "semua sesi WEEK ini"}</b>
+          {adaFilter && <> · <button type="button" className={s.tautanKecil}
+            onClick={() => { setKomp([]); setKode([]); setHariPilih(null); }}>Reset filter</button></>}
+        </p>
+      </div>
+
       <div className={s.rankAlat}>
-        <label className={s.pilih}>
-          <span>Komponen</span>
-          <select value={komp} onChange={(e) => { setKomp(e.target.value); setUrut("persen"); }}>
-            <option value="">Semua komponen</option>
-            {rank.komponen.map((k) => <option key={k.kode} value={k.kode}>{k.label}</option>)}
-          </select>
-        </label>
         <span className={s.legendaRank}>
           <i className={s.tBaik} /> di atas nasional <i className={s.tSedang} /> sekitar nasional <i className={s.tKurang} /> di bawah nasional
         </span>
@@ -201,51 +334,181 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
           <Button size="sm" onClick={() => { bandingkan(pilih[0], pilih[1]); setPilih([]); }}>Bandingkan {pilih.length} PIC</Button>
         ) : <span className={s.ketKecil}>Centang 2 PIC untuk membandingkan</span>}
       </div>
+
       <div className={s.gulir}>
         <table className={s.tabel}>
           <thead>
             <tr>
               <th aria-label="Pilih" />
               <th className={s.angka}>#</th>
-              <th><button type="button" className={s.thTombol} onClick={() => setUrut("nama")}>PIC{urut === "nama" ? " ↑" : ""}</button></th>
+              <th>{th("nama", "PIC", "↑")}</th>
               <th className={s.angka}>Sekolah</th>
-              <th><button type="button" className={s.thTombol} onClick={() => setUrut("persen")}>{label}{urut === "persen" ? " ↓" : ""}</button></th>
-              <th className={s.angka}><button type="button" className={s.thTombol} onClick={() => setUrut("log")}>
-                Log Komunikasi{urut === "log" ? " ↓" : ""}</button></th>
-              <th className={s.angka}><button type="button" className={s.thTombol} onClick={() => setUrut("progres")}>
-                Progres fisik{urut === "progres" ? " ↓" : ""}</button></th>
+              <th>{th("persen", "Capaian")}</th>
+              <th className={s.angka} title="Fasil yang punya sekolah belum selesai (dan cocok dengan filter komunikasi)">{th("cocok", "Fasil")}</th>
+              <th className={s.angka} title="Dari sekolah yang belum selesai pada fasil tersebut">{th("kendala", "Kendala terisi")}</th>
+              <th className={s.angka}>{th("tl", "TL terisi")}</th>
+              <th>Komunikasi fasil</th>
+              <th className={s.angka}>{th("log", "Log Komunikasi")}</th>
+              <th className={s.angka}>{th("progres", "Progres fisik")}</th>
             </tr>
           </thead>
           <tbody>
             {baris.map((p, i) => {
-              const k = komp ? p.komponen.find((x) => x.kode === komp) : null;
-              const a = k ? k.selesai : p.selesai, b = k ? k.harus : p.harus, v = k ? k.persen : p.persen;
+              const h = hasil.get(p.nama)!;
+              const terbuka = buka === p.nama;
+              const tutupBuka = () => setBuka(terbuka ? null : p.nama);
               return (
-                <tr key={p.nama} className={p.nama === aktif ? s.barisAktif : undefined}>
-                  <td><input type="checkbox" checked={pilih.includes(p.nama)} onChange={() => centang(p.nama)} aria-label={`Pilih ${p.nama}`} /></td>
-                  <td className={s.angka}>{i + 1}</td>
-                  <td><button type="button" className={s.tautan} onClick={() => lihat(p.nama)}>{p.nama}</button>
-                    <small>{fmt(p.fasil)} fasil</small></td>
-                  <td className={s.angka}>{fmt(p.sekolah)}</td>
-                  <td><Rasio a={a} b={b} v={v} acuan={acuan} /></td>
-                  <td className={s.angka}><span className={nada(p.log_persen, nas.log_persen)}>{persen(p.log_persen)}</span>
-                    <small>{fmt(p.log_isi)}/{fmt(p.log_slot)}</small></td>
-                  <td className={s.angka}>{persen(p.progres)}</td>
-                </tr>
+                <Fragment key={p.nama}>
+                  <tr className={p.nama === aktif ? s.barisAktif : undefined}>
+                    <td><input type="checkbox" checked={pilih.includes(p.nama)} onChange={() => centang(p.nama)} aria-label={`Pilih ${p.nama}`} /></td>
+                    <td className={s.angka}>{i + 1}</td>
+                    <td><button type="button" className={s.tautan} onClick={() => lihat(p.nama)}>{p.nama}</button>
+                      <small>{fmt(p.fasil)} fasil · <button type="button" className={s.tautanKecil} aria-expanded={terbuka}
+                        onClick={tutupBuka}>{terbuka ? "Tutup detail ▴" : "Detail ▾"}</button></small></td>
+                    <td className={s.angka}>{fmt(p.sekolah)}</td>
+                    <td><Rasio a={h.selesai} b={h.harus} v={bagi(h.selesai, h.harus)} acuan={nasCapai} /></td>
+                    <td className={s.angka}><button type="button" className={s.selTombol} onClick={tutupBuka} title="Lihat daftar fasil">
+                      <b>{fmt(h.cocok)}</b><small>{kode.length ? `dari ${fmt(h.fasilBelum)} fasil` : "fasil punya sekolah belum"}</small></button></td>
+                    <td className={s.angka}><Terisi a={h.kendala} b={h.belum} acuan={bagi(nas.kendala, nas.belum)} /></td>
+                    <td className={s.angka}><Terisi a={h.tl} b={h.belum} acuan={bagi(nas.tl, nas.belum)} /></td>
+                    <td><BatangKode kom={h.kom} arti={arti} sorot={kode} satuan={hari.length > 1 ? "fasil-hari" : "fasil"} /></td>
+                    <td className={s.angka}><button type="button" className={s.selTombol} onClick={tutupBuka} title="Lihat rincian per hari">
+                      <span className={nada(bagi(h.logIsi, h.logSlot), bagi(nas.logIsi, nas.logSlot))}>{persen(bagi(h.logIsi, h.logSlot))}</span>
+                      <small>{fmt(h.logIsi)}/{fmt(h.logSlot)} {hari.length > 1 ? "fasil-hari" : "fasil"}{h.logKode.TP ? ` · ${fmt(h.logKode.TP)} ditelepon` : ""}</small>
+                    </button></td>
+                    <td className={s.angka}>{persen(p.progres)}</td>
+                  </tr>
+                  {terbuka && (
+                    <tr className={s.barisDetail}>
+                      <td colSpan={11}><DetailPic p={p} h={h} filter={filter} rank={rank} arti={arti} berkolom={berkolom} /></td>
+                    </tr>
+                  )}
+                </Fragment>
               );
             })}
           </tbody>
           <tfoot>
             <tr>
-              <td /><td /><td>Nasional</td><td className={s.angka}>{fmt(nas.sekolah)}</td>
-              <td><Rasio a={nasKomp ? nasKomp.selesai : nas.selesai} b={nasKomp ? nasKomp.harus : nas.harus} v={acuan} acuan={null} /></td>
-              <td className={s.angka}>{persen(nas.log_persen)}<small>{rank.hari_log.length} hari kerja</small></td>
-              <td className={s.angka}>{persen(nas.progres)}</td>
+              <td /><td /><td>Semua PIC</td><td className={s.angka}>{fmt(rank.pic.reduce((a, p) => a + p.sekolah, 0))}</td>
+              <td><Rasio a={nas.selesai} b={nas.harus} v={nasCapai} acuan={null} /></td>
+              <td className={s.angka}><b>{fmt(nas.cocok)}</b>{kode.length ? <small>dari {fmt(nas.fasilBelum)} fasil</small> : null}</td>
+              <td className={s.angka}><Terisi a={nas.kendala} b={nas.belum} acuan={null} /></td>
+              <td className={s.angka}><Terisi a={nas.tl} b={nas.belum} acuan={null} /></td>
+              <td><BatangKode kom={nas.kom} arti={arti} sorot={kode} satuan={hari.length > 1 ? "fasil-hari" : "fasil"} /></td>
+              <td className={s.angka}>{persen(bagi(nas.logIsi, nas.logSlot))}<small>{fmt(nas.logIsi)}/{fmt(nas.logSlot)}</small></td>
+              <td className={s.angka}>{persen(rank.nasional.progres)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
     </section>
+  );
+}
+
+function Terisi({ a, b, acuan }: { a: number | null; b: number; acuan: number | null }) {
+  if (a === null) return <span className={s.ketKecil}>tanpa kolom</span>;
+  if (!b) return <span className={s.ketKecil}>–</span>;
+  const v = a / b * 100;
+  return <><span className={nada(v, acuan)}>{persen(v)}</span><small>{fmt(a)}/{fmt(b)} sekolah</small></>;
+}
+
+/** Batang bertumpuk kode komunikasi, plus angka per kode (kode yang difilter ditebalkan). */
+function BatangKode({ kom, arti, sorot, satuan }: { kom: Record<string, number>; arti: Record<string, string>; sorot: string[]; satuan: string }) {
+  const total = Object.values(kom).reduce((a, b) => a + b, 0);
+  if (!total) return <span className={s.ketKecil}>–</span>;
+  const ada = URUT_KODE.filter((k) => kom[k]).concat(Object.keys(kom).filter((k) => !URUT_KODE.includes(k)));
+  return (
+    <div className={s.kom}>
+      <span className={s.komBar}>
+        {ada.map((k) => <span key={k} className={kelasKode(k)} style={{ width: `${kom[k] / total * 100}%` }}
+          title={`${k}: ${fmt(kom[k])} ${satuan} · ${arti[k] ?? ""}`} />)}
+      </span>
+      <span className={s.komAngka}>
+        {ada.map((k) => <span key={k} className={sorot.includes(k) ? s.komSorot : undefined} title={arti[k]}>
+          <i className={kelasKode(k)} />{k === "-" ? "–" : k} {fmt(kom[k])}</span>)}
+      </span>
+    </div>
+  );
+}
+
+/** Rincian satu PIC mengikuti filter: per komponen, daftar fasil yang cocok, dan Log Komunikasi per hari. */
+function DetailPic({ p, h, filter, rank, arti, berkolom }: { p: RankPic; h: Hasil; filter: Filter; rank: Rank;
+  arti: Record<string, string>; berkolom: Set<string> }) {
+  const satuan = filter.hari.length > 1 ? "fasil-hari" : "fasil";
+  const komps = (filter.komp.length ? rank.komponen.filter((k) => filter.komp.includes(k.kode)) : rank.komponen);
+  const perKomp = komps.map((k) => ({ k, h: hitungFilter(p.rinci, { ...filter, komp: [k.kode] }, [], berkolom, false) }))
+    .filter((x) => x.h.harus);
+  const kodeLog = URUT_KODE.filter((k) => p.log_hari.some((x) => x.kode[k]));
+  const [semua, setSemua] = useState(false);
+  const daftar = semua ? h.fasil : h.fasil.slice(0, 15);
+  return (
+    <div className={s.detail}>
+      <div className={s.detailKiri}>
+        <h3>Per komponen</h3>
+        <table className={s.tabelDetail}>
+          <thead><tr><th>Komponen</th><th className={s.angka}>Belum</th><th className={s.angka}>Kendala terisi</th>
+            <th className={s.angka}>TL terisi</th><th>Komunikasi fasil</th></tr></thead>
+          <tbody>
+            {perKomp.map(({ k, h: x }) => (
+              <tr key={k.kode}>
+                <td>{k.label}<small>{persen(bagi(x.selesai, x.harus))} selesai</small></td>
+                <td className={s.angka}>{fmt(x.belum)}<small>{fmt(x.cocok)} fasil</small></td>
+                <td className={s.angka}><Terisi a={x.kendala} b={x.belum} acuan={null} /></td>
+                <td className={s.angka}><Terisi a={x.tl} b={x.belum} acuan={null} /></td>
+                <td><BatangKode kom={x.kom} arti={arti} sorot={filter.kode} satuan={satuan} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <h3>Fasil ({fmt(h.fasil.length)})</h3>
+        {h.fasil.length ? (
+          <>
+            <table className={s.tabelDetail}>
+              <thead><tr><th>Fasil</th><th className={s.angka}>Sekolah belum</th><th className={s.angka}>Kendala</th>
+                <th className={s.angka}>TL</th><th>Kode {filter.hari.map((i) => tglPendek(rank.hari_log[i])).join(" · ")}</th></tr></thead>
+              <tbody>
+                {daftar.map((x) => (
+                  <tr key={x.f.n}>
+                    <td>{x.f.n}<small>{fmt(x.f.s)} sekolah binaan</small></td>
+                    <td className={s.angka}>{fmt(x.belum)}</td>
+                    <td className={s.angka}>{fmt(x.kendala)}/{fmt(x.belum)}</td>
+                    <td className={s.angka}>{fmt(x.tl)}/{fmt(x.belum)}</td>
+                    <td><span className={s.kodeHari}>{x.kode.map((k, i) => (
+                      <span key={i} className={filter.kode.includes(k) ? s.komSorot : undefined} title={arti[k]}>
+                        <i className={kelasKode(k)} />{k === "-" ? "–" : k}</span>))}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {h.fasil.length > 15 && (
+              <button type="button" className={s.tautanKecil} onClick={() => setSemua(!semua)}>
+                {semua ? "Tampilkan 15 saja" : `Tampilkan semua ${fmt(h.fasil.length)} fasil`}</button>
+            )}
+          </>
+        ) : <p className={s.ketKecil}>Tidak ada fasil yang cocok dengan filter.</p>}
+      </div>
+      <div>
+        <h3>Log Komunikasi per hari</h3>
+        <p className={s.ketKecil}>Per fasil ({fmt(p.fasil)} fasil). Kode fasil = kode terbanyak di antara sekolah binaannya hari itu.
+          Hari terpilih disorot.</p>
+        <div className={s.gulir}>
+          <table className={s.tabelDetail}>
+            <thead><tr><th>Hari</th><th className={s.angka}>Terisi</th>
+              {kodeLog.map((k) => <th key={k} className={s.angka} title={arti[k]}><i className={`${s.titikKode} ${kelasKode(k)}`} />{k}</th>)}</tr></thead>
+            <tbody>
+              {p.log_hari.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => (
+                <tr key={x.tanggal} className={filter.hari.includes(i) ? s.barisAktif : undefined}>
+                  <td>{tglPendek(x.tanggal)}</td>
+                  <td className={s.angka}>{persen(bagi(x.isi, x.slot))}<small>{fmt(x.isi)}/{fmt(x.slot)}</small></td>
+                  {kodeLog.map((k) => <td key={k} className={s.angka}>{x.kode[k] ? fmt(x.kode[k]) : <span className={s.ketKecil}>–</span>}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
 
