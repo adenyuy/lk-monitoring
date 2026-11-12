@@ -105,7 +105,7 @@ export function ChatPanel({ nomor, nama, peran, template, onIsiLk }: {
             <button key={t.kode} type="button" title={t.ket} onClick={() => setTeks(t.teks)}>{t.judul}</button>
           ))}
         </div>
-        <textarea rows={teks.length > 160 ? 8 : 3} maxLength={2000} placeholder={`Tulis pesan untuk ${lawan.toLowerCase()}…`}
+        <textarea rows={teks.length > 160 ? 8 : 3} maxLength={6000} placeholder={`Tulis pesan untuk ${lawan.toLowerCase()}…`}
           value={teks} onChange={(e) => setTeks(e.target.value)} aria-label="Pesan"
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void kirim(); } }} />
         <div className={s.composerRow}>

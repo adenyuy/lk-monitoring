@@ -21,7 +21,7 @@ def _sibuk() -> bool:
 
 router = APIRouter(prefix="/api/chat")
 wa_blast = require_feature("wa_blast")
-MAKS_BALASAN = 2000
+MAKS_BALASAN = 6000  # template tanya kendala bisa panjang untuk fasil dengan banyak sekolah
 
 
 def _nomor_fasil(nomor: str) -> str:

@@ -15,10 +15,23 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body = await res.json().catch(() => null);
   if (!res.ok) {
-    // Backend selalu mengirim {"detail": "<pesan untuk pengguna>"}
-    throw new ApiError(res.status, body?.detail ?? `Permintaan gagal (${res.status})`);
+    // Backend mengirim {"detail": "<pesan untuk pengguna>"}; isian yang ditolak validasi (422) berupa daftar objek
+    throw new ApiError(res.status, pesanError(body?.detail, res.status));
   }
   return body as T;
+}
+
+type GalatValidasi = { type?: string; msg?: string; ctx?: { max_length?: number; min_length?: number } };
+
+function pesanError(detail: unknown, status: number): string {
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail) && detail.length) {
+    const e = detail[0] as GalatValidasi;
+    if (e?.type === "string_too_long") return `Teks terlalu panjang (maks ${e.ctx?.max_length ?? "?"} karakter). Persingkat lalu kirim lagi.`;
+    if (e?.type === "string_too_short") return "Teks masih kosong.";
+    if (e?.msg) return `Isian ditolak: ${e.msg}`;
+  }
+  return `Permintaan gagal (${status})`;
 }
 
 export function post<T>(path: string, data?: unknown): Promise<T> {

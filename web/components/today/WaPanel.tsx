@@ -266,7 +266,7 @@ export function WaPanel({ nomor, data, onChanged, onTeruskan, isi, tersembunyi }
             </button>
           ))}
         </div>
-        <textarea rows={teks.length > 120 ? 6 : 2} maxLength={2000} placeholder="Tulis balasan untuk fasil…" value={teks}
+        <textarea rows={teks.length > 120 ? 6 : 2} maxLength={6000} placeholder="Tulis balasan untuk fasil…" value={teks}
           onChange={(e) => { setTeks(e.target.value); if (!e.target.value) setJenis(""); }} aria-label="Balasan"
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void kirim(); } }} />
         <div className={s.composerRow}>
