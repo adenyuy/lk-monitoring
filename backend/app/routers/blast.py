@@ -227,6 +227,18 @@ class StartReq(BaseModel):
     coba: bool = False
     aturan: AturanIn
     kirim: list[Kirim] = Field(min_length=1, max_length=1000)
+    kirim_ulang: bool = False  # True: tetap kirim ke nomor yang hari ini sudah dikirimi blast bertopik sama
+
+
+def sudah_hari_ini(topik: str) -> set[str]:
+    """Nomor yang hari ini sudah menerima blast (bukan uji coba) dengan topik yang sama. Mencegah kiriman dobel
+    saat halaman Blast masih memakai daftar lama (mis. dibuka sebelum blast sebelumnya selesai)."""
+    if not topik:
+        return set()
+    hari = schedule.now().date().isoformat()
+    return {r["nomor"] for r in db.query(
+        "SELECT DISTINCT nomor FROM sends WHERE coba = 0 AND status = 'terkirim' AND hash_pesan LIKE 'blast:%' "
+        "AND substr(waktu, 1, 10) = ? AND topik = ?", (hari, topik))}
 
 
 def _nomor_penerima(jenis: str) -> dict[str, tuple[str, str]]:
@@ -258,8 +270,10 @@ def start(req: StartReq, _=Depends(wa_blast)) -> dict[str, Any]:
         peta = _nomor_penerima(req.jenis)
     except lk_baru.LkError as e:
         raise HTTPException(400, str(e)) from e
-    daftar, dilewati = [], []
+    daftar, dilewati, dobel = [], [], []
     sudah = set()
+    topik = req.topik.strip() or req.judul
+    terkirim = set() if req.coba or req.kirim_ulang else sudah_hari_ini(topik)
     for x in req.kirim:
         nomor, nama = peta.get(x.kunci, ("", ""))
         if not nomor:
@@ -267,17 +281,23 @@ def start(req: StartReq, _=Depends(wa_blast)) -> dict[str, Any]:
             continue
         if nomor in sudah:
             continue
+        if nomor in terkirim:
+            dobel.append(nama)
+            continue
         sudah.add(nomor)
         teks = x.pesan.replace("\r\n", "\n").strip()
         if re.search(r"\{[a-z_]+\}", teks.replace("{salam}", "")):
             raise HTTPException(400, f"Pesan untuk {nama} masih berisi variabel yang belum terisi.")
         daftar.append(blast.Penerima(nomor=nomor, nama=nama, pesan=teks, jenis=req.jenis, kunci=x.kunci))
+    if not daftar and dobel:
+        raise HTTPException(400, f"Semua {len(dobel)} penerima hari ini sudah dikirimi blast \"{topik}\". "
+                                 "Tidak ada yang dikirim ulang.")
     try:
         snap = blast.mesin.start(daftar, blast.Aturan(**req.aturan.model_dump()), req.judul, req.coba,
                                  topik=req.topik.strip())
     except blast.BlastError as e:
         raise HTTPException(400, str(e)) from e
-    return {"state": snap, "dilewati": len(dilewati)}
+    return {"state": snap, "dilewati": len(dilewati), "dobel": dobel}
 
 
 class JedaReq(BaseModel):

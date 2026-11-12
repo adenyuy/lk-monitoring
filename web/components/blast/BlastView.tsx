@@ -99,6 +99,8 @@ export function BlastView() {
   const [aturanBuka, setAturanBuka] = useState(false);
   const [gantiWa, setGantiWa] = useState(false);
   const [mulai, setMulai] = useState<{ busy: boolean; error?: string; konfirmasi?: boolean }>({ busy: false });
+  /** Penerima yang dilewati server karena hari ini sudah dikirimi blast bertopik sama. */
+  const [dobel, setDobel] = useState<string[]>([]);
   const [bc, setBc] = useState<BcResp | null>(null);
   const [bcMuat, setBcMuat] = useState(false);
   const teksRef = useRef<HTMLTextAreaElement>(null);
@@ -281,10 +283,11 @@ export function BlastView() {
     if (!data) return;
     setMulai({ busy: true });
     try {
-      await post("/api/blast/start", {
+      const r = await post<{ dobel?: string[] }>("/api/blast/start", {
         jenis, judul, topik, coba, aturan,
         kirim: siap.map((p) => ({ kunci: p.kunci, pesan: pesanUntuk(p, true) })),
       });
+      setDobel(r.dobel ?? []);
       setMulai({ busy: false });
       await muatState();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -326,6 +329,13 @@ export function BlastView() {
         <Notice tone="info" title="Di luar jam kirim">Blast bisa dikirim pukul 07.00–22.00 supaya tidak mengganggu penerima.</Notice>
       )}
 
+      {dobel.length > 0 && (
+        <Notice tone="info" title={`${dobel.length} penerima dilewati agar tidak dobel`}>
+          Hari ini mereka sudah dikirimi blast dengan topik yang sama: {dobel.slice(0, 8).join(", ")}
+          {dobel.length > 8 ? `, dan ${dobel.length - 8} lainnya` : ""}.{" "}
+          <button type="button" className={s.linkBtn} onClick={() => setDobel([])}>Tutup</button>
+        </Notice>
+      )}
       {state && (jalan || state.selesai) && <Progres state={state} onUbah={muatState} />}
       {st?.wa_otomatis && !jalan && <BlastHp />}
 
