@@ -20,7 +20,7 @@ from .ubah_fasil import ganti_di_sel, gaya
 TABEL_NOMOR = ("sends", "chat_status", "chat_tahap", "aktivitas", "kirim_ulang", "tag_warna", "kom_amat", "kom_mulai",
                "kom_balas", "telepon", "neo_pesan")
 TABEL_KUNCI = ("fasil_tag",)
-KOLOM_FASIL_LOG_KOM = "D"  # Log Komunikasi: PIC | NPSN | Nama Sekolah | Fasil | tanggal…
+JUDUL_FASIL_LOG_KOM = ("fasilitator", "fasil", "nama fasil")  # dicari di baris 2 Log Komunikasi, tidak dipatok hurufnya
 
 
 class UbahFasilError(ValueError):
@@ -39,6 +39,16 @@ def pindah_lokal(lama: str, baru: str) -> None:
                 continue
             c.execute(f"UPDATE OR IGNORE {t} SET {kol} = ? WHERE {kol} = ?", (baru, lama))
             c.execute(f"DELETE FROM {t} WHERE {kol} = ?", (lama,))
+
+
+def kolom_fasil_log_kom(judul: list[Any]) -> int | None:
+    """Indeks kolom nama fasil dari judul baris 2 Log Komunikasi (PIC | NPSN | Nama Sekolah | PTN | Koordinator |
+    Fasilitator | tanggal…). None bila tidak ada: lebih baik dilewati daripada menimpa kolom lain."""
+    j = [str(x or "").strip().casefold() for x in judul]
+    for kunci in JUDUL_FASIL_LOG_KOM:
+        if kunci in j:
+            return j.index(kunci)
+    return None
 
 
 def ubah(kunci: str, nama: str, nomor_baru: str) -> dict[str, Any]:
@@ -97,9 +107,11 @@ def ubah(kunci: str, nama: str, nomor_baru: str) -> dict[str, Any]:
         try:
             lk = lk_baru.baca_log_kom(refresh=True)
             npsn = [s.npsn for s in fasil.sekolah if s.npsn in lk.baris]
-            if npsn and lk_baru._baris_kom_cocok(lk, npsn):
+            judul = (ss.values_get(f"'{lk_baru.TAB_LOG_KOM}'!A2:Z2").get("values") or [[]])[0]
+            kol = kolom_fasil_log_kom(judul)
+            if kol is not None and npsn and lk_baru._baris_kom_cocok(lk, npsn):
                 ss.values_batch_update({"valueInputOption": "RAW", "data": [
-                    {"range": f"'{lk_baru.TAB_LOG_KOM}'!{KOLOM_FASIL_LOG_KOM}{lk.baris[n]}", "values": [[nama]]}
+                    {"range": f"'{lk_baru.TAB_LOG_KOM}'!{col_letter(kol)}{lk.baris[n]}", "values": [[nama]]}
                     for n in npsn]})
                 n_log = len(npsn)
         except Exception:  # noqa: BLE001 - LK sudah diubah; nama di Log Komunikasi bisa disamakan manual

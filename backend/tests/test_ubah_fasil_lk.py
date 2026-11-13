@@ -17,6 +17,10 @@ class SS:
         self.npsn = npsn_per_baris
         self.ditulis = {}
 
+    def values_get(self, rng, params=None):
+        # judul Log Komunikasi seperti sheet asli: Fasilitator di kolom F, bukan D (D = PTN)
+        return {"values": [["PIC", "NPSN", "Nama Sekolah", "PTN", "Koordinator", "Fasilitator", "Sen 09/11"]]}
+
     def values_batch_get(self, ranges, params=None):
         out = []
         for r in ranges:
@@ -54,7 +58,14 @@ def test_ganti_nomor_dan_nama(lk):
     assert lk.ditulis[f"{tab}!M10"] == "081399999999"
     assert lk.ditulis[f"{tab}!M11"] == "081399999999 / 085711112222"   # nomor lain di sel dibiarkan
     assert not any(k.endswith("12") for k in lk.ditulis if k.startswith(tab))  # fasil lain tidak disentuh
-    assert lk.ditulis["'Log Komunikasi'!D5"] == "Budi Santoso"
+    assert lk.ditulis["'Log Komunikasi'!F5"] == "Budi Santoso"
+    assert not any(k.startswith("'Log Komunikasi'!D") for k in lk.ditulis)  # kolom PTN tidak tertimpa
+
+
+def test_kolom_fasil_log_kom():
+    assert ubah_fasil_lk.kolom_fasil_log_kom(["PIC", "NPSN", "Nama Sekolah", "PTN", "Koordinator", "Fasilitator"]) == 5
+    assert ubah_fasil_lk.kolom_fasil_log_kom(["PIC", "NPSN", "Nama", "Fasil", "Sen 09/11"]) == 3
+    assert ubah_fasil_lk.kolom_fasil_log_kom(["PIC", "NPSN", "Nama Sekolah", "PTN"]) is None
 
 
 def test_riwayat_lokal_pindah(lk):
