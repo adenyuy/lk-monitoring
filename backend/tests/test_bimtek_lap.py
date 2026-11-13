@@ -121,3 +121,12 @@ def test_simpan_file_dan_sumber(tmp_path, monkeypatch):
     bimtek_lap.simpan_file("d.csv", "CSV", {"1": "Bimtek Lap 1"})
     assert bimtek_lap.sumber_terakhir() == "file"
     assert bimtek_lap.file_tersimpan() == ("d.csv", "CSV", {"1": "Bimtek Lap 1"})
+
+
+def test_susun_legenda_c2():
+    lama = [["T", "Respon baik"], ["C", "Centang satu"], ["N", "Tidak terhubung"], ["(kosong)", "Belum dihubungi"], [], []]
+    baru = lk_baru.susun_legenda(lama, "C2", "Centang dua", setelah="C")
+    assert [r[0] for r in baru] == ["T", "C", "C2", "N", "(kosong)"]
+    assert lk_baru.susun_legenda(baru, "C2", "x", setelah="C") is None          # sudah ada: tidak diubah
+    tanpa_c = lk_baru.susun_legenda([["T", "a"], ["(kosong)", "b"]], "C2", "x", setelah="C")
+    assert [r[0] for r in tanpa_c] == ["T", "C2", "(kosong)"]

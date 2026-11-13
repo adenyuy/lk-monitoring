@@ -262,6 +262,8 @@ def sinkron_wa(hari: str | None = None) -> int:
                 isi = logkom.kode.get(sk.npsn, {})
                 for t, kode in kom_siklus.susun_semua(f.nomor, hari_d, isi, auto.get(sk.npsn, {}), put, sesi).items():
                     per_hari.setdefault(t, {})[sk.npsn] = kode
+        if any("C2" in x.values() for x in per_hari.values()):
+            lk_baru.pastikan_legenda_c2()  # legenda Kode/Arti + warna C2 (sekali; gagal tidak menghalangi)
         if any("C2" in x.values() for x in per_hari.values()) and not lk_baru.pastikan_kode_dropdown("C2"):
             # Dropdown di sheet tidak bisa ditambah C2. C2 TIDAK boleh diganti C (C = centang satu, maknanya beda):
             # sel itu dilewati dulu sampai C2 ada di dropdown.
