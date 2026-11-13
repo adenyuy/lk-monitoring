@@ -698,6 +698,14 @@ def pastikan_legenda_c2() -> bool:
                         if bg:
                             warna[_teks(r[0])] = bg
                 warna[LEGENDA_C2[0]] = WARNA_C2
+                n_lama = sum(1 for r in lama if r and any(_teks(x) for x in r))
+                if n_lama:  # baris baru di bawah legenda: salin format baris terakhir (tebal, rata tengah, garis)
+                    req.append({"copyPaste": {
+                        "source": {"sheetId": sid, "startRowIndex": 1 + n_lama, "endRowIndex": 2 + n_lama,
+                                   "startColumnIndex": k, "endColumnIndex": k + 2},
+                        "destination": {"sheetId": sid, "startRowIndex": 2 + n_lama, "endRowIndex": 2 + len(baru),
+                                        "startColumnIndex": k, "endColumnIndex": k + 2},
+                        "pasteType": "PASTE_FORMAT"}})
                 req.append({"updateCells": {
                     "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 2 + len(baru),
                               "startColumnIndex": k, "endColumnIndex": k + 2},
