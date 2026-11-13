@@ -14,7 +14,7 @@ import s from "./blast.module.css";
 
 type DataPenerima = {
   jenis: JenisPenerima; penerima: Penerima[]; petugas: string; jumlah_tanpa_nomor: number; tag: string[];
-  kelompok: { kode: Kelompok; label: string }[]; angkatan: string[]; kab: string[];
+  kelompok: { kode: Kelompok; label: string }[]; angkatan: string[]; kab: string[]; bimtek?: string[];
   komponen?: { kode: string; label: string }[];
 };
 type StateResp = { state: BlastState; aturan: Aturan; wa_terbuka: boolean; wa_otomatis: boolean; jam_kirim: boolean;
@@ -51,14 +51,15 @@ const KELOMPOK_KOOR: { kode: string; label: string }[] = [
 const LANGKAH: { n: Langkah; label: string }[] = [{ n: 1, label: "Target" }, { n: 2, label: "Pesan" }, { n: 3, label: "Tinjau & kirim" }];
 const CUSTOM = "custom";
 
-/** Pilihan penerima (yang di-uncentang + angkatan) disimpan di browser ini per jenis penerima. */
-type Pilihan = { buang: string[]; angkatan: string[] };
+/** Pilihan penerima (yang di-uncentang + angkatan + bimtek) disimpan di browser ini per jenis penerima. */
+type Pilihan = { buang: string[]; angkatan: string[]; bimtek: string[] };
 const kunciPilihan = (j: JenisPenerima) => `lkm_blast_pilihan:${j}`;
 function bacaPilihan(j: JenisPenerima): Pilihan {
   try {
     const x = JSON.parse(localStorage.getItem(kunciPilihan(j)) ?? "null");
-    return { buang: Array.isArray(x?.buang) ? x.buang : [], angkatan: Array.isArray(x?.angkatan) ? x.angkatan : [] };
-  } catch { return { buang: [], angkatan: [] }; }
+    return { buang: Array.isArray(x?.buang) ? x.buang : [], angkatan: Array.isArray(x?.angkatan) ? x.angkatan : [],
+      bimtek: Array.isArray(x?.bimtek) ? x.bimtek : [] };
+  } catch { return { buang: [], angkatan: [], bimtek: [] }; }
 }
 function tulisPilihan(j: JenisPenerima, p: Pilihan) {
   try { localStorage.setItem(kunciPilihan(j), JSON.stringify(p)); } catch { /* penyimpanan browser tidak tersedia */ }
@@ -81,6 +82,7 @@ export function BlastView() {
   const [kel, setKel] = useState<string[]>([]);
   const [tag, setTag] = useState("");
   const [angkatan, setAngkatan] = useState<string[]>([]);
+  const [bimtek, setBimtek] = useState<string[]>([]);
   const [kab, setKab] = useState("");
   const [komp, setKomp] = useState<string[]>([]);
   const [statChat, setStatChat] = useState("");
@@ -101,6 +103,7 @@ export function BlastView() {
   const [mulai, setMulai] = useState<{ busy: boolean; error?: string; konfirmasi?: boolean }>({ busy: false });
   /** Penerima yang dilewati server karena hari ini sudah dikirimi blast bertopik sama. */
   const [dobel, setDobel] = useState<string[]>([]);
+  const [abaikanJam, setAbaikanJam] = useState(false);
   const [bc, setBc] = useState<BcResp | null>(null);
   const [bcMuat, setBcMuat] = useState(false);
   const teksRef = useRef<HTMLTextAreaElement>(null);
@@ -140,11 +143,11 @@ export function BlastView() {
   useEffect(() => {
     const x = bacaPilihan(jenis);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setBuang(new Set(x.buang)); setAngkatan(x.angkatan); setPilihanSiap(jenis);
+    setBuang(new Set(x.buang)); setAngkatan(x.angkatan); setBimtek(x.bimtek); setPilihanSiap(jenis);
   }, [jenis]);
   useEffect(() => {
-    if (pilihanSiap === jenis) tulisPilihan(jenis, { buang: [...buang], angkatan });
-  }, [buang, angkatan, jenis, pilihanSiap]);
+    if (pilihanSiap === jenis) tulisPilihan(jenis, { buang: [...buang], angkatan, bimtek });
+  }, [buang, angkatan, bimtek, jenis, pilihanSiap]);
 
   const muatBc = useCallback(async (refresh = false) => {
     setBcMuat(true);
@@ -196,9 +199,10 @@ export function BlastView() {
     const q = cari.trim().toLowerCase();
     return data.penerima.filter((p) => (!kel.length || kel.includes(p.kelompok)) && (!tag || p.tag.includes(tag))
       && (!angkatan.length || p.angkatan.some((a) => angkatan.includes(a))) && (!kab || p.kab.includes(kab))
+      && (!bimtek.length || (p.bimtek ?? []).some((b) => bimtek.includes(b)))
       && (!hanyaTodo || p.perlu > 0) && (!statChat || (p.chat ?? "") === (statChat === "belum" ? "" : statChat))
       && (!q || p.nama.toLowerCase().includes(q)));
-  }, [data, kel, tag, angkatan, kab, hanyaTodo, statChat, cari]);
+  }, [data, kel, tag, angkatan, bimtek, kab, hanyaTodo, statChat, cari]);
   const terpilih = useMemo(() => dasar.map((p) => persempit(p, komp)).filter((p): p is Penerima => !!p),
     [dasar, komp]);
   const labelKomp = (data?.komponen ?? []).filter((k) => komp.includes(k.kode)).map((k) => k.label).join(" & ");
@@ -284,7 +288,7 @@ export function BlastView() {
     setMulai({ busy: true });
     try {
       const r = await post<{ dobel?: string[] }>("/api/blast/start", {
-        jenis, judul, topik, coba, aturan,
+        jenis, judul, topik, coba, aturan, abaikan_jam: abaikanJam,
         kirim: siap.map((p) => ({ kunci: p.kunci, pesan: pesanUntuk(p, true) })),
       });
       setDobel(r.dobel ?? []);
@@ -326,7 +330,11 @@ export function BlastView() {
         </Notice>
       )}
       {st && !st.jam_kirim && !jalan && (
-        <Notice tone="info" title="Di luar jam kirim">Blast bisa dikirim pukul 07.00–22.00 supaya tidak mengganggu penerima.</Notice>
+        <Notice tone={abaikanJam ? "warn" : "info"} title="Di luar jam kirim">
+          Blast biasanya dikirim pukul 07.00–22.00 supaya tidak mengganggu penerima.{" "}
+          <label className={s.cek}><input type="checkbox" checked={abaikanJam} onChange={(e) => setAbaikanJam(e.target.checked)} />
+            Tetap kirim sekarang (abaikan jam kirim)</label>
+        </Notice>
       )}
 
       {dobel.length > 0 && (
@@ -418,6 +426,22 @@ export function BlastView() {
                       );
                     })}
                     {angkatan.length > 0 && <button type="button" className={s.linkBtn} onClick={() => setAngkatan([])}>Semua angkatan</button>}
+                  </div>
+                )}
+                {(data.bimtek?.length ?? 0) > 0 && (
+                  <div className={s.chipGrup} aria-label="Bimtek Pelaporan">
+                    <span className={s.chipLabel}>Bimtek Pelaporan</span>
+                    {data.bimtek!.map((b) => {
+                      const on = bimtek.includes(b);
+                      const jml = data.penerima.filter((p) => p.bimtek?.includes(b)).length;
+                      return (
+                        <button key={b} type="button" aria-pressed={on}
+                          onClick={() => setBimtek(on ? bimtek.filter((x) => x !== b) : [...bimtek, b])}>
+                          {b.replace(/^Bimtek\s+/i, "")}<i>{jml}</i>
+                        </button>
+                      );
+                    })}
+                    {bimtek.length > 0 && <button type="button" className={s.linkBtn} onClick={() => setBimtek([])}>Semua</button>}
                   </div>
                 )}
                 <div className={s.saringBaris}>
@@ -606,7 +630,7 @@ export function BlastView() {
                     onClick={() => void kirim(true)} title="Membuka chat 3 penerima pertama tanpa menekan kirim">
                     Coba 3 penerima
                   </Button>
-                  <Button disabled={jalan || !n || !st?.wa_otomatis || !st?.jam_kirim || sisaVar.length > 0}
+                  <Button disabled={jalan || !n || !st?.wa_otomatis || !(st?.jam_kirim || abaikanJam) || sisaVar.length > 0}
                     onClick={() => setMulai({ busy: false, konfirmasi: true })}>
                     Kirim ke {n} penerima
                   </Button>

@@ -12,9 +12,9 @@ import { GantiWa, WaKartu } from "./GantiWa";
 import s from "./blast.module.css";
 
 type Jenis = "koor" | "fasil" | "sekolah";
-type Saring = { pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[]; belum: string[] };
+type Saring = { pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[]; bimtek: string[]; belum: string[] };
 type Opsi = {
-  jumlah: Record<Jenis, number>; pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[];
+  jumlah: Record<Jenis, number>; pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[]; bimtek: string[];
   komponen: { kode: string; label: string }[];
   variabel: Record<Jenis, { kode: string; arti: string }[]>; konfirmasi: string;
 };
@@ -30,11 +30,11 @@ const JENIS: { k: Jenis; label: string; ket: string }[] = [
   { k: "fasil", label: "Fasilitator", ket: "Semua fasil di LK, dari seluruh PIC." },
   { k: "sekolah", label: "Kepala sekolah", ket: "Nomor kepala sekolah di LK." },
 ];
-const SARING: { k: "pic" | "ptn" | "provinsi" | "angkatan"; label: string }[] = [
+const SARING: { k: "pic" | "ptn" | "provinsi" | "angkatan" | "bimtek"; label: string }[] = [
   { k: "pic", label: "PIC" }, { k: "ptn", label: "PTN" }, { k: "provinsi", label: "Provinsi" },
-  { k: "angkatan", label: "Angkatan" },
+  { k: "angkatan", label: "Angkatan" }, { k: "bimtek", label: "Bimtek Pelaporan" },
 ];
-const KOSONG: Saring = { pic: [], ptn: [], provinsi: [], angkatan: [], belum: [] };
+const KOSONG: Saring = { pic: [], ptn: [], provinsi: [], angkatan: [], bimtek: [], belum: [] };
 const LANGKAH = [{ n: 1, label: "Target" }, { n: 2, label: "Pesan" }, { n: 3, label: "Tinjau & kirim" }] as const;
 const fmt = (n: number) => n.toLocaleString("id-ID");
 
@@ -59,6 +59,7 @@ export function AdminBlastView() {
   const [aturan, setAturan] = useState<Aturan>({ jeda_min: 20, jeda_max: 45, istirahat_setiap: 20, istirahat_menit: 5 });
   const [coba, setCoba] = useState(true);
   const [lewati, setLewati] = useState(true);
+  const [abaikanJam, setAbaikanJam] = useState(false);
   const [konfirmasi, setKonfirmasi] = useState("");
   const [st, setSt] = useState<StateResp | null>(null);
   const [busy, setBusy] = useState(false);
@@ -126,7 +127,7 @@ export function AdminBlastView() {
     setBusy(true); setPesanAksi(null);
     try {
       const r = await post<{ jumlah: number; dilewati: number }>(`${DASAR}/start`, {
-        jenis, saring, pesan: teks, judul, coba, lewati_terkirim: lewati, aturan, konfirmasi,
+        jenis, saring, pesan: teks, judul, coba, lewati_terkirim: lewati, aturan, konfirmasi, abaikan_jam: abaikanJam,
       });
       setPesanAksi({ tone: "ok", teks: `Mulai mengirim ${fmt(r.jumlah)} pesan${r.dilewati ? `; ${fmt(r.dilewati)} penerima dilewati karena sudah menerima pesan ini` : ""}.` });
       setKonfirmasi("");
@@ -167,7 +168,13 @@ export function AdminBlastView() {
         dan pakai nomor khusus bila bisa.
       </Notice>
       {st && !st.wa_otomatis && <Notice tone="warn" title="WhatsApp otomatis sedang mati">Nyalakan lagi lewat saklar di halaman LK.</Notice>}
-      {st && !st.jam_kirim && !jalan && <Notice tone="info" title="Di luar jam kirim">Blast bisa dikirim pukul 07.00–22.00.</Notice>}
+      {st && !st.jam_kirim && !jalan && (
+        <Notice tone={abaikanJam ? "warn" : "info"} title="Di luar jam kirim">
+          Blast biasanya dikirim pukul 07.00–22.00 supaya tidak mengganggu penerima.{" "}
+          <label className={s.cek}><input type="checkbox" checked={abaikanJam} onChange={(e) => setAbaikanJam(e.target.checked)} />
+            Tetap kirim sekarang (abaikan jam kirim)</label>
+        </Notice>
+      )}
       {st?.state && (jalan || st.state.selesai) && <Progres state={st.state} onUbah={() => void muatState()} dasar={DASAR} />}
       {st?.state && !jalan && st.state.berhenti_karena && !st.state.coba && (
         <Notice tone="info" title="Melanjutkan blast yang terhenti">
@@ -208,7 +215,7 @@ export function AdminBlastView() {
               tampil={(v) => opsi.komponen.find((k) => k.kode === v)?.label ?? v}
               onUbah={(v) => setSaring({ ...saring, belum: v })} />
             {SARING.map((x) => (
-              <PilihBanyak key={x.k} label={x.label} pilihan={opsi[x.k]} nilai={saring[x.k]}
+              <PilihBanyak key={x.k} label={x.label} pilihan={opsi[x.k] ?? []} nilai={saring[x.k]}
                 tampil={x.k === "angkatan" ? (v) => `Angkatan ${v}` : undefined}
                 onUbah={(v) => setSaring({ ...saring, [x.k]: v })} />
             ))}
@@ -291,7 +298,7 @@ export function AdminBlastView() {
                   onChange={(e) => setAturan({ ...aturan, istirahat_menit: Number(e.target.value) })} aria-label="Lama istirahat" /><span>menit</span></span>
               </dd></div>
               <div className={s.ringkasAksen}><dt>Perkiraan waktu</dt><dd>±{durasi(perkiraan)}
-                {!coba && hariKirim > 1 && <small>Lewat jam 22.00 pengiriman berhenti; tekan Mulai lagi besok untuk melanjutkan (sekitar {Math.ceil(hariKirim)} hari kirim).</small>}</dd></div>
+                {!coba && !abaikanJam && hariKirim > 1 && <small>Lewat jam 22.00 pengiriman berhenti; tekan Mulai lagi besok untuk melanjutkan (sekitar {Math.ceil(hariKirim)} hari kirim).</small>}</dd></div>
             </dl>
             <div className={s.preview}>
               <div className={s.previewHead}><span>Contoh untuk {hitung.contoh?.[0]?.nama}</span></div>
@@ -312,7 +319,7 @@ export function AdminBlastView() {
             <Button variant="ghost" onClick={() => setLangkah(2)}>Kembali</Button>
             <div className={s.kirimAksi}>
               <Button onClick={() => void mulai()} loading={busy}
-                disabled={jalan || !kirimN || !sahKonfirmasi || !st?.wa_otomatis || !st?.jam_kirim}>
+                disabled={jalan || !kirimN || !sahKonfirmasi || !st?.wa_otomatis || !(st?.jam_kirim || abaikanJam)}>
                 {coba ? "Coba 3 pesan" : `Kirim ${fmt(kirimN)} pesan`}
               </Button>
             </div>

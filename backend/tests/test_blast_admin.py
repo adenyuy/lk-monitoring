@@ -13,10 +13,10 @@ def _belum_palsu(monkeypatch):
 
 
 def _s(npsn, pic, fasil, hp_fasil, koor="Koor A", hp_koor="0812000001", ptn="Univ A", prov="Prov. Aceh",
-       angkatan="1", kepsek="Pak Kepsek", hp_kepsek="0813000001", belum=()):
+       angkatan="1", kepsek="Pak Kepsek", hp_kepsek="0813000001", belum=(), bimtek=""):
     s = SimpleNamespace(npsn=npsn, petugas=pic, nama=f"SD {npsn}", fasil=fasil, hp_fasil=hp_fasil, koor=koor,
                         hp_koor=hp_koor, ptn=ptn, provinsi=prov, angkatan=angkatan, kepsek=kepsek,
-                        hp_kepsek=hp_kepsek, kab="Kab X", belum=belum)
+                        hp_kepsek=hp_kepsek, kab="Kab X", belum=belum, bimtek=bimtek)
     s.nomor_fasil = lambda: [hp_fasil] if hp_fasil else []
     return s
 
@@ -65,7 +65,7 @@ def test_start_mengirim_ke_nomor_unik(monkeypatch):
     monkeypatch.setattr(ba, "_sudah_terkirim", lambda nh: set())
     dikirim = {}
 
-    def start(daftar, aturan, judul, coba):
+    def start(daftar, aturan, judul, coba, abaikan_jam=False):
         dikirim["daftar"] = daftar
         return {"running": True}
 

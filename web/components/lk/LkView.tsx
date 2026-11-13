@@ -203,12 +203,20 @@ function Insight({ daftar, onBuka }: { daftar: LkRingkasan["indikator"]; onBuka:
   );
 }
 
+/** '' = semua; '-' = fasil tanpa sekolah peserta bimtek; selain itu nama kelompok bimtek. */
+function cocokBimtek(bt: Record<string, number> | undefined, pilih: string): boolean {
+  if (!pilih) return true;
+  const ada = Object.keys(bt ?? {});
+  return pilih === "-" ? !ada.length : ada.includes(pilih);
+}
+
 function Papan({ data, onBuka, onKode }: {
   data: LkRingkasan; onBuka: (kunci: string) => void; onKode: (f: FasilLk, kode: string) => void;
 }) {
   const [fokus, setFokus] = useState<string>("semua");
   const [kel, setKel] = useState<Kelompok | "">("");
   const [tag, setTag] = useState("");
+  const [bimtek, setBimtek] = useState("");
   const [cari, setCari] = useState("");
 
   const kolom: Kolom[] = useMemo(() => [
@@ -219,8 +227,9 @@ function Papan({ data, onBuka, onKode }: {
   const saring = useMemo(() => {
     const q = cari.trim().toLowerCase();
     return data.fasil.filter((f) => (!kel || f.kelompok === kel) && (!tag || f.tag.includes(tag))
+      && cocokBimtek(f.bimtek, bimtek)
       && (!q || f.nama.toLowerCase().includes(q) || f.ptn.toLowerCase().includes(q)));
-  }, [data.fasil, kel, tag, cari]);
+  }, [data.fasil, kel, tag, bimtek, cari]);
 
   const isi = useMemo(() => {
     const out: Record<string, FasilLk[]> = {};
@@ -267,6 +276,18 @@ function Papan({ data, onBuka, onKode }: {
             {data.kelompok.filter((k) => k.jumlah).map((k) => <option key={k.kode} value={k.kode}>{k.label} ({k.jumlah})</option>)}
           </select>
         </label>
+        {(data.bimtek?.length ?? 0) > 0 && (
+          <label className={s.pilihKecil}>
+            <span>Bimtek Pelaporan</span>
+            <select value={bimtek} onChange={(e) => setBimtek(e.target.value)}>
+              <option value="">Semua fasil</option>
+              {data.bimtek!.map((b) => (
+                <option key={b} value={b}>{b} ({data.fasil.filter((f) => f.bimtek?.[b]).length} fasil)</option>
+              ))}
+              <option value="-">Tanpa sekolah bimtek</option>
+            </select>
+          </label>
+        )}
         {data.tag.length > 0 && (
           <div className={s.tagFilter} aria-label="Saring tag">
             {data.tag.map((x) => (

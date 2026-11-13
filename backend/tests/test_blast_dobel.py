@@ -21,7 +21,7 @@ def _siap(monkeypatch):
                                                               "b": ("6281100000002", "Fasil B")})
     dimulai = {}
 
-    def start(daftar, aturan, judul, coba, topik=""):
+    def start(daftar, aturan, judul, coba, topik="", abaikan_jam=False):
         dimulai["nomor"] = [p.nomor for p in daftar]
         return {"running": True}
 

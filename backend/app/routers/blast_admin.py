@@ -14,7 +14,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import blast, db, komunikasi, lk_baru, todo
+from .. import bimtek_lap, blast, db, komunikasi, lk_baru, todo
 from ..sheets import daftar_nomor, message_hash, normalize_petugas
 from ..wa.browser import worker
 from .deps import require_feature
@@ -51,6 +51,7 @@ class Target:
     ptn: set[str] = field(default_factory=set)
     provinsi: set[str] = field(default_factory=set)
     angkatan: set[str] = field(default_factory=set)
+    bimtek: set[str] = field(default_factory=set)
     sekolah: list[tuple[str, frozenset[str]]] = field(default_factory=list)  # (nama sekolah, kode komponen belum)
 
 
@@ -76,6 +77,8 @@ def _ikut(t: Target, s: lk_baru.Sekolah) -> None:
         t.provinsi.add(_prov(s.provinsi))
     if s.angkatan:
         t.angkatan.add(s.angkatan)
+    if s.bimtek:
+        t.bimtek.add(s.bimtek)
 
 
 _SIMPAN: dict[tuple[int, str], list[Target]] = {}
@@ -139,6 +142,7 @@ class Saring(BaseModel):
     ptn: list[str] = Field(default_factory=list, max_length=100)
     provinsi: list[str] = Field(default_factory=list, max_length=100)
     angkatan: list[str] = Field(default_factory=list, max_length=20)
+    bimtek: list[str] = Field(default_factory=list, max_length=50)
     belum: list[str] = Field(default_factory=list, max_length=20)  # kode komponen yang belum selesai
 
 
@@ -153,7 +157,7 @@ def saring(ts: list[Target], f: Saring) -> list[Target]:
     out = []
     for t in ts:
         if not (cocok(t.pic, f.pic) and cocok(t.ptn, f.ptn) and cocok(t.provinsi, f.provinsi)
-                and cocok(t.angkatan, f.angkatan)):
+                and cocok(t.angkatan, f.angkatan) and cocok(t.bimtek, f.bimtek)):
             continue
         kena = [(n, b & pilih if pilih else b) for n, b in t.sekolah if (b & pilih if pilih else b)]
         if pilih and not kena:
@@ -206,6 +210,7 @@ def opsi(_=Depends(admin_blast)) -> dict[str, Any]:
         "ptn": sorted({s.ptn for s in sekolah if s.ptn}, key=str.casefold),
         "provinsi": sorted({_prov(s.provinsi) for s in sekolah if s.provinsi}, key=str.casefold),
         "angkatan": sorted({s.angkatan for s in sekolah if s.angkatan}),
+        "bimtek": bimtek_lap.pilihan(sekolah),
         "komponen": [{"kode": k.kode, "label": k.label} for k in lk_baru.KOMPONEN],
         "variabel": {j: [{"kode": k, "arti": a} for k, a in v] for j, v in VARIABEL.items()},
         "konfirmasi": KONFIRMASI,
@@ -244,6 +249,7 @@ class StartReq(HitungReq):
     judul: str = Field("Blast admin", max_length=80)
     coba: bool = False
     lewati_terkirim: bool = True
+    abaikan_jam: bool = False
     aturan: AturanIn = Field(default_factory=AturanIn)
     konfirmasi: str = ""
 
@@ -275,7 +281,8 @@ def start(req: StartReq, _=Depends(admin_blast)) -> dict[str, Any]:
     if not daftar:
         raise HTTPException(400, "Tidak ada penerima yang perlu dikirimi (semua tanpa nomor atau sudah menerima pesan ini).")
     try:
-        snap = blast.mesin.start(daftar, blast.Aturan(**req.aturan.model_dump()), req.judul, req.coba)
+        snap = blast.mesin.start(daftar, blast.Aturan(**req.aturan.model_dump()), req.judul, req.coba,
+                                 abaikan_jam=req.abaikan_jam)
     except blast.BlastError as e:
         raise HTTPException(400, str(e)) from e
     return {"state": snap, "dilewati": dilewati, "jumlah": len(daftar)}

@@ -40,6 +40,8 @@ export type FasilLk = {
   fokus: { judul: string; jumlah: number }[];
   tunggu_maks: number | null;
   tag: string[];
+  /** Jumlah sekolah per kelompok Bimtek Pelaporan. */
+  bimtek?: Record<string, number>;
   tanpa_progres: boolean;
   belum_ditelepon: boolean;
   telepon?: TeleponInfo;
@@ -68,6 +70,8 @@ export type LkRingkasan = LkInfo & {
   posisi: PosisiKolom[];
   kom: { kode: string; label: string; arti: string; jumlah: number }[];
   tag: string[];
+  /** Kelompok Bimtek Pelaporan yang ada di sekolah binaan. */
+  bimtek?: string[];
   fasil: FasilLk[];
 };
 
@@ -99,6 +103,7 @@ export type SekolahDetail = {
   nama: string;
   angkatan: string;
   kab: string;
+  bimtek?: string;
   tahap: Tahap;
   komponen: Komp[];
   todo: TodoItem[];
@@ -185,6 +190,7 @@ export type Penerima = {
   ptn: string;
   koor?: string;
   angkatan: string[];
+  bimtek?: string[];
   kab: string[];
   jumlah_sekolah: number;
   perlu: number;
@@ -198,7 +204,7 @@ export type Penerima = {
   /** Komponen papan LK -> jumlah sekolah yang tertahan di situ. */
   posisi?: Record<string, number>;
   // fasil
-  sekolah?: { nama: string; npsn?: string; kab?: string; angkatan?: string; tahap: Tahap; todo: TodoRingkas[] }[];
+  sekolah?: { nama: string; npsn?: string; kab?: string; angkatan?: string; bimtek?: string; tahap: Tahap; todo: TodoRingkas[] }[];
   // koor
   fasil?: { nama: string; kelompok: Kelompok; sekolah: number; perlu: number; todo: number; todo_fasil: number;
     belum_ditelepon: boolean; tanpa_progres: boolean; sulit: boolean; posisi?: Record<string, number> }[];

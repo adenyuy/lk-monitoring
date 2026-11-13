@@ -79,7 +79,8 @@ def test_keterangan_tidak_menimpa_isian_petugas():
 
 def test_parse_tata_dan_log():
     r1 = ["DATA SEKOLAH"] + [""] * 30 + ["SESI SENIN"] + [""] * 25 + ["SESI RABU"] + [""] * 25
-    r3 = list(lk_baru.IDENTITAS) + [k.judul for k in lk_baru.KOMPONEN]
+    r3 = [j for j, f in lk_baru.IDENTITAS.items() if f not in lk_baru.IDENTITAS_OPSIONAL]
+    r3 += [k.judul for k in lk_baru.KOMPONEN]
     for k in lk_baru.KOMPONEN:
         if k.tunggu:
             r3.append(k.tunggu)

@@ -8,7 +8,7 @@ import { Button, Notice, Spinner } from "@/components/ui";
 import s from "./dashboard.module.css";
 import { LogProgresNasional } from "./LogProgres";
 
-type Capaian = { kode: string; label: string; tahap: Tahap; pelaku: string; selesai: number; belum: number; due: number;
+export type Capaian = { kode: string; label: string; tahap: Tahap; pelaku: string; selesai: number; belum: number; due: number;
   kosong: number; tanpa_data: number; relevan: number; persen: number | null; rasio: [number, number] | null };
 export type Dash = {
   pic: string; nasional: boolean; week: number; cutoff: string; dibuat: string; umur_detik: number; menghitung: boolean;
@@ -29,6 +29,15 @@ export type Dash = {
     terhubung: number; lambat: number; tidak: number; telepon: number; hari_tercatat: number; kode_hari_ini: string;
     tunggu_maks: number | null }[];
   pilihan_pic?: string[];
+  /** Filter Bimtek Pelaporan yang aktif ('' = semua). */
+  bimtek?: string;
+  pilihan_bimtek?: string[];
+  per_bimtek?: { bimtek: string; sekolah: number; fasil: number; lengkap: number; progres: number | null; capaian: Capaian[] }[];
+  tren_bimtek?: { cutoff: string[]; kolom: { kode: string; label: string }[];
+    kelompok: { bimtek: string; sekolah: (number | null)[]; seri: Record<string, (number | null)[]> }[] };
+  /** Ranking & perbandingan PIC hanya untuk admin. */
+  admin?: boolean;
+  saya?: string;
 };
 
 const URUT_KODE = ["T", "TP", "T1", "T2", "R", "C", "N"];

@@ -7,7 +7,14 @@ import { Button, Notice, Spinner } from "@/components/ui";
 import s from "./cutoff2.module.css";
 
 type Status = { jalan: boolean; langkah: string; persen: number; hasil: null | { tab: string; sekolah: number; baru: number;
-  keterangan: number; cutoff: string; log_kom?: LogKomHasil }; error: string };
+  keterangan: number; cutoff: string; log_kom?: LogKomHasil; bimtek?: BimtekHasil | null }; error: string };
+type BimtekHasil = { ditulis?: number; kolom_baru?: boolean; error?: string };
+
+function teksBimtek(x?: BimtekHasil | null) {
+  if (!x) return "";
+  if (x.error) return ` Bimtek Pelaporan belum terisi (${x.error}); isi lagi dari kartu Bimtek Pelaporan.`;
+  return x.ditulis ? ` ${x.ditulis.toLocaleString("id-ID")} sekolah baru diberi Bimtek Pelaporan.` : "";
+}
 type LogKomHasil = { ditambah: number; pic_diubah: number };
 
 function teksLogKom(x?: LogKomHasil) {
@@ -40,8 +47,8 @@ const TAHAP_TULIS: { sampai: number; label: string }[] = [
   { sampai: 40, label: "Mengurutkan per PIC" },
   { sampai: 55, label: "Menulis keterangan otomatis" },
   { sampai: 72, label: "Menyamakan Log Komunikasi" },
-  { sampai: 80, label: "Mengisi Log Progres" },
-  { sampai: 100, label: "Selesai" },
+  { sampai: 88, label: "Mengisi Log Progres" },
+  { sampai: 100, label: "Bimtek Pelaporan & Log Progres Bimtek" },
 ];
 
 export function CutoffView() {
@@ -251,7 +258,7 @@ export function CutoffView() {
               {!jalan && status.hasil && (
                 <Notice tone="ok" title={`${status.hasil.cutoff} tersimpan di ${status.hasil.tab}`}>
                   {fmt(status.hasil.sekolah)} sekolah diperbarui{status.hasil.baru ? `, ${fmt(status.hasil.baru)} sekolah baru` : ""},
-                  {" "}{fmt(status.hasil.keterangan)} keterangan otomatis ditulis ulang, dan Log Progres mendapat kolom baru.{teksLogKom(status.hasil.log_kom)}
+                  {" "}{fmt(status.hasil.keterangan)} keterangan otomatis ditulis ulang, dan Log Progres mendapat kolom baru.{teksLogKom(status.hasil.log_kom)}{teksBimtek(status.hasil.bimtek)}
                 </Notice>
               )}
               {!jalan && status.error && <Notice tone="bad" title="Penulisan cutoff gagal">{status.error}</Notice>}
@@ -273,6 +280,7 @@ export function CutoffView() {
         <aside className={s.samping}>
           <WeekBaru info={info} onSelesai={muat} />
           <PicBaru />
+          <BimtekBaru />
         </aside>
       </div>
 
@@ -520,6 +528,165 @@ function PicBaru() {
             <Button variant="ghost" size="sm" onClick={() => setCek(null)}>Batal</Button>
             <Button size="sm" loading={busy === "isi"} disabled={!cek.akan_ditulis} onClick={() => void isi()}>
               {cek.akan_ditulis ? `Isi ${cek.akan_ditulis} PIC` : "Tidak ada yang perlu diisi"}
+            </Button>
+          </div>
+        </div>
+      )}
+      {pesan && <p className={pesan.tone === "ok" ? s.ok : s.bad}>{pesan.teks}</p>}
+    </section>
+  );
+}
+
+type BimtekCek = {
+  file: string; tab: string; lk_tab: string; sheet_sekolah: number; ada_kolom: boolean; akan_ditulis: number;
+  jml_isi: number; jml_beda: number; jml_tanpa: number;
+  beda: { npsn: string; nama: string; bimtek: string; bimtek_lama: string }[];
+  tanpa: { npsn: string; bimtek: string }[];
+  per_bimtek: { bimtek: string; jumlah: number }[];
+};
+type BimtekInfo = { ada_kolom: boolean; terisi: number; sekolah: number; link: string; sumber: "" | "link" | "file";
+  file: string; per_bimtek: { bimtek: string; jumlah: number }[] };
+
+/** Kolom Bimtek Pelaporan di LK, diisi dari sheet daftar bimtek (kolom NPSN + Tag). Mirip PIC sekolah baru. */
+function BimtekBaru() {
+  const [info, setInfo] = useState<BimtekInfo | null>(null);
+  const [mode, setMode] = useState<"link" | "file">("link");
+  const [link, setLink] = useState("");
+  const [berkas, setBerkas] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [ganti, setGanti] = useState(false);
+  const [cek, setCek] = useState<BimtekCek | null>(null);
+  const [busy, setBusy] = useState<"" | "cek" | "isi">("");
+  const [pesan, setPesan] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
+
+  const muat = useCallback(async () => {
+    try {
+      const r = await api<BimtekInfo>("/api/cutoff/bimtek");
+      setInfo(r);
+      setLink((l) => l || r.link);
+      if (r.sumber === "file") setMode((m) => (m === "link" && !r.link ? "file" : m));
+    } catch { /* kartu tetap bisa dipakai tanpa ringkasan */ }
+  }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void muat(); }, [muat]);
+
+  /** Link: JSON; file: multipart berisi file + ganti_beda. */
+  function kirim<T>(aksi: "cek" | "isi", g: boolean, f: File | null = berkas): Promise<T> {
+    if (mode === "link") return post<T>(`/api/cutoff/bimtek/${aksi}`, { link, ganti_beda: g });
+    const form = new FormData();
+    form.append("file", f!);
+    form.append("ganti_beda", String(g));
+    return api<T>(`/api/cutoff/bimtek/${aksi}-file`, { method: "POST", body: form });
+  }
+
+  async function periksa(g = ganti, f: File | null = berkas) {
+    setBusy("cek"); setPesan(null);
+    try {
+      setCek(await kirim<BimtekCek>("cek", g, f));
+    } catch (e) {
+      setCek(null);
+      setPesan({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(""); }
+  }
+  async function isi() {
+    setBusy("isi"); setPesan(null);
+    try {
+      const r = await kirim<{ ditulis: number; diisi: number; diganti: number; tanpa: number; lk_tab: string;
+        kolom_baru: boolean }>("isi", ganti);
+      setPesan({ tone: "ok", teks: (r.kolom_baru ? `Kolom Bimtek Pelaporan ditambahkan di ${r.lk_tab}. ` : "")
+        + `${r.ditulis.toLocaleString("id-ID")} sekolah diisi di ${r.lk_tab}`
+        + (r.diganti ? ` (${r.diisi} diisi, ${r.diganti} diganti)` : "")
+        + (r.tanpa ? `. ${r.tanpa} sekolah di sheet belum ada di LK; terisi otomatis saat cutoff memasukkannya.` : ".") });
+      setCek(null);
+      void muat();
+    } catch (e) {
+      setPesan({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(""); }
+  }
+
+  return (
+    <section className={`${s.card} ${s.weekCard}`}>
+      <div className={s.cardHead}>
+        <h2>Bimtek Pelaporan</h2>
+        {info && <span>{info.ada_kolom ? `${info.terisi.toLocaleString("id-ID")} sekolah peserta` : "Kolom belum ada"}</span>}
+      </div>
+      <p className={s.catatanTulis}>
+        Tempel link sheet atau unggah file daftar bimtek (CSV/Excel) berkolom NPSN dan Tag. Aplikasi mengisi kolom
+        Bimtek Pelaporan di bagian Informasi Sekolah (kolom ditambahkan setelah Angkatan bila belum ada). Setiap cutoff,
+        sekolah baru ikut diisi dari sumber terakhir.
+      </p>
+      {info && info.per_bimtek.length > 0 && (
+        <p className={s.catatanTulis}>{info.per_bimtek.map((x) => `${x.bimtek} ${x.jumlah.toLocaleString("id-ID")}`).join(" · ")}</p>
+      )}
+      {info?.sumber && (
+        <p className={s.catatanTulis}>
+          Sumber terakhir: {info.sumber === "file" ? <>file <b>{info.file || "(tersimpan)"}</b></> : "link sheet"}
+        </p>
+      )}
+      <div className={s.sumberPilih} role="radiogroup" aria-label="Sumber daftar bimtek">
+        {(["link", "file"] as const).map((m) => (
+          <button key={m} type="button" role="radio" aria-checked={mode === m}
+            onClick={() => { setMode(m); setCek(null); setPesan(null); }}>
+            {m === "link" ? "Link sheet" : "Upload file"}
+          </button>
+        ))}
+      </div>
+      {mode === "link" ? (
+        <input className={s.linkInput} type="url" placeholder="https://docs.google.com/spreadsheets/d/…" value={link}
+          onChange={(e) => { setLink(e.target.value); setCek(null); }} aria-label="Link sheet daftar bimtek" />
+      ) : (
+        <div className={s.berkasPilih}>
+          <input ref={inputRef} type="file" accept=".csv,.xlsx,.xlsm,.tsv,.txt" hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              e.target.value = "";
+              setBerkas(f); setCek(null);
+              if (f) void periksa(ganti, f);
+            }} />
+          <Button variant="secondary" size="sm" loading={busy === "cek"} onClick={() => inputRef.current?.click()}>
+            {berkas ? "Ganti file" : "Pilih file CSV/Excel"}
+          </Button>
+          {berkas && <span title={berkas.name}>{berkas.name}</span>}
+        </div>
+      )}
+      <label className={s.centang}>
+        <input type="checkbox" checked={ganti} onChange={(e) => { setGanti(e.target.checked); if (cek) void periksa(e.target.checked); }} />
+        Ganti juga isian yang berbeda dengan {mode === "link" ? "sheet" : "file"}
+      </label>
+      {!cek && mode === "link" && (
+        <Button variant="secondary" size="sm" loading={busy === "cek"} disabled={!link.trim()} onClick={() => void periksa()}>
+          Cek
+        </Button>
+      )}
+      {cek && (
+        <div className={s.picHasil}>
+          <p>Dari <b>{cek.file}</b>{cek.tab !== "CSV" && <>, {mode === "link" ? "tab" : "sheet"} <b>{cek.tab}</b></>}
+            {" "}({cek.sheet_sekolah.toLocaleString("id-ID")} sekolah):</p>
+          <ul className={s.cekList}>
+            {!cek.ada_kolom && <li>Kolom Bimtek Pelaporan akan ditambahkan di {cek.lk_tab} (setelah Angkatan)</li>}
+            <li>{cek.jml_isi.toLocaleString("id-ID")} sekolah akan diisi</li>
+            <li>{cek.jml_beda} sekolah isiannya berbeda{cek.jml_beda ? (ganti ? ", akan diganti" : ", dibiarkan") : ""}</li>
+            {cek.jml_tanpa > 0 && <li>{cek.jml_tanpa} sekolah di sheet belum ada di LK</li>}
+          </ul>
+          {cek.per_bimtek.length > 0 && (
+            <p className={s.catatanTulis}>{cek.per_bimtek.map((x) => `${x.bimtek} ${x.jumlah.toLocaleString("id-ID")}`).join(", ")}</p>
+          )}
+          {cek.tanpa.length > 0 && (
+            <details className={s.picDetail}>
+              <summary>Lihat NPSN yang belum ada di LK</summary>
+              <ul>{cek.tanpa.map((x) => <li key={x.npsn}>{x.npsn} · {x.bimtek}</li>)}</ul>
+            </details>
+          )}
+          {ganti && cek.beda.length > 0 && (
+            <details className={s.picDetail}>
+              <summary>Lihat isian yang akan diganti</summary>
+              <ul>{cek.beda.map((x) => <li key={x.npsn}>{x.nama}: {x.bimtek_lama} → {x.bimtek}</li>)}</ul>
+            </details>
+          )}
+          <div className={s.picAksi}>
+            <Button variant="ghost" size="sm" onClick={() => setCek(null)}>Batal</Button>
+            <Button size="sm" loading={busy === "isi"} disabled={!cek.akan_ditulis && cek.ada_kolom} onClick={() => void isi()}>
+              {cek.akan_ditulis ? `Isi ${cek.akan_ditulis.toLocaleString("id-ID")} sekolah` : cek.ada_kolom ? "Tidak ada yang perlu diisi" : "Tambah kolom"}
             </Button>
           </div>
         </div>

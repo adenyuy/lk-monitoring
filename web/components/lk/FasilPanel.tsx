@@ -445,7 +445,7 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSalin,
         disabled={!ada}>
         <div>
           <h4>{x.nama}</h4>
-          <small>{x.kab}{x.angkatan && ` · Angkatan ${x.angkatan}`} · NPSN {x.npsn}</small>
+          <small>{x.kab}{x.angkatan && ` · Angkatan ${x.angkatan}`}{x.bimtek && ` · ${x.bimtek}`} · NPSN {x.npsn}</small>
         </div>
         <div className={s.sekolahChip}>
           {x.delta !== null && x.delta > 0 && <Chip tone="ok">+{x.delta} sejak cutoff lalu</Chip>}

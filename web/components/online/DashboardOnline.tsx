@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { Batang, Capaian, Komunikasi, Kpi, type Dash } from "@/components/dashboard/DashboardView";
 import d from "@/components/dashboard/dashboard.module.css";
+import { BimtekPanel } from "./BimtekPanel";
 import { LogProgresOnline } from "./LogProgresOnline";
 import s from "./online.module.css";
 
@@ -29,7 +30,7 @@ const NASIONAL = "__semua__";
 const fmt = (n: number) => n.toLocaleString("id-ID");
 const persen = (v: number | null | undefined) => (v === null || v === undefined ? "–" : `${String(Math.round(v * 10) / 10).replace(".", ",")}%`);
 
-function useDash(pic: string) {
+function useDash(pic: string, bimtek = "") {
   const [data, setData] = useState<Dash | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [memuat, setMemuat] = useState(false);
@@ -38,6 +39,7 @@ function useDash(pic: string) {
     try {
       const q = new URLSearchParams();
       if (pic && pic !== NASIONAL) q.set("pic", pic);
+      if (bimtek) q.set("bimtek", bimtek);
       if (paksa) q.set("paksa", "true");
       setData(await api<Dash>(`/api/dashboard${q.size ? `?${q}` : ""}`));
       setError(null);
@@ -46,7 +48,7 @@ function useDash(pic: string) {
     } finally {
       setMemuat(false);
     }
-  }, [pic]);
+  }, [pic, bimtek]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void muat(); }, [muat]);
   return { data, error, memuat, muat };
@@ -56,9 +58,15 @@ export function DashboardOnline() {
   const [pic, setPic] = useState(NASIONAL);
   const [banding, setBanding] = useState<string | null>(null);
   const [rank, setRank] = useState<Rank | null>(null);
-  const utama = useDash(pic);
+  const [bimtek, setBimtek] = useState("");
+  const utama = useDash(pic, bimtek);
+  const admin = !!utama.data?.admin;
 
-  useEffect(() => { api<Rank>("/api/ranking").then(setRank).catch(() => setRank(null)); }, []);
+  useEffect(() => {
+    if (!admin) return; // ranking tidak dipakai (komponennya disembunyikan)
+    const q = bimtek ? `?bimtek=${encodeURIComponent(bimtek)}` : "";
+    api<Rank>(`/api/dashboard/ranking${q}`).then(setRank).catch(() => setRank(null));
+  }, [admin, bimtek]);
 
   const pilihan = utama.data?.pilihan_pic ?? rank?.pic.map((x) => x.nama) ?? [];
   const lihat = (p: string) => { setPic(p); setBanding(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -73,13 +81,24 @@ export function DashboardOnline() {
       <header className={s.kepala}>
         <div>
           <p className={s.eyebrow}>WEEK {x.week}{x.cutoff ? ` · ${x.cutoff}` : ""} · dihitung {x.dibuat}</p>
-          <h1>{banding !== null ? "Perbandingan PIC" : x.nasional ? "Dashboard nasional" : `Dashboard ${x.pic}`}</h1>
+          <h1>{banding !== null ? "Perbandingan PIC" : x.nasional ? "Dashboard nasional" : `Dashboard ${x.pic}`}
+            {x.bimtek ? <small className={s.subJudul}> · {x.bimtek === "-" ? "bukan peserta bimtek" : x.bimtek}</small> : null}</h1>
         </div>
         <div className={s.kontrol}>
           <label className={s.pilih}>
             <span>{banding !== null ? "Kiri" : "Lihat"}</span>
             <PilihPic nilai={pic} ubah={setPic} pilihan={pilihan} />
           </label>
+          {(x.pilihan_bimtek?.length ?? 0) > 0 && (
+            <label className={s.pilih}>
+              <span>Bimtek</span>
+              <select value={bimtek} onChange={(e) => setBimtek(e.target.value)} aria-label="Saring Bimtek Pelaporan">
+                <option value="">Semua sekolah</option>
+                {x.pilihan_bimtek!.map((b) => <option key={b} value={b}>{b}</option>)}
+                <option value="-">Bukan peserta bimtek</option>
+              </select>
+            </label>
+          )}
           {banding !== null ? (
             <>
               <label className={s.pilih}>
@@ -90,8 +109,10 @@ export function DashboardOnline() {
             </>
           ) : (
             <>
-              <Button variant="secondary" size="sm"
-                onClick={() => setBanding(pic === NASIONAL ? (pilihan[0] ?? NASIONAL) : NASIONAL)}>Bandingkan</Button>
+              {admin && (
+                <Button variant="secondary" size="sm"
+                  onClick={() => setBanding(pic === NASIONAL ? (pilihan[0] ?? NASIONAL) : NASIONAL)}>Bandingkan</Button>
+              )}
               <Button variant="secondary" size="sm" loading={utama.memuat} onClick={() => void utama.muat(true)}>Hitung ulang</Button>
             </>
           )}
@@ -99,12 +120,13 @@ export function DashboardOnline() {
       </header>
 
       {banding !== null ? (
-        <Banding a={pic} b={banding} rank={rank} dataA={x} />
+        <Banding a={pic} b={banding} rank={rank} dataA={x} bimtek={bimtek} />
       ) : (
         <>
           <Ringkasan x={x} />
+          <BimtekPanel x={x} aktif={bimtek} pilih={setBimtek} />
           <LogProgresOnline />
-          <Ranking rank={rank} aktif={pic} lihat={lihat} bandingkan={bandingkan} />
+          {admin && <Ranking rank={rank} aktif={pic} lihat={lihat} bandingkan={bandingkan} />}
         </>
       )}
     </div>
@@ -534,8 +556,8 @@ function Rasio({ a, b, v, acuan }: { a: number; b: number; v: number | null; acu
 
 /* ---------- banding kiri-kanan ---------- */
 
-function Banding({ a, b, rank, dataA }: { a: string; b: string; rank: Rank | null; dataA: Dash }) {
-  const kanan = useDash(b);
+function Banding({ a, b, rank, dataA, bimtek }: { a: string; b: string; rank: Rank | null; dataA: Dash; bimtek: string }) {
+  const kanan = useDash(b, bimtek);
   const cari = (p: string) => (p === NASIONAL ? rank?.nasional : rank?.pic.find((x) => x.nama === p)) ?? null;
   const ra = cari(a), rb = cari(b);
   const namaA = a === NASIONAL ? "Nasional" : a, namaB = b === NASIONAL ? "Nasional" : b;

@@ -155,3 +155,11 @@
   .mingguHari { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .logCut > li { grid-template-columns: 1fr; }
 }
+
+/* Bimtek Pelaporan: pilih sumber link / file */
+.sumberPilih { display: inline-flex; border: 1px solid #d0d5dd; border-radius: 8px; padding: 2px; gap: 2px; align-self: flex-start; }
+.sumberPilih button { border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink-2); padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+.sumberPilih button[aria-checked="true"] { background: var(--primary); color: #fff; }
+.sumberPilih button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.berkasPilih { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.berkasPilih span { font-size: 13px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

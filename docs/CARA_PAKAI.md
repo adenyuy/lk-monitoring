@@ -100,7 +100,7 @@ Kirim dari nomor WhatsApp kamu ke **seluruh koordinator, fasil, atau kepala seko
 
 Di kanan atas ada **Aturan kirim** (jeda acak dan istirahat) dan **WhatsApp pengirim**. Tekan **Ganti** untuk mengeluarkan nomor yang tertaut, lalu scan QR dengan HP nomor lain.
 
-Pengiriman berhenti sendiri di luar jam 07.00–22.00 atau bila 2 pesan gagal beruntun. Tekan Mulai lagi dengan target dan pesan yang sama: penerima yang sudah menerima pesan itu dilewati otomatis. Ribuan pesan dari satu nomor berisiko diblokir WhatsApp, jadi pakai jeda yang wajar dan nomor khusus bila bisa.
+Pengiriman berhenti sendiri di luar jam 07.00–22.00 (kecuali dicentang "Tetap kirim sekarang (abaikan jam kirim)" saat mulai di luar jam) atau bila 2 pesan gagal beruntun. Tekan Mulai lagi dengan target dan pesan yang sama: penerima yang sudah menerima pesan itu dilewati otomatis. Ribuan pesan dari satu nomor berisiko diblokir WhatsApp, jadi pakai jeda yang wajar dan nomor khusus bila bisa.
 
 ### Paparan
 

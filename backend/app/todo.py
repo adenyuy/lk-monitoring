@@ -224,7 +224,7 @@ def ringkas(s: Sekolah, r: Rencana, blok: int) -> dict[str, Any]:
     """Bentuk JSON untuk tampilan."""
     isi = s.isian.get(blok, {})
     return {
-        "npsn": s.npsn, "nama": s.nama, "angkatan": s.angkatan, "kab": s.kab,
+        "npsn": s.npsn, "nama": s.nama, "angkatan": s.angkatan, "kab": s.kab, "bimtek": s.bimtek,
         "tahap": r.tahap,
         "komponen": [{"kode": k.kode, "label": k.label, "tahap": k.tahap, "pelaku": k.pelaku,
                       "status": r.status[k.kode].status, "tampil": r.status[k.kode].tampil,

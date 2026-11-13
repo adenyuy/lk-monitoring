@@ -10,7 +10,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import blast, db, kom_siklus, komunikasi, lk_baru, schedule, todo
+from .. import bimtek_lap, blast, db, kom_siklus, komunikasi, lk_baru, schedule, todo
 from ..sheets import daftar_nomor, normalize_petugas
 from ..wa.browser import worker
 from ..wa.status import mask
@@ -108,9 +108,10 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
                 "kunci": f.kunci, "nama": f.nama, "nomor": f.nomor, "tersamar": mask(f.nomor) if f.nomor else "",
                 "kelompok": r["kelompok"], "tag": r["tag"], "ptn": f.ptn, "koor": f.koor,
                 "angkatan": sorted({s.angkatan for s in f.sekolah if s.angkatan}),
+                "bimtek": sorted({s.bimtek for s in f.sekolah if s.bimtek}),
                 "kab": sorted({s.kab for s in f.sekolah if s.kab}),
                 "jumlah_sekolah": len(f.sekolah), "perlu": r["perlu"], "posisi": r["posisi"],
-                "sekolah": [{"nama": s.nama, "npsn": s.npsn, "kab": s.kab, "angkatan": s.angkatan,
+                "sekolah": [{"nama": s.nama, "npsn": s.npsn, "kab": s.kab, "angkatan": s.angkatan, "bimtek": s.bimtek,
                              "tahap": rencana[s.npsn].tahap, "todo": _todo_json(rencana[s.npsn])}
                             for s in sorted(f.sekolah, key=lambda s: s.nama) if rencana[s.npsn].todo],
             })
@@ -129,7 +130,7 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
                 continue
             kunci = "koor:" + normalize_petugas(f.koor)
             x = per.setdefault(kunci, {"kunci": kunci, "nama": f.koor, "nomor": nomor[0] if nomor else "",
-                                       "ptn": f.ptn, "fasil": [], "kab": set(), "angkatan": set()})
+                                       "ptn": f.ptn, "fasil": [], "kab": set(), "angkatan": set(), "bimtek": set()})
             if not x["nomor"] and nomor:
                 x["nomor"] = nomor[0]
             r = ringkas[f.kunci]
@@ -142,9 +143,10 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
                                                             or r["belum_ditelepon"] or kom[f.kunci] in ("telepon", "dibaca"))})
             x["kab"].update(s.kab for s in f.sekolah if s.kab)
             x["angkatan"].update(s.angkatan for s in f.sekolah if s.angkatan)
+            x["bimtek"].update(s.bimtek for s in f.sekolah if s.bimtek)
         for x in per.values():
             x["tersamar"] = mask(x["nomor"]) if x["nomor"] else ""
-            x["kab"], x["angkatan"] = sorted(x["kab"]), sorted(x["angkatan"])
+            x["kab"], x["angkatan"], x["bimtek"] = sorted(x["kab"]), sorted(x["angkatan"]), sorted(x["bimtek"])
             x["fasil"].sort(key=lambda f: f["nama"])
             x["jumlah_sekolah"] = sum(f["sekolah"] for f in x["fasil"])
             x["perlu"] = sum(f["perlu"] for f in x["fasil"])
@@ -160,6 +162,7 @@ def _penerima(jenis: str) -> list[dict[str, Any]]:
                 "kunci": s.npsn, "nama": s.nama, "kepsek": s.kepsek, "nomor": nomor[0] if nomor else "",
                 "tersamar": mask(nomor[0]) if nomor else "", "fasil": s.fasil, "ptn": s.ptn, "koor": s.koor,
                 "kelompok": "beres" if not r.todo else r.tahap, "tag": [], "angkatan": [s.angkatan] if s.angkatan else [],
+                "bimtek": [s.bimtek] if s.bimtek else [],
                 "kab": [s.kab] if s.kab else [], "jumlah_sekolah": 1, "perlu": 1 if r.todo else 0,
                 "todo": _todo_json(r, "sekolah"), "tahap": r.tahap,
                 "posisi": {k: 1 for k in {komunikasi.posisi_todo(x.kode) for x in r.todo} if k},
@@ -197,6 +200,7 @@ def penerima(jenis: Literal["fasil", "koor", "sekolah"] = "fasil", _=Depends(wa_
         "kelompok": [{"kode": a, "label": b} for a, b, _ in komunikasi.KELOMPOK],
         "komponen": [{"kode": a, "label": b} for a, b, _ in komunikasi.POSISI],
         "angkatan": sorted({a for x in daftar for a in x["angkatan"]}),
+        "bimtek": sorted({a for x in daftar for a in x["bimtek"]}, key=bimtek_lap.urut),
         "kab": [k for k, _ in Counter(k for x in daftar for k in x["kab"]).most_common()],
     }
 
@@ -227,6 +231,7 @@ class StartReq(BaseModel):
     coba: bool = False
     aturan: AturanIn
     kirim: list[Kirim] = Field(min_length=1, max_length=1000)
+    abaikan_jam: bool = False  # True: boleh kirim di luar 07.00–22.00
     kirim_ulang: bool = False  # True: tetap kirim ke nomor yang hari ini sudah dikirimi blast bertopik sama
 
 
@@ -294,7 +299,7 @@ def start(req: StartReq, _=Depends(wa_blast)) -> dict[str, Any]:
                                  "Tidak ada yang dikirim ulang.")
     try:
         snap = blast.mesin.start(daftar, blast.Aturan(**req.aturan.model_dump()), req.judul, req.coba,
-                                 topik=req.topik.strip())
+                                 topik=req.topik.strip(), abaikan_jam=req.abaikan_jam)
     except blast.BlastError as e:
         raise HTTPException(400, str(e)) from e
     return {"state": snap, "dilewati": len(dilewati), "dobel": dobel}

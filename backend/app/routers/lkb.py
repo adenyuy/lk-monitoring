@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import aktivitas, db, komunikasi, lk_baru, schedule, todo
+from .. import aktivitas, bimtek_lap, db, komunikasi, lk_baru, schedule, todo
 from ..access import Access
 from ..sheets import cache, daftar_nomor
 from ..wa.status import mask
@@ -108,6 +108,7 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
         "kom": [{"kode": kode, "label": lbl, "arti": arti, "jumlah": sum(1 for x in daftar if x["kom"] == kode)}
                 for kode, lbl, arti in komunikasi.STATUS_KOM],
         "tag": semua_tag,
+        "bimtek": sorted({b for x in daftar for b in x["bimtek"]}, key=bimtek_lap.urut),
         "fasil": daftar,
     }
 

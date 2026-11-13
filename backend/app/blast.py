@@ -2,7 +2,8 @@
 
 Tanpa sesi dan tanpa batas harian. Keamanan nomor diatur lewat aturan kirim yang bisa diubah petugas:
 jeda acak antar pesan, dan istirahat beberapa menit setiap sekian pesan. Pengiriman berhenti sendiri bila
-2 pesan gagal beruntun, WhatsApp terputus, atau keluar dari jam kirim (07.00–21.59).
+2 pesan gagal beruntun, WhatsApp terputus, atau keluar dari jam kirim (07.00–21.59) kecuali
+petugas memilih abaikan jam kirim.
 """
 
 import logging
@@ -65,6 +66,7 @@ class State:
     running: bool = False
     paused: bool = False
     coba: bool = False
+    abaikan_jam: bool = False  # bypass jam kirim 07.00–22.00
     judul: str = ""
     topik: str = ""        # komponen yang dibahas (mis. "Laporan Pendahuluan"), untuk label "sudah di-blast"
     total: int = 0
@@ -114,7 +116,7 @@ class Mesin:
         return JAM_MULAI <= t <= JAM_SAMPAI
 
     def start(self, penerima: list[Penerima], aturan: Aturan, judul: str, coba: bool = False,
-              topik: str = "") -> dict:
+              topik: str = "", abaikan_jam: bool = False) -> dict:
         with self._lock:
             from .sender import sender
 
@@ -122,13 +124,13 @@ class Mesin:
                 raise BlastError("Pengiriman lain sedang berjalan. Tunggu selesai atau hentikan dulu.")
             if not penerima:
                 raise BlastError("Belum ada penerima yang dipilih.")
-            if not self.di_jam_kirim():
+            if not abaikan_jam and not self.di_jam_kirim():
                 raise BlastError("Blast hanya bisa dikirim pukul 07.00–22.00 supaya tidak mengganggu penerima.")
             aturan = aturan.rapikan()
             db.set_setting("blast_aturan", asdict(aturan))
             antrian = penerima[:3] if coba else penerima
             self._antrian = antrian
-            self.state = State(running=True, coba=coba, judul=judul[:80], topik=topik[:80],
+            self.state = State(running=True, coba=coba, abaikan_jam=abaikan_jam, judul=judul[:80], topik=topik[:80],
                                total=len(antrian), mulai=time.time(),
                                aturan=asdict(aturan))
             self._thread = threading.Thread(target=self._run, args=(antrian, aturan), name="blast", daemon=True)
@@ -173,7 +175,7 @@ class Mesin:
                 if st.stop_diminta:
                     st.berhenti_karena = "Dihentikan oleh pengguna."
                     break
-                if not self.di_jam_kirim():
+                if not st.abaikan_jam and not self.di_jam_kirim():
                     st.berhenti_karena = "Sudah di luar jam kirim (07.00–22.00). Lanjutkan besok."
                     break
                 st.sekarang, st.berikutnya, st.berikutnya_pada, st.istirahat_sampai = p.nama, "", None, None

@@ -46,6 +46,12 @@ def diizinkan(email: str) -> bool:
     return False
 
 
+def admin(email: str) -> bool:
+    """Admin dashboard online = email di LKM_ADMIN_EMAIL (persis, dipisah koma)."""
+    daftar = {x.strip().lower() for x in os.environ.get("LKM_ADMIN_EMAIL", "").split(",") if x.strip()}
+    return email.lower() in daftar
+
+
 def _tanda(data: str) -> str:
     kunci = _env("LKM_SESI_RAHASIA").encode()
     return base64.urlsafe_b64encode(hmac.new(kunci, data.encode(), hashlib.sha256).digest()).decode().rstrip("=")

@@ -37,7 +37,11 @@ IDENTITAS = {
     "PIC": "petugas", "NPSN": "npsn", "Nama Sekolah": "nama", "Angkatan": "angkatan", "Provinsi": "provinsi",
     "Kab/Kota": "kab", "Nama Kepala Sekolah": "kepsek", "No HP Kepala Sekolah": "hp_kepsek", "PTN": "ptn",
     "Koordinator": "koor", "No HP Koordinator": "hp_koor", "Fasilitator": "fasil", "No HP Fasilitator": "hp_fasil",
+    "Bimtek Pelaporan": "bimtek",
 }
+# Kolom identitas yang boleh tidak ada (WEEK lama dibuat sebelum kolomnya ada)
+IDENTITAS_OPSIONAL = {"bimtek"}
+JUDUL_BIMTEK = "Bimtek Pelaporan"
 
 
 @dataclass(frozen=True)
@@ -256,7 +260,8 @@ def parse_tata(r1: list[Any], r2: list[Any], r3: list[Any]) -> Tata:
                 komp[k.kode] = i
             if k.tunggu and _kunci(h) == _kunci(k.tunggu) and k.kode not in tunggu:
                 tunggu[k.kode] = i
-    hilang = [j for j, f in IDENTITAS.items() if f not in ident] + [k.judul for k in KOMPONEN if k.kode not in komp]
+    hilang = [j for j, f in IDENTITAS.items() if f not in ident and f not in IDENTITAS_OPSIONAL]
+    hilang += [k.judul for k in KOMPONEN if k.kode not in komp]
     if len(sesi) < 2:
         hilang.append("judul SESI di baris 1 (dua sesi)")
     isian: dict[int, dict[str, tuple[int, int]]] = {}
@@ -339,6 +344,7 @@ class Sekolah:
     hp_koor: str
     fasil: str
     hp_fasil: str
+    bimtek: str = ""                                           # kelompok Bimtek Pelaporan (mis. "Bimtek Lap 1")
     nilai: dict[str, Any] = field(default_factory=dict)       # nilai komponen apa adanya
     tunggu: dict[str, float] = field(default_factory=dict)    # waktu tunggu reviu (hari)
     isian: dict[int, dict[str, tuple[str, str]]] = field(default_factory=dict)

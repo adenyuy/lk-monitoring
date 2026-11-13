@@ -4,9 +4,10 @@ from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from .. import cutoff_baru, db, google_auth, komunikasi, lk_baru, pic_baru, schedule
+from .. import bimtek_lap, cutoff_baru, db, google_auth, komunikasi, lk_baru, pic_baru, schedule
 from .deps import require_feature
 from .lkb import _jalan
 
@@ -128,3 +129,63 @@ def pic_cek(req: PicReq, _=Depends(admin)) -> dict[str, Any]:
 @router.post("/pic/isi")
 def pic_isi(req: PicReq, _=Depends(admin)) -> dict[str, Any]:
     return _pic(pic_baru.tulis, req)
+
+
+# ---------- Bimtek Pelaporan dari sheet daftar bimtek ----------
+
+def _bimtek(fn, req: PicReq) -> dict[str, Any]:
+    try:
+        return fn(req.link.strip(), req.ganti_beda)
+    except (bimtek_lap.BimtekLapError, lk_baru.LkError) as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(502, f"Sheet daftar bimtek atau LK tidak bisa dibaca: {e}") from e
+
+
+@router.get("/bimtek")
+def bimtek_info(_=Depends(admin)) -> dict[str, Any]:
+    return _jalan(bimtek_lap.ringkas)
+
+
+@router.post("/bimtek/cek")
+def bimtek_cek(req: PicReq, _=Depends(admin)) -> dict[str, Any]:
+    r = _bimtek(bimtek_lap.rencana, req)
+    db.set_setting(bimtek_lap.KUNCI_LINK, req.link.strip())
+    return _ringkas_cek(r)
+
+
+def _ringkas_cek(r: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in r.items() if k not in ("isi", "beda", "tanpa")} | {
+        "beda": [{k: x[k] for k in ("npsn", "nama", "bimtek", "bimtek_lama")} for x in r["beda"][:200]],
+        "tanpa": r["tanpa"][:200],
+        "jml_isi": len(r["isi"]), "jml_beda": len(r["beda"]), "jml_tanpa": len(r["tanpa"]),
+    }
+
+
+@router.post("/bimtek/isi")
+def bimtek_isi(req: PicReq, _=Depends(admin)) -> dict[str, Any]:
+    return _bimtek(bimtek_lap.tulis, req)
+
+
+def _bimtek_file(fn, data: bytes, nama: str, ganti_beda: bool) -> dict[str, Any]:
+    try:
+        return fn(data, nama, ganti_beda)
+    except (bimtek_lap.BimtekLapError, lk_baru.LkError) as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(502, f"File atau LK tidak bisa dibaca: {e}") from e
+
+
+@router.post("/bimtek/cek-file")
+async def bimtek_cek_file(file: UploadFile = File(...), ganti_beda: bool = Form(False),
+                          _=Depends(admin)) -> dict[str, Any]:
+    r = await run_in_threadpool(_bimtek_file, bimtek_lap.rencana_file, await file.read(),
+                                file.filename or "bimtek.csv", ganti_beda)
+    return _ringkas_cek(r)
+
+
+@router.post("/bimtek/isi-file")
+async def bimtek_isi_file(file: UploadFile = File(...), ganti_beda: bool = Form(False),
+                          _=Depends(admin)) -> dict[str, Any]:
+    return await run_in_threadpool(_bimtek_file, bimtek_lap.tulis_file, await file.read(),
+                                   file.filename or "bimtek.csv", ganti_beda)

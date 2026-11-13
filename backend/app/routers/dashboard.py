@@ -2,7 +2,8 @@
 
 Semua angka dihitung dari isi komponen LK dan Log Komunikasi (bukan dari to-do; to-do hanya dipakai di halaman LK).
 Hasil hitungan disimpan dan dihitung ulang di latar tiap 10 menit, jadi halaman langsung terbuka.
-Petugas melihat datanya sendiri. Admin bisa memilih PIC lain atau "semua" (nasional).
+Semua petugas bisa memilih PIC mana pun atau "semua" (nasional), sama seperti dashboard online; Ranking PIC hanya
+untuk admin. Filter Bimtek Pelaporan membatasi ke sekolah satu kelompok bimtek.
 """
 
 import logging
@@ -13,7 +14,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from .. import cutoff_baru, komunikasi, lk_baru, schedule, todo
+from .. import bimtek_lap, cutoff_baru, komunikasi, lk_baru, ranking, schedule, todo
 from ..access import Access
 from ..sheets import normalize_petugas
 from .deps import require_access
@@ -25,6 +26,16 @@ router = APIRouter(prefix="/api/dashboard")
 SEGAR_DETIK = 600          # hitung ulang di latar bila hasil lebih tua dari ini
 DIPANTAU_DETIK = 3 * 3600  # dashboard yang dibuka dalam 3 jam terakhir ikut dihitung ulang berkala
 NASIONAL = "__semua__"
+PISAH = ""  # target = PIC [+ PISAH + kelompok bimtek]
+
+
+def target(pic: str, bimtek: str = "") -> str:
+    return f"{pic}{PISAH}{bimtek}" if bimtek else pic
+
+
+def _pisah(t: str) -> tuple[str, str]:
+    pic, _, bt = t.partition(PISAH)
+    return pic, bt
 
 KOLOM_TREN = {
     "lp": "Lap. Pendahuluan terkirim (%)", "lp_rev": "Lap. Pendahuluan direviu (%)",
@@ -159,6 +170,53 @@ def _tren_pic(pic: str | None) -> dict[str, Any]:
     return {"cutoff": cut, "seri": seri, "rata_pic": nasional}
 
 
+def _seri(rows: list[dict[str, Any]]) -> tuple[list[str], list[dict[str, Any]]]:
+    """Satu baris per cutoff (urut tab) -> seri per kolom KOLOM_TREN."""
+    cut = list(dict.fromkeys(r["Cutoff"] for r in rows if r.get("Cutoff")))
+    per = {r["Cutoff"]: r for r in rows if r.get("Cutoff")}
+    return cut, [{"kode": k, "label": kol.replace(" (%)", ""), "nilai": [_angka(per[c].get(kol)) for c in cut]}
+                 for k, kol in KOLOM_TREN.items()]
+
+
+def _tren_bimtek(pic: str | None) -> dict[str, Any]:
+    """Pergerakan dokumen per kelompok bimtek per cutoff (tab Log Progres Bimtek), untuk PIC atau semua PIC."""
+    try:
+        rows = cutoff_baru.baca_log_bimtek()
+    except Exception:
+        rows = []
+    want = normalize_petugas(pic) if pic else normalize_petugas(cutoff_baru.SEMUA_PIC)
+    cut = list(dict.fromkeys(r["Cutoff"] for r in rows if r.get("Cutoff")))
+    per: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        if r.get("Bimtek") and normalize_petugas(str(r.get("PIC", ""))) == want:
+            per[str(r["Bimtek"])].append(r)
+    kelompok = []
+    for bt in sorted(per, key=bimtek_lap.urut):
+        by = {r["Cutoff"]: r for r in per[bt]}
+        kelompok.append({"bimtek": bt, "sekolah": [_angka(by[c].get("Sekolah")) if c in by else None for c in cut],
+                         "seri": {k: [_angka(by[c].get(kol)) if c in by else None for c in cut]
+                                  for k, kol in KOLOM_TREN.items()}})
+    return {"cutoff": cut, "kelompok": kelompok,
+            "kolom": [{"kode": k, "label": kol.replace(" (%)", "")} for k, kol in KOLOM_TREN.items()]}
+
+
+def _per_bimtek(cakupan: list[lk_baru.Sekolah], status: dict[str, dict[str, todo.Status]]) -> list[dict[str, Any]]:
+    """Ringkasan sekarang per kelompok bimtek di cakupan PIC/nasional (tanpa filter bimtek)."""
+    per: dict[str, list[lk_baru.Sekolah]] = defaultdict(list)
+    for s in cakupan:
+        if s.bimtek:
+            per[s.bimtek].append(s)
+    out = []
+    for bt in sorted(per, key=bimtek_lap.urut):
+        xs = per[bt]
+        st = [status.get(s.npsn) or todo.semua_status(s) for s in xs]
+        p = [x["progres"].persen for x in st if x["progres"].persen is not None]
+        out.append({"bimtek": bt, "sekolah": len(xs), "fasil": len({komunikasi.kunci_fasil(s) for s in xs}),
+                    "lengkap": sum(1 for x in st if not any(v.status == "belum" for v in x.values())),
+                    "progres": round(sum(p) / len(p), 1) if p else None, "capaian": _capaian(st)})
+    return out
+
+
 def _tabel_fasil(fasil: dict[str, komunikasi.Fasil], status: dict[str, dict[str, todo.Status]],
                  logkom: lk_baru.LogKom) -> list[dict[str, Any]]:
     hari = schedule.now().date().isoformat()
@@ -181,9 +239,11 @@ def _tabel_fasil(fasil: dict[str, komunikasi.Fasil], status: dict[str, dict[str,
     return out
 
 
-def _hitung(target: str) -> dict[str, Any]:
+def _hitung(t: str) -> dict[str, Any]:
+    target, bt = _pisah(t)
     nasional = target == NASIONAL
-    sekolah = lk_baru.baca_semua() if nasional else lk_baru.baca_petugas(target)
+    cakupan = lk_baru.baca_semua() if nasional else lk_baru.baca_petugas(target)
+    sekolah = [s for s in cakupan if bimtek_lap.cocok(s, bt)]
     try:
         logkom = lk_baru.baca_log_kom()
     except Exception:
@@ -206,6 +266,10 @@ def _hitung(target: str) -> dict[str, Any]:
         "komunikasi": _komunikasi(fasil, logkom),
         "tren": _tren(None if nasional else target),
         "fasil": [] if nasional else _tabel_fasil(fasil, status, logkom),
+        "bimtek": bt,
+        "pilihan_bimtek": bimtek_lap.pilihan(lk_baru.baca_semua()),
+        "per_bimtek": _per_bimtek(cakupan, status),
+        "tren_bimtek": _tren_bimtek(None if nasional else target),
     }
 
 
@@ -218,8 +282,10 @@ _lock = threading.Lock()
 _loop_mulai = False
 
 
-def _kunci(target: str) -> str:
-    return target if target == NASIONAL else normalize_petugas(target)
+def _kunci(t: str) -> str:
+    target, bt = _pisah(t)
+    k = target if target == NASIONAL else normalize_petugas(target)
+    return f"{k}{PISAH}{bt.casefold()}" if bt else k
 
 
 def _hitung_simpan(target: str) -> dict[str, Any]:
@@ -275,10 +341,11 @@ def mulai_latar() -> None:
             return
         _loop_mulai = True
     threading.Thread(target=_loop, name="dashboard-loop", daemon=True).start()
-    saya = komunikasi.petugas_saya()
-    if saya:
-        _dibuka.setdefault(saya, time.time())
-        _latar(saya)
+    # halaman dibuka dengan tampilan nasional (seperti dashboard online)
+    for t in (NASIONAL, komunikasi.petugas_saya()):
+        if t:
+            _dibuka.setdefault(t, time.time())
+            _latar(t)
 
 
 def ambil(target: str, paksa: bool = False) -> dict[str, Any]:
@@ -307,21 +374,24 @@ def ambil(target: str, paksa: bool = False) -> dict[str, Any]:
 
 
 @router.get("")
-def dashboard(pic: str = Query("", max_length=120), paksa: bool = False,
+def dashboard(pic: str = Query("", max_length=120), bimtek: str = Query("", max_length=60), paksa: bool = False,
               acc: Access = Depends(require_access)) -> dict[str, Any]:
-    saya = komunikasi.petugas_saya()
-    if pic and normalize_petugas(pic) != normalize_petugas(saya) and not acc.admin:
-        raise HTTPException(403, "Hanya admin yang bisa melihat dashboard PIC lain.")
-    target = pic or saya
-    if not target:
-        raise HTTPException(400, "Nama petugas belum dipilih.")
-    out = dict(_jalan(ambil, target, paksa))
-    if acc.admin:
-        try:
-            out["pilihan_pic"] = [p["nama"] for p in lk_baru.daftar_petugas()]
-        except Exception:
-            out["pilihan_pic"] = []
+    """`pic` kosong = nasional (seperti dashboard online)."""
+    out = dict(_jalan(ambil, target(pic or NASIONAL, bimtek), paksa))
+    try:
+        out["pilihan_pic"] = [p["nama"] for p in lk_baru.daftar_petugas()]
+    except Exception:
+        out["pilihan_pic"] = []
+    out["admin"] = acc.admin
+    out["saya"] = komunikasi.petugas_saya()
     return out
+
+
+@router.get("/ranking")
+def ranking_pic(bimtek: str = Query("", max_length=60), acc: Access = Depends(require_access)) -> dict[str, Any]:
+    if not acc.admin:
+        raise HTTPException(403, "Ranking PIC hanya untuk admin.")
+    return _jalan(ranking.ambil, bimtek)
 
 
 @router.get("/log-progres")

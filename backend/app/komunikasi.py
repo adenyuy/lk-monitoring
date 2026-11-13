@@ -356,6 +356,8 @@ def ringkasan_fasil(f: Fasil, rencana: dict[str, todo.Rencana], logkom: lk_baru.
         "fokus": [{"judul": j, "jumlah": n} for j, n in fokus.most_common(3)],
         "tunggu_maks": max(tunggu) if tunggu else None,
         "tag": tags.get(f.kunci, []),
+        # jumlah sekolah per kelompok Bimtek Pelaporan
+        "bimtek": dict(sorted(Counter(s.bimtek for s in f.sekolah if s.bimtek).items())),
         "tanpa_progres": bool(perlu) and ada_banding and progres_naik == 0 and hubung >= 2,
         "belum_ditelepon": tel["perlu"],
         "telepon": tel,

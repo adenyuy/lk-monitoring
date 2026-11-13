@@ -32,6 +32,7 @@
 .kepala { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
 .eyebrow { font-size: 13px; color: var(--muted); font-weight: 500; }
 .kepala h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+.subJudul { font-size: 16px; font-weight: 500; color: var(--muted); }
 .pilih { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .pilih select { height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px;
   background: #fff; color: var(--ink); min-width: 220px; }

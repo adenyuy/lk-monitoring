@@ -21,7 +21,7 @@ from typing import Any
 
 import pandas as pd
 
-from . import lk_baru, proteksi, schedule, todo, warna_lk
+from . import bimtek_lap, lk_baru, proteksi, schedule, todo, warna_lk
 from .lk_baru import BARIS_DATA, KOMPONEN, Sekolah, komponen_dari_judul
 from .sheets import cache, clean_petugas, col_letter
 
@@ -172,6 +172,7 @@ class Rencana:
     selesai: set[str] = field(default_factory=set)
     label: str = ""
     logkom: dict[str, int] = field(default_factory=dict)
+    bimtek: dict[str, Any] | None = None  # hasil isi Bimtek Pelaporan otomatis
     kol_awal: int = 0                     # kolom pertama yang ditulis untuk sekolah yang sudah ada  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
 
 
@@ -361,12 +362,23 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
         rc.selesai.add("log")
     label = rc.label
     catat_log_pic(semua, label)
+
+    _langkah("Mengisi Bimtek Pelaporan & Log Progres Bimtek", 88)
+    rc.bimtek = None
+    try:
+        rc.bimtek = bimtek_lap.isi_otomatis(rc.week)
+        if rc.bimtek and rc.bimtek["ditulis"]:
+            semua = lk_baru.baca_semua(rc.week, refresh=True)
+        catat_log_bimtek(semua, label)
+    except Exception as e:  # noqa: BLE001 - cutoff tetap selesai; bimtek bisa diisi lagi dari kartunya
+        log.warning("Bimtek Pelaporan saat cutoff gagal", exc_info=True)
+        rc.bimtek = {"error": str(e)}
     if "catat" not in rc.selesai:
         _catat_tarik(ss, rc, oleh, total)
         rc.selesai.add("catat")
     cache.clear()
     return {"tab": tab, "sekolah": total, "baru": len(rc.tambah), "keterangan": n_ket, "cutoff": label,
-            "log_kom": rc.logkom, "warna": warna}
+            "log_kom": rc.logkom, "warna": warna, "bimtek": rc.bimtek}
 
 
 KUNING = {"red": 1, "green": 1, "blue": 0}
@@ -559,25 +571,30 @@ def _baris_pic(label: str, pic: str, xs: list[Sekolah]) -> list[Any]:
             round(sum(tunggu) / len(tunggu), 1) if tunggu else ""]
 
 
+def _siapkan_tab_log(ss, nama: str, judul_kolom: list[str]) -> None:
+    """Buat tab log tersembunyi berjudul tebal biru bila belum ada."""
+    if nama in [w.title for w in ss.worksheets()]:
+        return
+    w = ss.add_worksheet(nama, rows=500, cols=len(judul_kolom))
+    ss.values_update(f"'{nama}'!A1", params={"valueInputOption": "RAW"}, body={"values": [judul_kolom]})
+    ss.batch_update({"requests": [
+        {"repeatCell": {"range": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": 1},
+                        "cell": {"userEnteredFormat": {"textFormat": {"bold": True},
+                                                       "backgroundColor": {"red": 0.137, "green": 0.275, "blue": 0.627},
+                                                       "wrapStrategy": "WRAP"}},
+                        "fields": "userEnteredFormat"}},
+        {"repeatCell": {"range": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": 1},
+                        "cell": {"userEnteredFormat": {"textFormat": {"bold": True, "foregroundColor": {
+                            "red": 1, "green": 1, "blue": 1}}}}, "fields": "userEnteredFormat.textFormat"}},
+        {"updateSheetProperties": {"properties": {"sheetId": w.id, "hidden": True,
+                                                  "gridProperties": {"frozenRowCount": 1}},
+                                   "fields": "hidden,gridProperties.frozenRowCount"}}]})
+
+
 def catat_log_pic(semua: list[Sekolah], label: str) -> None:
     """Tab Log Progres PIC: satu baris per PIC per cutoff (baris cutoff yang sama diganti)."""
     ss = lk_baru._ss()
-    judul = [w.title for w in ss.worksheets()]
-    if TAB_PIC not in judul:
-        w = ss.add_worksheet(TAB_PIC, rows=500, cols=len(JUDUL_PIC))
-        ss.values_update(f"'{TAB_PIC}'!A1", params={"valueInputOption": "RAW"}, body={"values": [JUDUL_PIC]})
-        ss.batch_update({"requests": [
-            {"repeatCell": {"range": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": 1},
-                            "cell": {"userEnteredFormat": {"textFormat": {"bold": True},
-                                                           "backgroundColor": {"red": 0.137, "green": 0.275, "blue": 0.627},
-                                                           "wrapStrategy": "WRAP"}},
-                            "fields": "userEnteredFormat"}},
-            {"repeatCell": {"range": {"sheetId": w.id, "startRowIndex": 0, "endRowIndex": 1},
-                            "cell": {"userEnteredFormat": {"textFormat": {"bold": True, "foregroundColor": {
-                                "red": 1, "green": 1, "blue": 1}}}}, "fields": "userEnteredFormat.textFormat"}},
-            {"updateSheetProperties": {"properties": {"sheetId": w.id, "hidden": True,
-                                                      "gridProperties": {"frozenRowCount": 1}},
-                                       "fields": "hidden,gridProperties.frozenRowCount"}}]})
+    _siapkan_tab_log(ss, TAB_PIC, JUDUL_PIC)
     lama = ss.values_get(f"'{TAB_PIC}'!A2:{col_letter(len(JUDUL_PIC) - 1)}").get("values", [])
     sisa = [r for r in lama if r and r[0] != label]
     per: dict[str, list[Sekolah]] = defaultdict(list)
@@ -605,6 +622,65 @@ def baca_log_pic() -> list[dict[str, Any]]:
         return [dict(zip(h, list(r) + [""] * (len(h) - len(r)))) for r in v[1:] if r]
 
     return cache.get("lk2_logpic", 600, load)
+
+
+# ---------- Log Progres Bimtek: per kelompok Bimtek Pelaporan per cutoff ----------
+
+TAB_BIMTEK = "Log Progres Bimtek"
+SEMUA_PIC = "(semua)"
+JUDUL_BIMTEK = ["Cutoff", "Bimtek", *JUDUL_PIC[1:]]
+
+
+def baris_bimtek(semua: list[Sekolah], label: str) -> list[list[Any]]:
+    """Per kelompok bimtek: satu baris semua PIC ("(semua)") lalu satu baris per PIC."""
+    per: dict[str, list[Sekolah]] = defaultdict(list)
+    for s in semua:
+        if s.bimtek:
+            per[s.bimtek].append(s)
+    out = []
+    for bt in sorted(per, key=bimtek_lap.urut):
+        xs = per[bt]
+        out.append([label, bt, *_baris_pic(label, SEMUA_PIC, xs)[1:]])
+        per_pic: dict[str, list[Sekolah]] = defaultdict(list)
+        for s in xs:
+            per_pic[clean_petugas(s.petugas) or "(tanpa PIC)"].append(s)
+        for p in sorted(per_pic, key=str.casefold):
+            out.append([label, bt, *_baris_pic(label, p, per_pic[p])[1:]])
+    return out
+
+
+def catat_log_bimtek(semua: list[Sekolah], label: str) -> int:
+    """Tab Log Progres Bimtek (baris cutoff yang sama diganti). 0 bila belum ada sekolah ber-bimtek."""
+    baru = baris_bimtek(semua, label)
+    if not baru:
+        return 0
+    ss = lk_baru._ss()
+    _siapkan_tab_log(ss, TAB_BIMTEK, JUDUL_BIMTEK)
+    akhir = col_letter(len(JUDUL_BIMTEK) - 1)
+    lama = ss.values_get(f"'{TAB_BIMTEK}'!A2:{akhir}").get("values", [])
+    semua_baris = [r for r in lama if r and r[0] != label] + baru
+    w = ss.worksheet(TAB_BIMTEK)
+    if w.row_count < len(semua_baris) + 2:
+        w.add_rows(len(semua_baris) + 200 - w.row_count)
+    ss.values_batch_clear(body={"ranges": [f"'{TAB_BIMTEK}'!A2:{akhir}"]})
+    ss.values_update(f"'{TAB_BIMTEK}'!A2", params={"valueInputOption": "RAW"}, body={"values": semua_baris})
+    cache.clear()
+    return len(baru)
+
+
+def baca_log_bimtek() -> list[dict[str, Any]]:
+    def load() -> list[dict[str, Any]]:
+        try:
+            v = lk_baru._ss().values_get(f"'{TAB_BIMTEK}'!A1:{col_letter(len(JUDUL_BIMTEK) - 1)}",
+                                         params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
+        except Exception:
+            return []
+        if not v:
+            return []
+        h = v[0]
+        return [dict(zip(h, list(r) + [""] * (len(h) - len(r)))) for r in v[1:] if r]
+
+    return cache.get("lk2_logbimtek", 600, load)
 
 
 def baca_log_progres() -> dict[str, Any]:
