@@ -7,6 +7,7 @@ import { Batang, Capaian, Komunikasi, Kpi, type Dash } from "@/components/dashbo
 import d from "@/components/dashboard/dashboard.module.css";
 import { BimtekPanel } from "./BimtekPanel";
 import { LogProgresOnline } from "./LogProgresOnline";
+import { Tip } from "./Tip";
 import s from "./online.module.css";
 
 /** belum = sekolah yang komponennya belum selesai; kendala/tl = berapa di antaranya sudah diisi petugas (null = tanpa kolom);
@@ -24,7 +25,7 @@ type RinciFasil = { n: string; s: number; h: string[]; k: Record<string, number[
 type LogHari = { tanggal: string; isi: number; slot: number; kode: Record<string, number> };
 type Rank = { pic: RankPic[]; nasional: RankPic; hari_log: string[]; komponen: { kode: string; label: string }[];
   kode_kom: { kode: string; arti: string }[]; berkolom: string[];
-  blok: { blok: number; label: string }[]; blok_hari: number[]; dibuat: string };
+  blok: { blok: number; label: string }[]; blok_hari: number[]; dibuat: string; bimtek?: string };
 
 const NASIONAL = "__semua__";
 const fmt = (n: number) => n.toLocaleString("id-ID");
@@ -362,16 +363,34 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
           <thead>
             <tr>
               <th aria-label="Pilih" />
-              <th className={s.angka}>#</th>
-              <th>{th("nama", "PIC", "↑")}</th>
-              <th className={s.angka}>Sekolah</th>
-              <th>{th("persen", "Capaian")}</th>
-              <th className={s.angka} title="Fasil yang punya sekolah belum selesai (dan cocok dengan filter komunikasi)">{th("cocok", "Fasil")}</th>
-              <th className={s.angka} title="Dari sekolah yang belum selesai pada fasil tersebut">{th("kendala", "Kendala terisi")}</th>
-              <th className={s.angka}>{th("tl", "TL terisi")}</th>
-              <th>Komunikasi fasil</th>
-              <th className={s.angka}>{th("log", "Log Komunikasi")}</th>
-              <th className={s.angka}>{th("progres", "Progres fisik")}</th>
+              <th className={s.angka}><Tip isi={<>Peringkat PIC menurut <b>Capaian semua komponen</b> (tanpa filter).
+                Urutan baris bisa diganti dengan mengeklik judul kolom.</>}>#</Tip></th>
+              <th><Tip isi={<>Nama di kolom <b>PIC</b> tab WEEK aktif LK. Klik nama untuk membuka dashboard PIC itu;
+                &ldquo;Detail&rdquo; untuk rincian per fasil.</>}>{th("nama", "PIC", "↑")}</Tip></th>
+              <th className={s.angka}><Tip isi={<>Jumlah sekolah binaan PIC di tab WEEK aktif LK
+                (data cutoff terakhir{rank.bimtek ? `, hanya ${rank.bimtek}` : ""}).</>}>Sekolah</Tip></th>
+              <th><Tip isi={<><b>Komponen selesai ÷ komponen yang seharusnya sudah selesai</b> (sudah jatuh tempo), dihitung per
+                sekolah per komponen dari nilai cutoff terakhir di LK. Mengikuti filter Komponen ({teksKomp}).
+                Warna membandingkan dengan angka nasional.</>}>{th("persen", "Capaian")}</Tip></th>
+              <th className={s.angka}><Tip kanan isi={<>Fasil yang <b>masih punya minimal satu sekolah dengan komponen belum selesai</b>
+                ({teksKomp}).{" "}{kode.length
+                  ? <>Karena filter Komunikasi aktif: angka besar = fasil berkode {teksKode} pada hari {teksHari}, dari total fasil tersebut.</>
+                  : <>Bila filter Komunikasi dipilih, angka ini menyaring fasil menurut kode Log Komunikasinya.</>}{" "}
+                Klik angka untuk melihat daftar fasilnya.</>}>{th("cocok", "Fasil")}</Tip></th>
+              <th className={s.angka}><Tip kanan isi={<>Dari pasangan <b>sekolah × komponen yang belum selesai</b> pada fasil di kolom Fasil,
+                berapa yang kolom <b>Kendala</b>-nya sudah diisi petugas di tab WEEK
+                ({filter.sesi.length === 1 && filter.nSesi > 1 ? `sesi ${rank.blok[filter.sesi[0]].label}` : "sesi mana pun di WEEK ini"}).
+                Keterangan otomatis dari aplikasi tidak dihitung.</>}>{th("kendala", "Kendala terisi")}</Tip></th>
+              <th className={s.angka}><Tip kanan isi={<>Sama seperti Kendala terisi, untuk kolom <b>Tindak Lanjut</b> di tab WEEK.</>}>
+                {th("tl", "TL terisi")}</Tip></th>
+              <th><Tip kanan isi={<>Sebaran <b>kode Log Komunikasi</b> fasil di kolom Fasil pada hari {teksHari}
+                (T, T1, T2, TP, R, C, N; &ldquo;Belum ada&rdquo; = belum diberi kode). Sumber: tab Log Komunikasi di LK.
+                Arahkan kursor ke batang untuk arti kodenya.</>}>Komunikasi fasil</Tip></th>
+              <th className={s.angka}><Tip kanan isi={<>Persen <b>fasil yang sudah diberi kode</b> di tab Log Komunikasi pada hari {teksHari},
+                dari semua fasil PIC{hari.length > 1 ? " (dihitung per fasil per hari)" : ""}. &ldquo;Ditelepon&rdquo; = kode TP.</>}>
+                {th("log", "Log Komunikasi")}</Tip></th>
+              <th className={s.angka}><Tip kanan isi={<>Rata-rata <b>Progres Fisik (%)</b> sekolah binaan dari kolom Progres Fisik di LK
+                (cutoff terakhir). Tidak terpengaruh filter komponen, komunikasi, atau hari.</>}>{th("progres", "Progres fisik")}</Tip></th>
             </tr>
           </thead>
           <tbody>
@@ -390,7 +409,7 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
                     <td className={s.angka}>{fmt(p.sekolah)}</td>
                     <td><Rasio a={h.selesai} b={h.harus} v={bagi(h.selesai, h.harus)} acuan={nasCapai} /></td>
                     <td className={s.angka}><button type="button" className={s.selTombol} onClick={tutupBuka} title="Lihat daftar fasil">
-                      <b>{fmt(h.cocok)}</b><small>{kode.length ? `dari ${fmt(h.fasilBelum)} fasil` : "fasil punya sekolah belum"}</small></button></td>
+                      <b>{fmt(h.cocok)}</b><small>{kode.length ? `dari ${fmt(h.fasilBelum)} fasil` : "fasil masih ada sekolah belum selesai"}</small></button></td>
                     <td className={s.angka}><Terisi a={h.kendala} b={h.belum} acuan={bagi(nas.kendala, nas.belum)} /></td>
                     <td className={s.angka}><Terisi a={h.tl} b={h.belum} acuan={bagi(nas.tl, nas.belum)} /></td>
                     <td><BatangKode kom={h.kom} arti={arti} sorot={kode} satuan={hari.length > 1 ? "fasil-hari" : "fasil"} /></td>

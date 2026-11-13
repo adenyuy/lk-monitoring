@@ -227,6 +227,26 @@ def set_komunikasi(req: KomReq, _=Depends(require_access)) -> dict[str, Any]:
     return {"ok": True, "ditulis": n}
 
 
+class UbahFasilReq(BaseModel):
+    kunci: str = Field(max_length=200)
+    nama: str = Field(max_length=120)
+    nomor_baru: str = Field("", max_length=40)
+
+
+@router.post("/fasil-ubah")
+def ubah_fasil(req: UbahFasilReq, _=Depends(require_access)) -> dict[str, Any]:
+    """Ubah nama / nomor WhatsApp fasil di LK WEEK aktif (hanya sekolah binaan petugas ini)."""
+    from .. import ubah_fasil_lk
+
+    def jalan() -> dict[str, Any]:
+        try:
+            return ubah_fasil_lk.ubah(req.kunci, req.nama, req.nomor_baru)
+        except ubah_fasil_lk.UbahFasilError as e:
+            raise HTTPException(400, str(e)) from e
+
+    return _jalan(jalan)
+
+
 class TagReq(BaseModel):
     kunci: str
     tag: list[str] = Field(default_factory=list, max_length=6)

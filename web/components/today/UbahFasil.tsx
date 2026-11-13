@@ -5,13 +5,16 @@ import { post } from "@/lib/api";
 import { Button } from "@/components/ui";
 import s from "./wag.module.css";
 
-/** Popup ubah nama / nomor WhatsApp fasil (ditulis ke Broadcast dan LK WEEK aktif). */
-export function UbahFasilDialog({ nomor, nama, nomorTersamar, onClose, onSaved }: {
+/** Popup ubah nama / nomor WhatsApp fasil. Bawaan: LK lama (Broadcast + LK 50%); `kirim` dan `ket` untuk LK baru. */
+export function UbahFasilDialog({ nomor, nama, nomorTersamar, onClose, onSaved, kirim, ket }: {
   nomor: string;
   nama: string;
   nomorTersamar: string;
   onClose: () => void;
   onSaved: (nomorBaru: string) => void;
+  /** Simpan; mengembalikan kunci/nomor baru. */
+  kirim?: (nama: string, nomorBaru: string) => Promise<string>;
+  ket?: string;
 }) {
   const [namaBaru, setNamaBaru] = useState(nama);
   const [nomorBaru, setNomorBaru] = useState("");
@@ -37,8 +40,12 @@ export function UbahFasilDialog({ nomor, nama, nomorTersamar, onClose, onSaved }
     setBusy(true);
     setError(null);
     try {
-      const r = await post<{ nomor: string }>(`/api/fasil/${nomor}/ubah`, { nama: namaBaru, nomor_baru: nomorBaru });
-      onSaved(r.nomor);
+      if (kirim) {
+        onSaved(await kirim(namaBaru, nomorBaru));
+      } else {
+        const r = await post<{ nomor: string }>(`/api/fasil/${nomor}/ubah`, { nama: namaBaru, nomor_baru: nomorBaru });
+        onSaved(r.nomor);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -50,8 +57,7 @@ export function UbahFasilDialog({ nomor, nama, nomorTersamar, onClose, onSaved }
       <div className={`${s.modal} ${s.modalKecil}`} role="dialog" aria-modal="true" aria-labelledby="uf-judul">
         <div className={s.kepala}>
           <h2 id="uf-judul">Ubah data fasil</h2>
-          <p>Disimpan ke sheet Broadcast dan ke sekolah binaan fasil ini di LK minggu ini. Riwayat chat di aplikasi
-            ikut pindah ke nomor baru.</p>
+          <p>{ket ?? "Disimpan ke sheet Broadcast dan ke sekolah binaan fasil ini di LK minggu ini. Riwayat chat di aplikasi ikut pindah ke nomor baru."}</p>
         </div>
         <form className={s.form} onSubmit={(e) => { e.preventDefault(); if (berubah && !nomorSalah) void simpan(); }}>
           <label className={s.field}>
@@ -63,7 +69,7 @@ export function UbahFasilDialog({ nomor, nama, nomorTersamar, onClose, onSaved }
             <input value={nomorBaru} onChange={(e) => setNomorBaru(e.target.value)} inputMode="tel"
               placeholder="Contoh: 081234567890" autoComplete="off" aria-invalid={nomorSalah} />
             <small className={nomorSalah ? s.salah : undefined}>
-              {nomorSalah ? "Nomor terlalu pendek atau terlalu panjang." : `Nomor sekarang: ${nomorTersamar}`}
+              {nomorSalah ? "Nomor terlalu pendek atau terlalu panjang." : `Nomor sekarang: ${nomorTersamar || "kosong"}`}
             </small>
           </label>
           {error && <p className={s.err}>{error}</p>}

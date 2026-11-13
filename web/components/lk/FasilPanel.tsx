@@ -8,6 +8,7 @@ import { bacaBalasan, cocokkan, isi as isiTemplate, isiKendala, isianTodo, koson
   type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
 import { BantuanDialog } from "@/components/today/BantuanDialog";
+import { UbahFasilDialog } from "@/components/today/UbahFasil";
 import { ChatPanel, SalinTemplate } from "./ChatPanel";
 import { KodePicker } from "./KodePicker";
 import { TeleponAksi } from "./TeleponAksi";
@@ -51,6 +52,7 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
   const [kanan, setKanan] = useState<"fasil" | "koor" | "sekolah">("fasil");
   const [sekPilih, setSekPilih] = useState<string>("");
   const [tempel, setTempel] = useState(false);
+  const [ubahFasil, setUbahFasil] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const muat = useCallback(async (jagaDraf = false) => {
@@ -224,6 +226,10 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
         {data && (
           <div className={s.layarAksi}>
             <TeleponAksi kunci={data.kunci} info={data.telepon} onCatat={() => void muat(true)} />
+            <Button variant="secondary" size="sm" onClick={() => setUbahFasil(true)}
+              title="Ganti nama atau nomor WhatsApp fasil di LK (sekolah binaan Anda)">
+              Ubah data fasil
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => setKanan("koor")} disabled={!data.koor}
               title={data.koor ? "Fasil tidak membalas? Minta bantuan koordinatornya" : "Koordinator belum tercatat di LK"}>
               Hubungi koordinator
@@ -357,6 +363,19 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
         <BantuanDialog hanyaEskalasi namaFasil={data.nama} sekolah={data.sekolah_detail} terusan=""
           awal={{ npsn: data.sekolah_detail.filter((x) => x.todo.length).map((x) => x.npsn), keterangan: keteranganEskalasi(data) }}
           onClose={() => setEskalasi(false)} />
+      )}
+      {ubahFasil && data && (
+        <UbahFasilDialog nomor={data.nomor} nama={data.nama} nomorTersamar={data.nomor_tersamar}
+          ket={`Ditulis ke kolom Fasilitator dan No HP Fasilitator di ${data.sekolah} sekolah binaan Anda di LK WEEK ${data.week}`
+            + " (dan nama di Log Komunikasi). Riwayat chat dan kode komunikasi di aplikasi ikut pindah ke nomor baru."}
+          kirim={async (nama, nomorBaru) =>
+            (await post<{ kunci: string }>("/api/lk2/fasil-ubah", { kunci: data.kunci, nama, nomor_baru: nomorBaru })).kunci}
+          onClose={() => setUbahFasil(false)}
+          onSaved={(kunciBaru) => {
+            setUbahFasil(false);
+            if (kunciBaru !== kunci) window.dispatchEvent(new CustomEvent("lkm-buka-fasil", { detail: kunciBaru }));
+            else void muat();
+          }} />
       )}
     </div>
   );
