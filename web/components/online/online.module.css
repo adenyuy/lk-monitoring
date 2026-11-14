@@ -205,6 +205,8 @@
 .kR { background: #d9a23a; }
 .kC { background: #a3abb8; }
 .kN { background: #c8484b; }
+.kTX { background: #8f1f22; }
+.kK { background: #6250d6; }
 .kKosong { background: var(--line); }
 .legendaKode { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
 .legendaKode span { display: inline-flex; align-items: center; gap: 5px; }

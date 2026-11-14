@@ -11,13 +11,15 @@ import s from "./lk.module.css";
 const CENTANG: Record<string, string> = { read: "Dibaca", delivered: "Diterima", sent: "Terkirim", pending: "Menunggu" };
 
 /** Chat WhatsApp (fasil atau koordinator): baca, balas dengan template, dan untuk fasil: isi LK dari balasannya. */
-export function ChatPanel({ nomor, nama, peran, template, onIsiLk }: {
+export function ChatPanel({ nomor, nama, peran, template, onIsiLk, onTerkirim }: {
   nomor: string;
   nama: string;
   peran: "fasil" | "koor" | "sekolah";
   /** Template yang sudah terisi, siap kirim */
   template: Template[];
   onIsiLk?: (teks: string) => number;
+  /** Dipanggil setelah pesan terkirim (mis. mencatat K saat menghubungi koordinator). */
+  onTerkirim?: (teks: string) => void;
 }) {
   const [chat, setChat] = useState<Percakapan | null>(null);
   const [membaca, setMembaca] = useState(false);
@@ -53,6 +55,7 @@ export function ChatPanel({ nomor, nama, peran, template, onIsiLk }: {
       setChat(await post<Percakapan>(`/api/chat/${nomor}/balas`,
         { pesan: t, jenis: peran === "fasil" && /Kendala:/.test(t) ? "tanya_lk" : "" }));
       setTeks("");
+      onTerkirim?.(t);
     } catch (e) {
       setKirimError(e instanceof Error ? e.message : String(e));
     } finally {

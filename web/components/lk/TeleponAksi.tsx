@@ -11,7 +11,8 @@ function waktuSingkat(iso: string): string {
   return `${hari} ${t.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-/** Tanda "perlu ditelepon" + tombol mencatat hasil telepon (diangkat -> TP di Log Komunikasi hari ini). */
+/** Tanda "perlu telepon / koordinator" + tombol mencatat hasil telepon (diangkat -> TP, tidak diangkat -> TX di Log
+ *  Komunikasi hari ini). */
 export function TeleponAksi({ kunci, info, onCatat }: { kunci: string; info?: TeleponInfo; onCatat: () => void }) {
   const [buka, setBuka] = useState(false);
   const [jalan, setJalan] = useState("");
@@ -45,7 +46,7 @@ export function TeleponAksi({ kunci, info, onCatat }: { kunci: string; info?: Te
       {info?.dicoba && <span className={s.teleponDicoba}>Sudah dicoba telepon hari ini</span>}
       <button type="button" className={`${s.teleponBtn} ${info?.perlu ? s.teleponBtnPenting : ""}`}
         aria-haspopup="menu" aria-expanded={buka} onClick={() => setBuka(!buka)}
-        title={[info?.perlu ? `Perlu ditelepon: ${info.alasan}` : "",
+        title={[info?.perlu ? `Perlu telepon atau hubungi koordinator: ${info.alasan}` : "",
           t ? `Telepon terakhir: ${waktuSingkat(t.waktu)} · ${t.label}${t.sumber === "wa" ? " (WhatsApp)" : ""}` : "Belum ada catatan telepon"]
           .filter(Boolean).join(" · ")}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
@@ -54,14 +55,14 @@ export function TeleponAksi({ kunci, info, onCatat }: { kunci: string; info?: Te
       </button>
       {buka && (
         <div className={s.teleponMenu} role="menu">
-          <p>{info?.perlu ? `${info.alasan}. ` : ""}Hasil telepon ke fasil hari ini:</p>
+          <p>{info?.perlu ? `${info.alasan}. Telepon fasil, atau hubungi koordinatornya lewat tab Koordinator. ` : ""}Hasil telepon ke fasil hari ini:</p>
           <button type="button" role="menuitem" disabled={!!jalan} onClick={() => void catat("diangkat")}>
             <b>{jalan === "diangkat" ? "Menyimpan…" : "Diangkat"}</b>
             <small>Tulis TP (terhubung lewat telepon) di Log Komunikasi hari ini</small>
           </button>
           <button type="button" role="menuitem" disabled={!!jalan} onClick={() => void catat("tidak")}>
             <b>{jalan === "tidak" ? "Menyimpan…" : "Tidak diangkat"}</b>
-            <small>Hanya dicatat; pengingat muncul lagi besok bila belum ada kabar</small>
+            <small>Tulis TX di Log Komunikasi hari ini; pengingat muncul lagi besok bila belum ada kabar</small>
           </button>
           {t && <small className={s.teleponTerakhir}>Terakhir: {waktuSingkat(t.waktu)} · {t.label}{t.sumber === "wa" ? " (WhatsApp)" : ""}</small>}
           {galat && <small className={s.teleponGalat}>{galat}</small>}

@@ -425,6 +425,7 @@ def _pn_dari_lid(lid: str) -> str:
 
 _saya: set[str] = set()                       # nomor & LID akun sendiri
 _panggilan: dict[str, dict[str, Any]] = {}    # callID -> {nomor, keluar, diangkat}
+MIN_DERING = 20  # detik: panggilan tak diangkat yang lebih singkat (mis. dibatalkan petugas) tidak dicatat TX
 
 
 def on_panggil(ev, jenis: str) -> None:
@@ -450,6 +451,9 @@ def on_panggil(ev, jenis: str) -> None:
         if not p or not p["keluar"] or not p["nomor"] or p["nomor"] not in _nomor_milik():
             return
         hasil = "diangkat" if p["diangkat"] else "tidak"
+        if hasil == "tidak" and time.time() - p["mulai"] < MIN_DERING:
+            log.info("Panggilan %s dibatalkan sebelum %s detik: tidak dicatat", cid[:8], MIN_DERING)
+            return
         threading.Thread(target=_catat_panggilan, args=(p["nomor"], hasil, cid), name="pendengar-telepon",
                          daemon=True).start()
     for k in [k for k, v in _panggilan.items() if time.time() - v["mulai"] > 3 * 3600]:  # panggilan basi

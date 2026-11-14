@@ -78,7 +78,9 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
     from .. import tahap as _tahap
 
     chat = komunikasi.peta_chat(_tahap.senin_iso())
+    belum_balas = _koor_belum_balas([x["kunci"] for x in daftar])
     for x in daftar:
+        x["tag_auto"] = [komunikasi.TAG_KOOR] if x["kunci"] in belum_balas else []
         c = chat.get(x["nomor"]) if x["nomor"] else None
         x["kom"] = komunikasi.status_kom(x, c)
         x["balasan"] = " ".join((c or {}).get("balasan", "").split())[:120]
@@ -129,6 +131,8 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
         "hp_koor": bool(f.hp_koor),
         "nomor_koor": (daftar_nomor(f.hp_koor) or [""])[0],
         "koor_tersamar": mask((daftar_nomor(f.hp_koor) or [""])[0]) if f.hp_koor else "",
+        "tag_auto": [komunikasi.TAG_KOOR] if f.kunci in _koor_belum_balas([f.kunci]) else [],
+        "koor_fasil": _koor_fasil(k, f),
         "sekolah_detail": [{**todo.ringkas(s, k["rencana"][s.npsn], k["blok"]), "kepsek": s.kepsek,
                             "punya_hp_kepsek": bool(s.hp_kepsek),
                             **_kepsek_chat(s),
@@ -225,6 +229,52 @@ def set_komunikasi(req: KomReq, _=Depends(require_access)) -> dict[str, Any]:
                     f"{kode or 'Dikosongkan'}" + (f" · {lk_baru.KODE_KOMUNIKASI[kode]}" if kode else "")
                     + f" ({hari[8:10]}/{hari[5:7]}, {n} sekolah)", fasil.nama)
     return {"ok": True, "ditulis": n}
+
+
+def _koor_belum_balas(kunci: list[str]) -> set[str]:
+    try:
+        return komunikasi.koor_belum_balas(kunci)
+    except Exception:  # noqa: BLE001 - tag hanya penanda; jangan menggagalkan halaman
+        return set()
+
+
+def _koor_fasil(k: dict[str, Any], f) -> list[dict[str, Any]]:
+    """Fasil binaan Anda yang koordinatornya sama dengan `f`, dengan tanda sulit dihubungi (untuk template koordinator
+    "semua fasil binaan yang sulit dihubungi"). Fasil `f` sendiri ikut, paling atas."""
+    from .. import telepon
+
+    if not f.koor:
+        return []
+    kk = komunikasi.normalize_petugas(f.koor)
+    mulai = min(k["logkom"].tanggal, default="")
+    out = []
+    for g in k["fasil"].values():
+        if komunikasi.normalize_petugas(g.koor or "") != kk:
+            continue
+        kode = komunikasi.kode_fasil(g, k["logkom"])
+        perlu, alasan = telepon.perlu(kode, k["hari"], mulai)
+        akhir = kode.get(k["hari"], "") or next((kode[d] for d in sorted(kode, reverse=True) if d <= k["hari"]), "")
+        sulit = perlu or akhir.upper() in telepon.SULIT
+        out.append({"kunci": g.kunci, "nama": g.nama, "ptn": g.ptn, "kode": akhir, "sulit": sulit,
+                    "alasan": alasan or (telepon.ARTI_SULIT.get(akhir.upper(), "") if sulit else ""),
+                    "sekolah": len(g.sekolah), "ini": g.kunci == f.kunci})
+    out.sort(key=lambda x: (not x["ini"], not x["sulit"], x["nama"].casefold()))
+    return out
+
+
+class KoorReq(BaseModel):
+    kunci: list[str] = Field(min_length=1, max_length=60)
+
+
+@router.post("/koor-dihubungi")
+def koor_dihubungi(req: KoorReq, _=Depends(require_access)) -> dict[str, Any]:
+    """Pesan ke koordinator soal fasil-fasil ini terkirim dari aplikasi: K di Log Komunikasi hari ini."""
+    k = _konteks()
+    daftar = [k["fasil"][x] for x in dict.fromkeys(req.kunci) if x in k["fasil"]]
+    if not daftar:
+        raise HTTPException(404, "Fasil tidak ada di sekolah binaan Anda.")
+    nomor = (daftar_nomor(daftar[0].hp_koor) or [""])[0]
+    return _jalan(komunikasi.catat_koor, daftar, nomor)
 
 
 class UbahFasilReq(BaseModel):

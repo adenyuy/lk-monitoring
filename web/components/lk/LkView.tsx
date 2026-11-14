@@ -415,6 +415,10 @@ function KartuFasil({ f, kolom, logAda, kode, onBuka, onKode, mode = "komponen",
           {f.tanpa_progres && <em className={s.pilKuning} title="Sering terhubung tapi laporannya tidak bergerak sejak cutoff sebelumnya">Respon tanpa progres</em>}
           {f.belum_ditelepon && <em className={s.pilKuning} title="Berkali-kali hanya dibaca / tidak sampai, belum pernah ditelepon">Belum ditelepon</em>}
           {f.tag.map((x) => <em key={x} className={s.pilTag}>#{x}</em>)}
+          {(f.tag_auto ?? []).map((x) => (
+            <em key={x} className={s.pilTagAuto}
+              title={x === "koor-belum-balas" ? "Koordinatornya sudah dihubungi sesi ini, tapi belum membalas" : undefined}>#{x}</em>
+          ))}
         </span>
         {mode === "kom" && f.balasan && (
           <span className={s.kartuBalasan} title={f.balasan}>{jam(f.waktu_balasan) && <i>{jam(f.waktu_balasan)}</i>}“{f.balasan}”</span>

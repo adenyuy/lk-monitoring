@@ -53,6 +53,21 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
   const [sekPilih, setSekPilih] = useState<string>("");
   const [tempel, setTempel] = useState(false);
   const [ubahFasil, setUbahFasil] = useState(false);
+
+  /** Pesan ke koordinator terkirim: fasil yang namanya disebut di pesan (fasil ini dan fasil binaan koordinator yang
+   *  sama) dicatat K di Log Komunikasi hari ini. Pesan tanpa nama fasil = soal fasil yang sedang dibuka. */
+  async function catatKoor(teks: string) {
+    if (!data) return;
+    const calon = data.koor_fasil?.length ? data.koor_fasil : [{ kunci: data.kunci, nama: data.nama, ini: true }];
+    const rapi = (x: string) => x.toLowerCase().replace(/\s+/g, " ").trim();
+    const isi = rapi(teks);
+    let kunci = calon.filter((x) => x.nama && isi.includes(rapi(x.nama))).map((x) => x.kunci);
+    if (!kunci.length) kunci = [data.kunci];
+    try {
+      await post("/api/lk2/koor-dihubungi", { kunci });
+      void muat(true);
+    } catch { /* pencatatan K gagal: pesan tetap terkirim; petugas bisa mengisi kode sendiri */ }
+  }
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const muat = useCallback(async (jagaDraf = false) => {
@@ -347,7 +362,8 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
                     membalas, hanya membaca, atau laporannya tidak bergerak.
                   </p>
                   {waJalan && data.nomor_koor ? (
-                    <ChatPanel key={`k-${data.nomor_koor}`} nomor={data.nomor_koor} nama={data.koor} peran="koor" template={tplKoor} />
+                    <ChatPanel key={`k-${data.nomor_koor}`} nomor={data.nomor_koor} nama={data.koor} peran="koor" template={tplKoor}
+                      onTerkirim={(t) => void catatKoor(t)} />
                   ) : (
                     <SalinTemplate key="sk" template={tplKoor}
                       ket={!waJalan ? "WhatsApp otomatis mati. Salin pesan lalu kirim ke koordinator dari HP Anda."

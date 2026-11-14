@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS kom_balas (
 _siap = False
 
 PERINGKAT = {"N": 0, "C": 1, "C2": 2, "R": 3, "T1": 4, "T2": 4, "T": 5, "TP": 5}
+KODE_AKSI = {"TX", "K"}  # hasil aksi petugas (telepon tidak diangkat, hubungi koordinator): tidak diteruskan
 
 _KONFIRMASI = re.compile(r"(^|\n)\s*[•*\-]?\s*\*?(kendala|tindak\s*lanjut|tl)\*?\s*[:：=]", re.I)
 # Menyebut kendala / tindak lanjut di kalimat biasa ("kendalanya sekolah belum upload")
@@ -384,7 +385,8 @@ def susun(s: Siklus, k: Kejadian, hari: date, isi_lk: dict[str, str], auto: dict
         t = d.isoformat()
         ada = isi_lk.get(t, "")
         if ada and auto.get(t) != ada:  # isian petugas
-            lalu = ada
+            if ada.upper() not in KODE_AKSI:  # TX / K hanya untuk hari itu; besok kembali mengikuti chat fasil
+                lalu = ada
             continue
         baru = kode_kejadian(k, s, d)
         kode = baru if not lalu or lebih_baik(baru, lalu) else lalu

@@ -120,6 +120,7 @@
 .pilMerah { background: #fcecec; color: #a6282b; }
 .pilKuning { background: #fff4de; color: #7a4900; }
 .pilTag { background: var(--primary-soft); color: var(--primary); font-weight: 500 !important; }
+.pilTagAuto { background: #ece6f8; color: #4b3a8c; font-weight: 500 !important; }
 .kartuKaki { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 7px 10px;
   border-top: 1px dashed var(--line); font-size: 11.5px; color: var(--muted); }
 .kartuKaki > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

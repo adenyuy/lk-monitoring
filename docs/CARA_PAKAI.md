@@ -74,6 +74,16 @@ Halaman Hari ini menampilkan **WEEK** yang sedang dipakai dan sesi isian LK hari
 - **Tahap** di atas panel: Broadcast terkirim → Dibaca → Membalas → Isian ditanyakan → LK lengkap. Bila chat lewat HP, klik tahapnya untuk mencentang sendiri.
 - **Kirim ulang broadcast**: pesan yang sudah terkirim minggu ini tidak dikirim lagi walau isi Broadcast berubah. Pakai tombol ini bila memang perlu kirim susulan.
 
+### Kode Log Komunikasi dan tindak lanjut
+
+- **Otomatis dari WhatsApp**: T (respon baik), T1 (membalas, belum konfirmasi), T2 (membalas lambat), R (hanya dibaca), C (centang satu), C2 (centang dua, belum dibaca), N (nomor tidak ada WhatsApp).
+- **Dari aksi petugas**, menggantikan kode hari itu (kecuali fasil sudah membalas):
+  - **TP** telepon diangkat, **TX** telepon tidak diangkat: dari tombol **Catat telepon**, atau otomatis bila menelepon lewat WhatsApp dari nomor yang tertaut (berdering minimal 20 detik).
+  - **K** koordinator dihubungi: otomatis saat mengirim pesan dari tab **Koordinator** di panel fasil. Template **Semua fasil sulit dihubungi** mencatat K untuk setiap fasil yang disebut. Bila menghubungi koordinator dari HP, isi K sendiri di Log Komunikasi.
+  - Besoknya kode kembali mengikuti komunikasi dengan fasil.
+- **Perlu telepon / koordinator** muncul bila fasil 2 hari kerja berturut-turut R, C, C2, atau TX (boleh campur), atau nomornya tidak ada WhatsApp.
+- Tag **#koor-belum-balas** muncul di kartu fasil bila koordinatornya sudah dihubungi sesi ini tapi belum membalas, dan hilang sendiri setelah koordinator membalas atau sesi berganti.
+
 ### Rekap
 
 Jumlah sekolah P1/P2/P3/Selesai, kemajuan fasil minggu ini per tab Semua/P1/P2/P3 (dihubungi → membalas → LK lengkap, mulai dari nol tiap Senin), fasil yang tidak masuk Broadcast, dan tabel per fasil (15 per halaman) yang bisa diurutkan dan disaring.

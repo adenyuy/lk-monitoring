@@ -1,6 +1,6 @@
 // Tipe data LK format baru (WEEK n, Log Komunikasi) dan Blast.
 
-export type KodeKom = "T" | "T1" | "T2" | "TP" | "R" | "C" | "C2" | "N" | "";
+export type KodeKom = "T" | "T1" | "T2" | "TP" | "R" | "C" | "C2" | "N" | "TX" | "K" | "";
 export type Kelompok = "perlu_telepon" | "dibaca" | "terkirim" | "menunggu" | "belum" | "terhubung" | "beres";
 export type Tahap = "pendahuluan" | "berkala" | "l50" | "l100" | "selesai";
 
@@ -40,6 +40,8 @@ export type FasilLk = {
   fokus: { judul: string; jumlah: number }[];
   tunggu_maks: number | null;
   tag: string[];
+  /** Tag otomatis dari aplikasi, mis. koor-belum-balas (koordinator dihubungi sesi ini, belum membalas). */
+  tag_auto?: string[];
   /** Jumlah sekolah per kelompok Bimtek Pelaporan. */
   bimtek?: Record<string, number>;
   tanpa_progres: boolean;
@@ -119,7 +121,12 @@ export type SekolahDetail = {
   delta: number | null;
 };
 
+/** Fasil binaan Anda dengan koordinator yang sama (untuk template koordinator); `ini` = fasil yang sedang dibuka. */
+export type KoorFasil = { kunci: string; nama: string; ptn: string; kode: string; sulit: boolean; alasan: string;
+  sekolah: number; ini: boolean };
+
 export type FasilDetail = LkInfo & FasilLk & {
+  koor_fasil?: KoorFasil[];
   nomor_tersamar: string;
   nomor_lain: string[];
   hp_koor: boolean;
@@ -134,7 +141,7 @@ export type OpsiLk = {
 };
 
 export const KELOMPOK_INFO: Record<Kelompok, { label: string; tone: "bad" | "warn" | "info" | "muted" | "ok" }> = {
-  perlu_telepon: { label: "Perlu ditelepon", tone: "bad" },
+  perlu_telepon: { label: "Perlu telepon / koordinator", tone: "bad" },
   dibaca: { label: "Dibaca, belum membalas", tone: "warn" },
   terkirim: { label: "Terkirim, belum dibaca", tone: "info" },
   menunggu: { label: "Membalas, belum tuntas", tone: "info" },
@@ -158,6 +165,8 @@ export const KODE_WARNA: Record<string, { bg: string; fg: string; label: string 
   C: { bg: "#fcecec", fg: "#a6282b", label: "Centang satu" },
   C2: { bg: "#f3eef0", fg: "#7a3b45", label: "Centang dua, tidak membalas" },
   N: { bg: "#f2e6ee", fg: "#8a2d63", label: "Tidak ada WA" },
+  TX: { bg: "#f6dcdc", fg: "#8f1f22", label: "Ditelepon, tidak diangkat" },
+  K: { bg: "#ece6f8", fg: "#4b3a8c", label: "Koordinator dihubungi" },
 };
 
 export const HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];

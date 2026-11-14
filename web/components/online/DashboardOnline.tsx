@@ -186,9 +186,9 @@ function Ringkasan({ x }: { x: Dash }) {
 /* ---------- ranking ---------- */
 
 /** Urutan kode komunikasi dari yang paling baik; "-" = belum ada catatan di Log Komunikasi. */
-const URUT_KODE = ["T", "TP", "T1", "T2", "R", "C2", "C", "N", "-"];
+const URUT_KODE = ["T", "TP", "T1", "T2", "K", "R", "C2", "TX", "C", "N", "-"];
 const KELAS_KODE: Record<string, string> = {
-  T: s.kT, TP: s.kTP, T1: s.kT1, T2: s.kT1, R: s.kR, C2: s.kC, C: s.kC, N: s.kN, "-": s.kKosong,
+  T: s.kT, TP: s.kTP, T1: s.kT1, T2: s.kT1, R: s.kR, C2: s.kC, C: s.kC, N: s.kN, TX: s.kTX, K: s.kK, "-": s.kKosong,
 };
 const kelasKode = (k: string) => KELAS_KODE[k] ?? s.kC;
 const HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];

@@ -232,7 +232,7 @@ def _tabel_fasil(fasil: dict[str, komunikasi.Fasil], status: dict[str, dict[str,
         out.append({"nama": f.nama, "ptn": f.ptn, "sekolah": len(f.sekolah), "lengkap": lengkap, "belum": belum,
                     "progres": round(sum(p) / len(p), 1) if p else None,
                     "terhubung": c["T"] + c["TP"], "lambat": c["T1"] + c["T2"],
-                    "tidak": c["R"] + c["C"] + c["C2"] + c["N"], "telepon": c["TP"],
+                    "tidak": c["R"] + c["C"] + c["C2"] + c["N"] + c["TX"], "telepon": c["TP"],
                     "hari_tercatat": len(kode), "kode_hari_ini": kode.get(hari, ""),
                     "tunggu_maks": max(tunggu) if tunggu else None})
     out.sort(key=lambda x: (-x["belum"], x["nama"]))

@@ -1,12 +1,13 @@
 """Telepon ke fasil: kapan perlu ditelepon, dan catatan telepon (manual dari aplikasi atau terbaca dari WhatsApp).
 
-Perlu ditelepon (tanda informasi, bukan kode Log Komunikasi), dihitung dari kode Log Komunikasi fasil:
+Perlu telepon / hubungi koordinator (tanda informasi, bukan kode), dihitung dari kode Log Komunikasi fasil:
   - nomor tidak ada WhatsApp (N)
-  - 2 hari kerja berturut-turut hanya dibaca (R), atau pesan tidak sampai (C)
+  - 2 hari kerja berturut-turut sulit dihubungi: R, C, C2, atau TX (boleh campur, mis. R lalu C2)
 
 Catatan telepon:
   - diangkat  -> hari itu ditulis TP di Log Komunikasi; tanda hilang karena kodenya bukan R / C lagi
-  - tidak     -> hanya dicatat; tanda jadi "sudah dicoba hari ini" dan muncul lagi besok bila masih belum ada kabar
+  - tidak     -> hari itu ditulis TX; tanda jadi "sudah dicoba hari ini" dan muncul lagi besok bila masih belum ada kabar
+Menghubungi koordinator lewat aplikasi menulis K hari itu, jadi tanda juga hilang (K bukan kode sulit).
 Telepon WhatsApp dari HP terbaca lewat pendengar (neonize) bila perangkat tertaut menerima kabar panggilannya.
 """
 
@@ -73,14 +74,20 @@ def perlu(kode: dict[str, str], hari: str, mulai_lk: str = "") -> tuple[bool, st
     dua = hari_kerja_terakhir(date.fromisoformat(hari), 2, mulai_lk)
     if not dua:
         return False, ""
-    k = [kode.get(d, "") for d in dua]
+    k = [kode.get(d, "").upper() for d in dua]
     if k[-1] == "N":
         return True, "Nomor tidak ada WhatsApp"
     if len(k) == 2 and k[0] == k[1] == "R":
         return True, "2 hari hanya dibaca, belum membalas"
     if len(k) == 2 and k[0] == k[1] == "C":
         return True, "2 hari pesan tidak sampai (centang satu)"
+    if len(k) == 2 and all(x in SULIT for x in k):
+        return True, "2 hari sulit dihubungi (" + " lalu ".join(ARTI_SULIT[x] for x in k) + ")"
     return False, ""
+
+
+SULIT = {"R", "C", "C2", "TX", "N"}
+ARTI_SULIT = {"R": "dibaca", "C": "centang satu", "C2": "centang dua", "TX": "tidak diangkat", "N": "tanpa WA"}
 
 
 def keadaan(nomor: str, kode: dict[str, str], hari: str, mulai_lk: str = "") -> dict[str, Any]:

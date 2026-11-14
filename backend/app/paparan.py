@@ -45,8 +45,8 @@ KOM_WARNA = {k: w for k, _, w in KOM}
 # Kode Log Komunikasi dikelompokkan, urut dari paling baik. Status fasil dalam seminggu = kode terbaiknya.
 GRUP_KOM = (
     ("terhubung", "Terhubung", ("T", "TP"), "#2f8f5b"),
-    ("menunggu", "Membalas, belum tuntas / lambat", ("T1", "T2"), "#d9a23a"),
-    ("dibaca", "Dibaca, tidak membalas", ("R",), "#5673bf"),
+    ("menunggu", "Membalas, belum tuntas / lambat / lewat koordinator", ("T1", "T2", "K"), "#d9a23a"),
+    ("dibaca", "Dibaca / telepon tidak diangkat", ("R", "TX"), "#5673bf"),
     ("centang", "Belum dibaca (centang)", ("C", "C2"), "#c8484b"),
     ("tanpa_wa", "Tidak ada WA", ("N",), "#9b4a7f"),
     ("belum", "Belum dihubungi", (), "#c4c9d2"),

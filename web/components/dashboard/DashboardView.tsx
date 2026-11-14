@@ -40,9 +40,10 @@ export type Dash = {
   saya?: string;
 };
 
-const URUT_KODE = ["T", "TP", "T1", "T2", "R", "C", "N"];
+const URUT_KODE = ["T", "TP", "T1", "T2", "K", "R", "C2", "TX", "C", "N"];
 const KODE_BATANG: Record<string, string> = {
-  T: "#2f8f5b", TP: "#1f7a6c", T1: "#d9a23a", T2: "#c47a2c", R: "#5673bf", C: "#c8484b", N: "#9b4a7f",
+  T: "#2f8f5b", TP: "#1f7a6c", T1: "#d9a23a", T2: "#c47a2c", K: "#6250d6", R: "#5673bf", C2: "#8a93a6",
+  TX: "#a6282b", C: "#c8484b", N: "#9b4a7f",
 };
 const fmt = (n: number) => n.toLocaleString("id-ID");
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);

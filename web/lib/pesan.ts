@@ -473,6 +473,7 @@ function gabungKoma(a: string, b: string) {
 
 type FasilUntukKoor = {
   nama: string; koor: string; ptn: string; todo_fasil: number; tanpa_progres: boolean;
+  koor_fasil?: { nama: string; ptn: string; sulit: boolean; alasan: string; sekolah: number; ini: boolean }[];
   sekolah_detail: { nama: string; todo: { judul: string; detail: string; pelaku: "sekolah" | "fasil" }[] }[];
 };
 
@@ -522,6 +523,18 @@ export function templateKoorFasil(f: FasilUntukKoor, salam = salamSekarang()): T
 
 ${sekolah.length ? `Sekolah dampingan beliau yang laporannya masih perlu dilengkapi:\n\n${daftar}\n\n` : ""}Mohon bantuan ${sapa} untuk mengingatkan beliau agar dapat membalas pesan kami. ${TERIMA_KASIH}` },
   ];
+  const sulit = (f.koor_fasil ?? []).filter((x) => x.sulit);
+  if (sulit.length > 1) {
+    const daftarFasil = sulit.map((x, i) => `${i + 1}. *${x.nama}*${x.ptn ? ` (${x.ptn})` : ""}, ${x.sekolah} sekolah`
+      + (x.alasan ? `: ${x.alasan}` : "")).join("\n");
+    out.push({ kode: "sulit_semua", judul: `Semua fasil sulit dihubungi (${sulit.length})`, bawaan: true,
+      ket: "Fasil binaan koordinator ini yang chat-nya hanya dibaca, tidak sampai, atau teleponnya tidak diangkat.",
+      teks: `${salam} ${sapa}, mohon izin. Kami dari tim monitoring Revitalisasi SD 2026 ingin meminta bantuan terkait beberapa fasilitator dampingan ${sapa} yang sudah beberapa kali kami hubungi namun belum mendapat respons:
+
+${daftarFasil}
+
+Mohon bantuan ${sapa} untuk mengingatkan beliau-beliau agar dapat membalas pesan kami. ${TERIMA_KASIH}` });
+  }
   if (sekolah.length) {
     out.push({ kode: "macet", judul: "Laporan tidak bergerak", bawaan: true,
       ket: "Fasil merespons, tapi laporan sekolahnya belum bertambah.",

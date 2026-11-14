@@ -27,10 +27,12 @@ from .sheets import normalize_petugas
 log = logging.getLogger(__name__)
 
 KELOMPOK = (
-    ("perlu_telepon", "Perlu ditelepon", "2 hari kerja hanya dibaca / tidak sampai tanpa balasan, atau nomor tidak ada WA"),
-    ("dibaca", "Dibaca, belum membalas", "Chat hari ini sudah dibaca tapi belum dibalas"),
+    ("perlu_telepon", "Perlu telepon / koordinator",
+     "2 hari kerja hanya dibaca / tidak sampai / tidak diangkat, atau nomor tidak ada WA: telepon atau hubungi koordinatornya"),
+    ("dibaca", "Dibaca, belum membalas", "Chat hari ini hanya dibaca, atau ditelepon tapi tidak diangkat (TX)"),
     ("terkirim", "Terkirim, belum dibaca", "Chat terkirim tapi belum dibaca (centang satu atau dua abu-abu)"),
-    ("menunggu", "Membalas, belum tuntas", "Sudah membalas, tapi belum ada Kendala / Tindak lanjut atau lambat"),
+    ("menunggu", "Membalas, belum tuntas",
+     "Sudah membalas tapi belum ada Kendala / Tindak lanjut atau lambat, atau koordinatornya sudah dihubungi (K)"),
     ("belum", "Belum dihubungi hari ini", "Belum ada catatan di Log Komunikasi hari ini"),
     ("terhubung", "Terhubung hari ini", "Respon baik lewat WhatsApp atau sudah ditelepon"),
     ("beres", "Semua hijau", "Semua sekolah binaannya tanpa to-do"),
@@ -227,9 +229,9 @@ def tentukan(kode: dict[str, str], hari: str, semua_hijau: bool, minggu: list[st
         return "perlu_telepon"  # nomor tidak ada WhatsApp: hanya bisa ditelepon
     if k in ("C", "C2"):
         return "terkirim"
-    if k == "R":
+    if k in ("R", "TX"):
         return "dibaca"  # "perlu ditelepon" ditentukan di telepon.keadaan (2 hari kerja hanya dibaca)
-    if k in ("T1", "T2"):
+    if k in ("T1", "T2", "K"):
         return "menunggu"
     return "terhubung"
 
@@ -288,25 +290,108 @@ def sinkron_wa(hari: str | None = None) -> int:
 
 def catat_telepon(f: Fasil, hasil: str, sumber: str = "manual", panggil: str = "",
                   waktu: datetime | None = None) -> dict[str, Any]:
-    """Catat telepon ke fasil. Diangkat -> TP di Log Komunikasi hari itu (hari kerja) untuk semua sekolahnya."""
+    """Catat telepon ke fasil, lalu kode Log Komunikasi hari itu (hari kerja) untuk semua sekolahnya:
+    diangkat -> TP, tidak diangkat -> TX. Kode yang lebih kuat hari itu (mis. fasil sudah membalas) tidak diganti."""
     from . import aktivitas
 
     w = waktu or schedule.now()
     telepon.catat(f.nomor or f"nama:{f.nama}", hasil, sumber, panggil, w)
     hari = w.date().isoformat()
-    ditulis = 0
-    if hasil == "diangkat" and w.weekday() < 6:
-        npsn = [s.npsn for s in f.sekolah]
-        try:
-            ditulis = lk_baru.tulis_log_kom(hari, {x: "TP" for x in npsn})
-            lupakan_auto(hari, npsn)  # isian ini milik petugas: tidak ditimpa pengisian otomatis
-        except Exception:
-            log.exception("TP dari telepon gagal ditulis ke Log Komunikasi")
+    kode = "TP" if hasil == "diangkat" else "TX"
+    ditulis = tulis_kode_aksi(f, hari, kode) if w.weekday() < 6 else 0
     aktivitas.catat(f.nomor or f"nama:{f.nama}", "telepon",
-                    ("Telepon diangkat" + (f" · TP dicatat ({hari[8:10]}/{hari[5:7]}, {ditulis} sekolah)" if ditulis else "")
-                     if hasil == "diangkat" else "Telepon tidak diangkat")
+                    ("Telepon diangkat" if hasil == "diangkat" else "Telepon tidak diangkat")
+                    + (f" · {kode} dicatat ({hari[8:10]}/{hari[5:7]}, {ditulis} sekolah)" if ditulis else "")
                     + (" · lewat WhatsApp" if sumber == "wa" else ""), f.nama)
-    return {"hasil": hasil, "tp_ditulis": ditulis}
+    return {"hasil": hasil, "tp_ditulis": ditulis if kode == "TP" else 0, "kode": kode, "ditulis": ditulis}
+
+
+def tulis_kode_aksi(f: Fasil, hari: str, kode: str) -> int:
+    """Tulis kode hasil aksi petugas (TP / TX / K) di semua sekolah fasil hari itu. Sel berkode lebih kuat dibiarkan
+    (lk_baru.PRIORITAS_KODE). Sel yang ditulis jadi milik petugas: tidak ditimpa pengisian otomatis."""
+    try:
+        if kode in ("TX", "K"):
+            lk_baru.pastikan_kode_dropdown(kode)
+            lk_baru.pastikan_legenda()
+        logkom = lk_baru.baca_log_kom(refresh=True)
+        npsn = [s.npsn for s in f.sekolah if lk_baru.kalah(logkom.kode.get(s.npsn, {}).get(hari, ""), kode)]
+        if not npsn:
+            return 0
+        n = lk_baru.tulis_log_kom(hari, {x: kode for x in npsn})
+        lupakan_auto(hari, npsn)
+        return n
+    except Exception:
+        log.exception("%s gagal ditulis ke Log Komunikasi", kode)
+        return 0
+
+
+# ---------- koordinator dihubungi (K) ----------
+
+SCHEMA_KOOR = """
+CREATE TABLE IF NOT EXISTS kom_koor (
+    kunci      TEXT NOT NULL,     -- kunci fasil
+    nomor_koor TEXT NOT NULL,
+    waktu      TEXT NOT NULL,
+    PRIMARY KEY (kunci, waktu)
+);
+"""
+TAG_KOOR = "koor-belum-balas"
+
+
+def _db_koor() -> None:
+    with db.tx() as c:
+        c.executescript(SCHEMA_KOOR)
+
+
+def catat_koor(daftar: list[Fasil], nomor_koor: str, waktu: datetime | None = None) -> dict[str, Any]:
+    """Pesan ke koordinator soal fasil-fasil ini terkirim: K di Log Komunikasi hari itu (hari kerja), dan dicatat
+    untuk tag #koor-belum-balas sampai koordinator membalas atau sesi berganti."""
+    from . import aktivitas
+
+    _db_koor()
+    w = waktu or schedule.now()
+    hari = w.date().isoformat()
+    with db.tx() as c:
+        c.executemany("INSERT OR REPLACE INTO kom_koor(kunci, nomor_koor, waktu) VALUES(?,?,?)",
+                      [(f.kunci, nomor_koor, w.isoformat(timespec="seconds")) for f in daftar])
+    out = {}
+    for f in daftar:
+        out[f.kunci] = tulis_kode_aksi(f, hari, "K") if w.weekday() < 6 else 0
+        aktivitas.catat(f.nomor or f"nama:{f.nama}", "tahap",
+                        f"Koordinator {f.koor or ''} dihubungi soal fasil ini".replace("  ", " ")
+                        + (f" · K dicatat ({out[f.kunci]} sekolah)" if out[f.kunci] else ""), f.nama)
+    return {"fasil": len(daftar), "ditulis": sum(out.values())}
+
+
+def koor_belum_balas(kunci: list[str], hari: date | None = None) -> set[str]:
+    """Kunci fasil yang koordinatornya dihubungi di sesi ini (lewat aplikasi) tapi belum membalas sejak itu."""
+    _db_koor()
+    hari = hari or schedule.now().date()
+    awal, _akhir = lk_baru.rentang_blok(hari)
+    if not kunci:
+        return set()
+    tanda = ",".join("?" * len(kunci))
+    baris = db.query(f"SELECT kunci, nomor_koor, MAX(waktu) AS waktu FROM kom_koor WHERE kunci IN ({tanda}) "
+                     "AND waktu >= ? GROUP BY kunci", (*kunci, awal.isoformat()))
+    out = set()
+    for r in baris:
+        if not _koor_membalas(r["nomor_koor"], r["waktu"]):
+            out.add(r["kunci"])
+    return out
+
+
+def _koor_membalas(nomor: str, sejak: str) -> bool:
+    """Ada pesan masuk dari nomor koordinator setelah `sejak` (pendengar WhatsApp atau catatan chat)."""
+    try:
+        if db.query("SELECT 1 FROM neo_pesan WHERE nomor = ? AND keluar = 0 AND waktu > ? LIMIT 1", (nomor, sejak)):
+            return True
+    except Exception:  # noqa: BLE001 - tabel pendengar belum ada
+        pass
+    try:
+        r = db.query("SELECT waktu_balasan FROM chat_status WHERE nomor = ?", (nomor,))
+        return bool(r and (r[0]["waktu_balasan"] or "") > sejak)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def lupakan_auto(hari: str, npsn: list[str]) -> None:

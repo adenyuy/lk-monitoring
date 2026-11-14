@@ -533,7 +533,20 @@ KODE_KOMUNIKASI = {
     "C": "Centang satu (belum diterima)",
     "C2": "Centang dua (diterima), belum dibaca, tidak membalas",
     "N": "Nomor tidak terhubung WhatsApp",
+    # Hasil aksi petugas (bukan dibaca dari chat): menggantikan kode hari itu
+    "TX": "Ditelepon, tidak diangkat",
+    "K": "Fasil sulit dihubungi, sudah menghubungi koordinator",
 }
+# Kode yang menang bila di hari yang sama ada beberapa kejadian (kiri = paling kuat).
+PRIORITAS_KODE = ("T", "TP", "T1", "T2", "K", "TX", "R", "C2", "C", "N")
+
+
+def kalah(lama: str, baru: str) -> bool:
+    """True bila kode `lama` di sel boleh diganti `baru` (mis. R -> TX ya, T -> TX tidak)."""
+    if not lama:
+        return True
+    p = {k: i for i, k in enumerate(PRIORITAS_KODE)}
+    return p.get(baru, 99) < p.get(lama.upper(), 99)
 _RE_TGL = re.compile(r"(\d{1,2})/(\d{1,2})")
 _lock_kom = threading.Lock()
 _cek_kom_terakhir = 0.0
@@ -651,8 +664,14 @@ def pastikan_kode_dropdown(kode: str) -> bool:
 
 
 # Legenda kode di kanan tab Log Komunikasi (judul "Kode" | "Arti" di baris 2) dan warnanya (conditional formatting).
-LEGENDA_C2 = ("C2", "Centang dua (diterima), belum dibaca")
-WARNA_C2 = {"red": 0.878, "green": 0.878, "blue": 0.937}  # abu-abu lembayung, beda dari C (merah muda) dan R (jingga)
+# (kode, arti di legenda, warna latar, disisipkan setelah kode)
+LEGENDA_TAMBAHAN = (
+    ("C2", "Centang dua (diterima), belum dibaca", {"red": 0.878, "green": 0.878, "blue": 0.937}, "C"),
+    ("TX", "Ditelepon, tidak diangkat", {"red": 0.851, "green": 0.471, "blue": 0.471}, "C2"),
+    ("K", "Sulit dihubungi, sudah menghubungi koordinator", {"red": 0.851, "green": 0.792, "blue": 0.949}, "TX"),
+)
+LEGENDA_C2 = LEGENDA_TAMBAHAN[0][:2]
+WARNA_C2 = LEGENDA_TAMBAHAN[0][2]
 
 
 def susun_legenda(baris: list[list[str]], kode: str, arti: str, setelah: str) -> list[list[str]] | None:
@@ -669,9 +688,10 @@ def susun_legenda(baris: list[list[str]], kode: str, arti: str, setelah: str) ->
     return rapi[:i] + [[kode, arti]] + rapi[i:]
 
 
-def pastikan_legenda_c2() -> bool:
-    """Tambahkan C2 ke legenda Kode/Arti dan beri warna lewat conditional formatting (sekali; aman diulang)."""
-    kunci = "lk2_legenda_c2"
+def pastikan_legenda() -> bool:
+    """Tambahkan kode LEGENDA_TAMBAHAN (C2, TX, K) ke legenda Kode/Arti dan beri warna lewat conditional formatting
+    (sekali; aman diulang). Hanya sel legenda (kolom Kode/Arti) yang ditulis, data sekolah tidak disentuh."""
+    kunci = "lk2_legenda_v2"
     if cache.get(kunci, 3600, lambda: None):
         return True
     try:
@@ -686,7 +706,11 @@ def pastikan_legenda_c2() -> bool:
         if k is not None:
             a, b = col_letter(k), col_letter(k + 1)
             lama = ss.values_get(f"'{TAB_LOG_KOM}'!{a}3:{b}30").get("values", [])
-            baru = susun_legenda(lama, *LEGENDA_C2, setelah="C")
+            baru = None
+            for kode, arti, _w, setelah in LEGENDA_TAMBAHAN:
+                x = susun_legenda(baru if baru is not None else lama, kode, arti, setelah)
+                if x is not None:
+                    baru = x
             if baru:
                 fmt = ss.fetch_sheet_metadata({"ranges": f"'{TAB_LOG_KOM}'!{a}3:{a}30", "includeGridData": True,
                                                "fields": "sheets(data(rowData(values(effectiveFormat(backgroundColor)))))"})
@@ -697,9 +721,10 @@ def pastikan_legenda_c2() -> bool:
                         bg = ((x.get("values") or [{}])[0].get("effectiveFormat") or {}).get("backgroundColor")
                         if bg:
                             warna[_teks(r[0])] = bg
-                warna[LEGENDA_C2[0]] = WARNA_C2
+                for kode, _a, w, _s in LEGENDA_TAMBAHAN:
+                    warna.setdefault(kode, w)
                 n_lama = sum(1 for r in lama if r and any(_teks(x) for x in r))
-                if n_lama:  # baris baru di bawah legenda: salin format baris terakhir (tebal, rata tengah, garis)
+                if n_lama and len(baru) > n_lama:  # baris baru di bawah legenda: salin format baris terakhir
                     req.append({"copyPaste": {
                         "source": {"sheetId": sid, "startRowIndex": 1 + n_lama, "endRowIndex": 2 + n_lama,
                                    "startColumnIndex": k, "endColumnIndex": k + 2},
@@ -715,23 +740,30 @@ def pastikan_legenda_c2() -> bool:
                         {"userEnteredValue": {"stringValue": arti}}]} for kd, arti in baru],
                     "fields": "userEnteredValue,userEnteredFormat.backgroundColor"}})
         aturan = sh.get("conditionalFormats", [])
-        ada_c2 = any(((r.get("booleanRule") or {}).get("condition") or {}).get("values", [{}])[0].get("userEnteredValue")
-                     == "C2" for r in aturan)
-        contoh = next((r for r in aturan if ((r.get("booleanRule") or {}).get("condition") or {}).get("values", [{}])[0]
-                       .get("userEnteredValue") == "C"), None)
-        if not ada_c2 and contoh:
-            req.append({"addConditionalFormatRule": {"index": 0, "rule": {
-                "ranges": contoh["ranges"],
-                "booleanRule": {"condition": {"type": "TEXT_EQ", "values": [{"userEnteredValue": "C2"}]},
-                                "format": {"backgroundColor": WARNA_C2}}}}})
+
+        def nilai(r: dict) -> str:
+            return ((r.get("booleanRule") or {}).get("condition") or {}).get("values", [{}])[0].get("userEnteredValue", "")
+
+        ada = {nilai(r) for r in aturan}
+        contoh = next((r for r in aturan if nilai(r) == "C"), None)
+        if contoh:
+            for kode, _a, w, _s in LEGENDA_TAMBAHAN:
+                if kode not in ada:
+                    req.append({"addConditionalFormatRule": {"index": 0, "rule": {
+                        "ranges": contoh["ranges"],
+                        "booleanRule": {"condition": {"type": "TEXT_EQ", "values": [{"userEnteredValue": kode}]},
+                                        "format": {"backgroundColor": w}}}}})
         if req:
             ss.batch_update({"requests": req})
-            log.info("Legenda/warna C2 ditambahkan di Log Komunikasi")
+            log.info("Legenda/warna kode tambahan ditambahkan di Log Komunikasi")
         cache.get(kunci, 3600, lambda: True, refresh=True)
         return True
     except Exception:
-        log.exception("Legenda C2 Log Komunikasi tidak bisa ditambahkan")
+        log.exception("Legenda Log Komunikasi tidak bisa diperbarui")
         return False
+
+
+pastikan_legenda_c2 = pastikan_legenda  # nama lama
 
 
 def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:
