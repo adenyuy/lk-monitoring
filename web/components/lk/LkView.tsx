@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, post } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
-import { KELOMPOK_INFO, hariPendek, type FasilLk, type Kelompok, type LkRingkasan } from "@/lib/lk";
+import { KELOMPOK_INFO, hariPendek, tglPendek, type FasilLk, type Kelompok, type LkRingkasan } from "@/lib/lk";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { FasilPanel } from "./FasilPanel";
 import { KodePicker } from "./KodePicker";
@@ -414,6 +414,12 @@ function KartuFasil({ f, kolom, logAda, kode, onBuka, onKode, mode = "komponen",
           {!f.punya_nomor && <em className={s.pilMerah}>Nomor WA kosong</em>}
           {f.tanpa_progres && <em className={s.pilKuning} title="Sering terhubung tapi laporannya tidak bergerak sejak cutoff sebelumnya">Respon tanpa progres</em>}
           {f.belum_ditelepon && <em className={s.pilKuning} title="Berkali-kali hanya dibaca / tidak sampai, belum pernah ditelepon">Belum ditelepon</em>}
+          {(f.bimtek_aktif ?? []).map((x) => (
+            <em key={x.kode} className={s.pilBimtek}
+              title={`${x.sekolah} sekolah binaan fasil ini sedang ikut ${x.label} sampai ${tglPendek(x.selesai)}`}>
+              Sedang bimtek · {x.sekolah} sekolah
+            </em>
+          ))}
           {f.tag.map((x) => <em key={x} className={s.pilTag}>#{x}</em>)}
           {(f.tag_auto ?? []).map((x) => (
             <em key={x} className={s.pilTagAuto}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { tglPendek } from "@/lib/lk";
 import { api, post } from "@/lib/api";
 import { KELOMPOK_INFO, KODE_WARNA, TAHAP_LABEL, HARI_PENDEK, inisial, type FasilDetail, type OpsiLk,
   type Penerima, type SekolahDetail } from "@/lib/lk";
@@ -483,6 +484,11 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSalin,
           <small>{x.kab}{x.angkatan && ` · Angkatan ${x.angkatan}`}{x.bimtek && ` · ${x.bimtek}`} · NPSN {x.npsn}</small>
         </div>
         <div className={s.sekolahChip}>
+          {x.bimtek_aktif && (
+            <span className={s.chipBimtek} title={`Sedang ikut bimtek sampai ${tglPendek(x.bimtek_aktif.selesai)}`}>
+              Sedang bimtek{x.bimtek_aktif.hotel ? ` · ${x.bimtek_aktif.hotel}` : ""}
+            </span>
+          )}
           {x.delta !== null && x.delta > 0 && <Chip tone="ok">+{x.delta} sejak cutoff lalu</Chip>}
           {kotor && <Chip tone="warn">Belum disimpan</Chip>}
           <Chip tone={ada ? (x.lengkap ? "ok" : "muted") : "ok"}>

@@ -409,7 +409,11 @@ def hitung(d: Path | None = None) -> dict[str, Any]:
             if st.get("l50") == "selesai" and n not in tgl50:
                 tgl50[n] = p.waktu
     st_akhir = terbaru.status
-    sekolah = set(st_akhir)                              # sekolah yang masih ada di export terbaru
+    try:
+        mundur = lk_baru.npsn_mundur(refresh=True)
+    except Exception:  # noqa: BLE001
+        mundur = frozenset()
+    sekolah = set(st_akhir) - mundur                     # sekolah di data terbaru, tanpa yang mengundurkan diri
     wajib50 = {n for n in sekolah if st_akhir[n].get("l50") in ("selesai", "belum")}
 
     def anggota(kode: str) -> set[str]:
@@ -797,3 +801,31 @@ def hitung_bila_ada_cutoff_baru(rekap: dict[str, Any] | None) -> bool:
     _otomatis_untuk = w
     mulai_hitung()
     return True
+
+
+def bimtek_aktif(hari: date | None = None) -> dict[str, dict[str, Any]]:
+    """{tag casefold: {tag, kode, mulai, selesai, hotel: {npsn: hotel}}} untuk bimtek yang berlangsung hari ini (kalender).
+    Dibaca dari rekap di LK; kosong bila rekap belum ada atau tidak terbaca."""
+    try:
+        r = baca()
+    except Exception:  # noqa: BLE001
+        log.warning("Rekap bimtek tidak terbaca untuk tanda bimtek berlangsung", exc_info=True)
+        return {}
+    if not r:
+        return {}
+    h = hari or datetime.now().date()
+    kol = r.get("kolom_sekolah", [])
+    i_n, i_h = (kol.index("npsn") if "npsn" in kol else -1), (kol.index("hotel") if "hotel" in kol else -1)
+    out = {}
+    for k in r.get("kelompok", []):
+        try:
+            mulai, selesai = date.fromisoformat(k["mulai"]), date.fromisoformat(k["selesai"])
+        except (KeyError, ValueError):
+            continue
+        if not (mulai <= h <= selesai):
+            continue
+        hotel = ({str(x[i_n]): str(x[i_h]) for x in k.get("sekolah_baris", []) if x[i_h]} if i_n >= 0 and i_h >= 0 else {})
+        out[str(k.get("tag", "")).casefold()] = {"tag": k.get("tag", ""), "kode": k["kode"], "mulai": k["mulai"],
+                                                 "selesai": k["selesai"], "hotel": hotel}
+    return out
+

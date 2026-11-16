@@ -20,6 +20,7 @@ def _sk(npsn: str, kirim50: str, tgl: str, progres: str = "40", hari: str = "") 
 def test_hitung_konversi_dan_dampak(tmp_path, monkeypatch):
     monkeypatch.setattr(rekap_bimtek, "_peta_pic", lambda: {"1": ("Ani", "Koor A", "PTN A"), "2": ("Budi", "", "")})
     monkeypatch.setattr(rekap_bimtek, "simpan_lk_harian", lambda d: None)   # tanpa akses LK
+    monkeypatch.setattr(rekap_bimtek.lk_baru, "npsn_mundur", lambda refresh=False: frozenset({"8"}))  # 8 mengundurkan diri
     d = tmp_path / "data-bimtek"
     for x in ("0-referensi", "1-sebelum/B1", "2-terbaru"):
         (d / x).mkdir(parents=True)
@@ -42,15 +43,15 @@ def test_hitung_konversi_dan_dampak(tmp_path, monkeypatch):
     (d / "2-terbaru" / "Export_Konstruksi_Sekolah_20261115_130000.csv").write_text(baru, encoding="utf-8")
 
     r = rekap_bimtek.hitung(d)
-    assert r["data_terbaru"]["waktu"] == "2026-11-15T13:00" and r["wajib50"] == 8
+    assert r["data_terbaru"]["waktu"] == "2026-11-15T13:00" and r["wajib50"] == 7   # 8 mengundurkan diri: tidak dihitung
     b1 = r["kelompok"][0]
     l50 = b1["l50"]
     assert b1["tahap"] == "selesai" and b1["sekolah"] == 4
     assert l50["awal"] == 25.0 and l50["belum_awal"] == 3 and l50["n_awal"] == 1   # hanya sekolah 1 sebelum 12 Okt
     assert l50["t1"]["n"] == 3 and l50["t1"]["pct"] == 75.0           # 1, 2, 3 dari 4
     assert l50["t1"]["konversi"] == 66.7                              # 2 dan 3 (tanggal paling awal 13 Okt) dari 3
-    assert l50["t1"]["konversi_banding"] == 25.0                      # 5 dari 5..8
-    assert l50["t1"]["dampak"] == 41.7
+    assert l50["t1"]["konversi_banding"] == 33.3                      # 5 dari 5..7
+    assert l50["t1"]["dampak"] == 33.4
     assert l50["verif_median"] == 1.0
     # export di 1-sebelum/B1 bertanggal 20 Okt (sesudah bimtek mulai): tidak dipakai sebagai kondisi sebelum,
     # jadi hanya Laporan 50% (dari tanggal kirim) yang punya data; komponen lain "belum ada data"
@@ -63,7 +64,7 @@ def test_hitung_konversi_dan_dampak(tmp_path, monkeypatch):
     kurva = {s["kode"]: s for s in r["kurva"]["seri"]}
     assert kurva["B1"]["sekolah"] == 4 and "Non-peserta" not in kurva
     b2 = r["kelompok"][1]
-    assert b2["sekolah"] == 1 and b2["l50"]["wajib_banding"] == 3   # pembanding B2: 5, 7, 8 (peserta B1 sudah dibimtek)
+    assert b2["sekolah"] == 1 and b2["l50"]["wajib_banding"] == 2   # pembanding B2: 5, 7 (peserta B1 sudah dibimtek)
     assert kurva["B1"]["nilai"][-1] == 75.0
     # baris per sekolah untuk halaman detail (kolom sesuai kolom_sekolah, tanpa nomor HP)
     kol = r["kolom_sekolah"]
@@ -131,3 +132,28 @@ def test_baca_salinan_lk_setelah_cutoff(tmp_path):
     assert p.rev50 == {"1": "menunggu", "2": "setuju"} and p.tunggu50 == {"1": 9.0}
     assert p.identitas["1"] == ("SD 1", "Fa", "Aceh", "Kab. X") and p.status["1"]["l50"] == "selesai"
 
+
+
+def test_bimtek_aktif_dari_rekap(monkeypatch):
+    from datetime import date
+    rekap = {"kolom_sekolah": ["npsn", "nama", "hotel"], "kelompok": [
+        {"kode": "B3", "tag": "Bimtek Lap 3", "mulai": "2026-11-09", "selesai": "2026-11-13", "sekolah_baris": [["1", "A", "H1"]]},
+        {"kode": "B4", "tag": "Bimtek Lap 4", "mulai": "2026-11-16", "selesai": "2026-11-20",
+         "sekolah_baris": [["2", "B", "Hotel X"], ["3", "C", ""]]},
+    ]}
+    monkeypatch.setattr(rekap_bimtek, "baca", lambda: rekap)
+    a = rekap_bimtek.bimtek_aktif(date(2026, 11, 17))
+    assert list(a) == ["bimtek lap 4"] and a["bimtek lap 4"]["kode"] == "B4" and a["bimtek lap 4"]["hotel"] == {"2": "Hotel X"}
+    assert rekap_bimtek.bimtek_aktif(date(2026, 11, 21)) == {}
+    monkeypatch.setattr(rekap_bimtek, "baca", lambda: None)
+    assert rekap_bimtek.bimtek_aktif(date(2026, 11, 17)) == {}
+
+
+def test_peta_bimtek_dari_rekap_untuk_cutoff(monkeypatch):
+    from app import bimtek_lap
+    monkeypatch.setattr(rekap_bimtek, "baca", lambda: {"kolom_sekolah": ["npsn", "nama"], "kelompok": [
+        {"kode": "B4", "tag": "Bimtek Lap 4", "sekolah_baris": [["11", "A"], ["12", "B"]]},
+        {"kode": "B5", "tag": "Bimtek Lap 5", "sekolah_baris": [["13", "C"]]}]})
+    assert bimtek_lap.peta_dari_rekap() == {"11": "Bimtek Lap 4", "12": "Bimtek Lap 4", "13": "Bimtek Lap 5"}
+    monkeypatch.setattr(rekap_bimtek, "baca", lambda: None)
+    assert bimtek_lap.peta_dari_rekap() == {}

@@ -28,6 +28,8 @@ from .sheets import cache, clean_petugas, col_letter
 log = logging.getLogger(__name__)
 TAB_PIC = "Log Progres PIC"
 TAB_LOG = "Log Tarik Data"
+TAB_MUNDUR = "Sekolah Mengundurkan Diri"
+KASUS_HILANG = "Tidak ada di data cutoff"
 RENCANA_DETIK = 30 * 60
 POTONG_BARIS = 1000
 KOLOM_BKU_BPP = ("Bulanan BKU Terkirim", "Bulanan BPP Terkirim", "BKU", "BPP", "BKU - Status Kirim",
@@ -173,8 +175,10 @@ class Rencana:
     label: str = ""
     logkom: dict[str, int] = field(default_factory=dict)
     bimtek: dict[str, Any] | None = None  # hasil isi Bimtek Pelaporan otomatis
+    mundur: int = 0                       # sekolah yang baru dicatat ke tab Sekolah Mengundurkan Diri
     kol_awal: int = 0                     # kolom pertama yang ditulis untuk sekolah yang sudah ada  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
     data_file: bytes = b""                # isi file export, diarsipkan ke folder data bimtek setelah cutoff selesai
+    hilang: list[str] = field(default_factory=list)  # NPSN di LK yang tidak ada di file (kemungkinan mengundurkan diri)
 
 
 _rencana: dict[str, Rencana] = {}
@@ -245,9 +249,10 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
             if h in x:
                 r[j] = x[h]
         tambah.append(r)
-    hilang = len([n for n in ada if n not in baru])
+    hilang_npsn = sorted(n for n in ada if n not in baru)
+    hilang = len(hilang_npsn)
     rc = Rencana(token=secrets.token_urlsafe(12), week=week, nama_file=nama_file, dibuat=time.time(), judul=judul,
-                 baris=out, tambah=tambah, kol_awal=kol_awal, data_file=data)
+                 baris=out, tambah=tambah, kol_awal=kol_awal, data_file=data, hilang=hilang_npsn)
     rc.ringkasan = {
         "sekolah_file": len(baru), "sekolah_lk": len(ada), "cocok": len(ada & set(baru)), "baru": len(tambah),
         "tidak_di_file": hilang,
@@ -292,6 +297,51 @@ def _tulis_aman(rc: Rencana, oleh: str) -> None:
                        if rc.selesai else str(e))
     finally:
         _status["jalan"] = False
+
+
+# Kolom tab Sekolah Mengundurkan Diri (judul di baris yang memuat "NPSN") -> atribut Sekolah di LK
+KOLOM_MUNDUR = {"pic": "petugas", "npsn": "npsn", "nama sekolah": "nama", "angkatan": "angkatan", "provinsi": "provinsi",
+                "kab/kota": "kab", "nama kepala sekolah": "kepsek", "no hp kepala sekolah": "hp_kepsek", "ptn": "ptn",
+                "koordinator": "koor", "no hp koordinator": "hp_koor", "fasilitator": "fasil", "no hp fasilitator": "hp_fasil",
+                "bimtek pelaporan": "bimtek"}
+
+
+def baris_mundur(judul: list[str], s: Any, tanggal: str) -> list[str]:
+    """Satu baris untuk tab Sekolah Mengundurkan Diri, mengikuti urutan judul kolom tab itu."""
+    out = []
+    for h in judul:
+        k = str(h).strip().casefold()
+        if k in KOLOM_MUNDUR:
+            out.append(str(getattr(s, KOLOM_MUNDUR[k], "") or ""))
+        elif k == "kasus":
+            out.append(KASUS_HILANG)
+        elif k.startswith("catatan"):
+            out.append(f"Otomatis saat cutoff {tanggal}: sekolah ini tidak ada lagi di data export. PIC mohon cek apakah "
+                       "mengundurkan diri.")
+        else:
+            out.append("")
+    return out
+
+
+def catat_tidak_ada(ss, hilang: list[str], semua: list[Any]) -> int:
+    """Tambahkan sekolah yang tidak ada di file cutoff ke tab Sekolah Mengundurkan Diri (yang belum tercatat saja).
+    Baris yang sudah ada tidak diubah. Mengembalikan jumlah baris baru."""
+    if TAB_MUNDUR not in [w.title for w in ss.worksheets()]:
+        return 0
+    isi = ss.values_get(f"'{TAB_MUNDUR}'!A1:Z").get("values", [])
+    i_judul = next((i for i, r in enumerate(isi[:10]) if any(str(x).strip().casefold() == "npsn" for x in r)), None)
+    if i_judul is None:
+        return 0
+    judul = isi[i_judul]
+    i_npsn = next(j for j, x in enumerate(judul) if str(x).strip().casefold() == "npsn")
+    sudah = {npsn(r[j]) for r in isi[i_judul + 1:] for j in range(len(r)) if j == i_npsn or npsn(r[j]) in hilang}
+    per = {x.npsn: x for x in semua}
+    tanggal = schedule.now().strftime("%d/%m/%Y")
+    baru = [baris_mundur(judul, per[n], tanggal) for n in hilang if n in per and n not in sudah]
+    if baru:
+        ss.values_append(f"'{TAB_MUNDUR}'!A{i_judul + 1}", params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"},
+                         body={"values": baru})
+    return len(baru)
 
 
 def _arsip_bimtek(rc: Rencana) -> str:
@@ -379,6 +429,13 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
         rc.selesai.add("log")
     label = rc.label
     catat_log_pic(semua, label)
+    if rc.hilang and "mundur" not in rc.selesai:
+        _langkah("Mencatat sekolah yang tidak ada di file ke tab Sekolah Mengundurkan Diri", 86)
+        try:
+            rc.mundur = catat_tidak_ada(ss, rc.hilang, semua)
+        except Exception:  # noqa: BLE001 - cutoff tetap selesai
+            log.warning("Catat sekolah tidak ada di cutoff gagal", exc_info=True)
+        rc.selesai.add("mundur")
 
     _langkah("Mengisi Bimtek Pelaporan & Log Progres Bimtek", 88)
     rc.bimtek = None
@@ -395,7 +452,8 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
         rc.selesai.add("catat")
     cache.clear()
     return {"tab": tab, "sekolah": total, "baru": len(rc.tambah), "keterangan": n_ket, "cutoff": label,
-            "log_kom": rc.logkom, "warna": warna, "bimtek": rc.bimtek}
+            "log_kom": rc.logkom, "warna": warna, "bimtek": rc.bimtek, "tidak_di_file": len(rc.hilang),
+            "dicatat_mundur": rc.mundur}
 
 
 KUNING = {"red": 1, "green": 1, "blue": 0}

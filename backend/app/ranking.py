@@ -21,7 +21,7 @@ _lock = threading.Lock()
 def hitung(bimtek: str = "") -> dict[str, Any]:
     """Per PIC: komponen sudah diisi / yang seharusnya (sudah due), per komponen dan total, plus pengisian
     Log Komunikasi. Satu kali baca data nasional untuk semua PIC."""
-    semua = lk_baru.baca_semua()
+    semua = lk_baru.tanpa_mundur(lk_baru.baca_semua())
     sekolah = [s for s in semua if bimtek_lap.cocok(s, bimtek)]
     try:
         logkom = lk_baru.baca_log_kom()

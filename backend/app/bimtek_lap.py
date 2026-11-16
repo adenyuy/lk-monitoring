@@ -274,14 +274,35 @@ def tulis_dari(sumber: tuple[str, str, dict[str, str]], ganti_beda: bool = False
 
 
 def isi_otomatis(week: int) -> dict[str, Any] | None:
-    """Saat cutoff: isi sekolah yang kolomnya kosong dari sumber terakhir (link atau file). None bila belum ada."""
+    """Saat cutoff: isi sekolah yang kolomnya kosong dari sumber terakhir di laptop ini (link atau file), ditambah daftar
+    peserta di rekap bimtek di LK (supaya cutoff dari laptop mana pun ikut mengisi bimtek terbaru). None bila tidak ada."""
+    sumber = None
     if sumber_terakhir() == "file":
         sumber = file_tersimpan()
-        return tulis_dari(sumber, False, week) if sumber else None
-    link = db.get_setting(KUNCI_LINK, "") or ""
-    if not link:
+    elif link := (db.get_setting(KUNCI_LINK, "") or ""):
+        sumber = baca_daftar(link)
+    dari_rekap = peta_dari_rekap()
+    if not sumber and not dari_rekap:
         return None
-    return tulis_dari(baca_daftar(link), False, week)
+    nama, tab, peta = sumber or ("Rekap Bimtek di LK", "", {})
+    return tulis_dari((nama, tab, {**dari_rekap, **peta}), False, week)
+
+
+def peta_dari_rekap() -> dict[str, str]:
+    """{npsn: tag bimtek} dari rekap bimtek di LK (semua kelompok). Kosong bila rekap belum ada / tidak terbaca."""
+    from . import rekap_bimtek
+
+    try:
+        r = rekap_bimtek.baca()
+    except Exception:  # noqa: BLE001
+        return {}
+    if not r:
+        return {}
+    kol = r.get("kolom_sekolah", [])
+    if "npsn" not in kol:
+        return {}
+    i = kol.index("npsn")
+    return {str(x[i]): k["tag"] for k in r.get("kelompok", []) if k.get("tag") for x in k.get("sekolah_baris", [])}
 
 
 def sumber_terakhir() -> str:

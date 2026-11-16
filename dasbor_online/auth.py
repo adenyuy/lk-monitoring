@@ -8,6 +8,7 @@ dari daftar langsung mencabut akses tanpa menunggu sesi habis.
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import time
@@ -38,18 +39,42 @@ def daftar_izin() -> list[str]:
     return [x.strip().lower() for x in os.environ.get("LKM_IZIN_EMAIL", "").split(",") if x.strip()]
 
 
+def akses_sheet(email: str):
+    """Baris email ini di sheet Akses (yang dipakai aplikasi laptop), atau None. Butuh LKM_ACCESS_SHEET_ID dan sheet
+    Akses dibagikan (Viewer) ke service account. Gagal baca -> None (tetap bisa masuk lewat LKM_IZIN_EMAIL)."""
+    try:
+        from app import access, config
+
+        if not config.ACCESS_SHEET_ID:
+            return None
+        return access.read_access().get(email.lower())
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).warning("Sheet Akses tidak terbaca", exc_info=True)
+        return None
+
+
 def diizinkan(email: str) -> bool:
+    """Boleh masuk bila email/domain ada di LKM_IZIN_EMAIL, atau email terdaftar di sheet Akses aplikasi."""
     email = email.lower()
     for x in daftar_izin():
         if email == x or (x.startswith("@") and email.endswith(x)):
             return True
-    return False
+    return akses_sheet(email) is not None
 
 
 def admin(email: str) -> bool:
-    """Admin dashboard online = email di LKM_ADMIN_EMAIL (persis, dipisah koma)."""
+    """Admin dashboard online = email di LKM_ADMIN_EMAIL (persis, dipisah koma), atau catatan "admin" di sheet Akses."""
     daftar = {x.strip().lower() for x in os.environ.get("LKM_ADMIN_EMAIL", "").split(",") if x.strip()}
-    return email.lower() in daftar
+    if email.lower() in daftar:
+        return True
+    a = akses_sheet(email)
+    return bool(a and a.admin)
+
+
+def nama_petugas(email: str) -> str:
+    """Nama PIC dari sheet Akses (kosong bila tidak terdaftar di sana)."""
+    a = akses_sheet(email)
+    return a.nama_petugas if a else ""
 
 
 def _tanda(data: str) -> str:

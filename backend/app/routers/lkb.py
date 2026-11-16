@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import aktivitas, bimtek_lap, db, komunikasi, lk_baru, schedule, todo
+from .. import aktivitas, bimtek_lap, db, komunikasi, lk_baru, rekap_bimtek, schedule, todo
 from ..access import Access
 from ..sheets import cache, daftar_nomor
 from ..wa.status import mask
@@ -79,7 +79,9 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
 
     chat = komunikasi.peta_chat(_tahap.senin_iso())
     belum_balas = _koor_belum_balas([x["kunci"] for x in daftar])
+    aktif = rekap_bimtek.bimtek_aktif(schedule.now().date())
     for x in daftar:
+        x["bimtek_aktif"] = _bimtek_aktif_fasil(x["bimtek"], aktif)
         x["tag_auto"] = [komunikasi.TAG_KOOR] if x["kunci"] in belum_balas else []
         c = chat.get(x["nomor"]) if x["nomor"] else None
         x["kom"] = komunikasi.status_kom(x, c)
@@ -122,6 +124,7 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
     if not f:
         raise HTTPException(404, "Fasil ini tidak ada di sekolah binaan Anda (mungkin data LK baru diperbarui).")
     r = komunikasi.ringkasan_fasil(f, k["rencana"], k["logkom"], k["hari"], k["blok"], k["tag"], k["delta"])
+    aktif = rekap_bimtek.bimtek_aktif(schedule.now().date())
     sekolah = sorted(f.sekolah, key=lambda s: (not k["rencana"][s.npsn].todo, k["rencana"][s.npsn].tahap, s.nama))
     return {
         **_info(k),
@@ -132,12 +135,29 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
         "nomor_koor": (daftar_nomor(f.hp_koor) or [""])[0],
         "koor_tersamar": mask((daftar_nomor(f.hp_koor) or [""])[0]) if f.hp_koor else "",
         "tag_auto": [komunikasi.TAG_KOOR] if f.kunci in _koor_belum_balas([f.kunci]) else [],
+        "bimtek_aktif": _bimtek_aktif_fasil(r["bimtek"], aktif),
         "koor_fasil": _koor_fasil(k, f),
         "sekolah_detail": [{**todo.ringkas(s, k["rencana"][s.npsn], k["blok"]), "kepsek": s.kepsek,
                             "punya_hp_kepsek": bool(s.hp_kepsek),
                             **_kepsek_chat(s),
+                            "bimtek_aktif": _bimtek_aktif_sekolah(s, aktif),
                             "delta": k["delta"].get(s.npsn)} for s in sekolah],
     }
+
+
+def _bimtek_aktif_fasil(per_tag: dict[str, int], aktif: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Kelompok bimtek yang sedang berlangsung di antara sekolah binaan fasil ini: [{label, kode, selesai, sekolah}]."""
+    out = []
+    for tag, n in per_tag.items():
+        a = aktif.get(str(tag).casefold())
+        if a:
+            out.append({"label": tag, "kode": a["kode"], "selesai": a["selesai"], "sekolah": n})
+    return out
+
+
+def _bimtek_aktif_sekolah(s, aktif: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    a = aktif.get(str(s.bimtek or "").casefold()) if s.bimtek else None
+    return {"kode": a["kode"], "selesai": a["selesai"], "hotel": a["hotel"].get(s.npsn, "")} if a else None
 
 
 def _kepsek_chat(s) -> dict[str, Any]:

@@ -439,7 +439,35 @@ def baca_petugas(petugas: str, week: int | None = None, refresh: bool = False) -
                 out += parse_baris(vals, t, list(range(a, b + 1)))
         return out
 
-    return cache.get(f"lk2_petugas:{week}:{target}", CACHE_DETIK, load, refresh)
+    return tanpa_mundur(cache.get(f"lk2_petugas:{week}:{target}", CACHE_DETIK, load, refresh))
+
+
+TAB_MUNDUR = "Sekolah Mengundurkan Diri"
+
+
+def npsn_mundur(refresh: bool = False) -> frozenset[str]:
+    """NPSN di tab Sekolah Mengundurkan Diri: tidak ikut perhitungan (LK di app, blast, dashboard, ranking, rekap bimtek).
+    Barisnya di WEEK tidak dihapus. Kosong bila tab tidak ada / tidak terbaca."""
+
+    def load() -> frozenset[str]:
+        try:
+            isi = _ss().values_get(f"'{TAB_MUNDUR}'!A1:Z").get("values", [])
+        except Exception:  # noqa: BLE001 - tab belum ada
+            return frozenset()
+        i_j = next((i for i, r in enumerate(isi[:10]) if any(_kunci(x) == "npsn" for x in r)), None)
+        if i_j is None:
+            return frozenset()
+        j = next(k for k, x in enumerate(isi[i_j]) if _kunci(x) == "npsn")
+        return frozenset(n for r in isi[i_j + 1:] if len(r) > j
+                         and (n := re.sub(r"\.0+$", "", _teks(r[j]))) and n.isdigit())
+
+    return cache.get("lk2_mundur", 600, load, refresh)
+
+
+def tanpa_mundur(sekolah: list[Sekolah]) -> list[Sekolah]:
+    """Buang sekolah yang tercatat mengundurkan diri."""
+    m = npsn_mundur()
+    return [s for s in sekolah if s.npsn not in m] if m else sekolah
 
 
 def baca_semua(week: int | None = None, refresh: bool = False) -> list[Sekolah]:

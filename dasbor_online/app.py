@@ -230,10 +230,12 @@ def _admin(email: str) -> bool:
 
 
 @app.get("/api/dashboard/bimtek")
-def bimtek_rekap(_: str = Depends(auth.wajib_login)) -> dict[str, Any]:
+def bimtek_rekap(email: str = Depends(auth.wajib_login)) -> dict[str, Any]:
     """Rekap Bimtek Pelaporan (dibaca dari tab Rekap Bimtek; dihitung di laptop admin)."""
-    # pantau per PIC berdasarkan email menyusul; sementara semua yang masuk bisa memilih PIC
-    return {"rekap": _jalan(rekap_bimtek.baca), "bisa_hitung": False, "status": {}, "folder": "", "admin": True, "saya": ""}
+    # PIC yang login (nama dari sheet Akses) hanya melihat sekolah binaannya di "Sekolah binaan saya"; admin bisa memilih.
+    saya = auth.nama_petugas(email)
+    return {"rekap": _jalan(rekap_bimtek.baca), "bisa_hitung": False, "status": {}, "folder": "",
+            "admin": auth.admin(email) or not saya, "saya": saya}
 
 
 @app.get("/api/dashboard/ranking")

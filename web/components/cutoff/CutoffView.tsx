@@ -7,7 +7,7 @@ import { Button, Notice, Spinner } from "@/components/ui";
 import s from "./cutoff2.module.css";
 
 type Status = { jalan: boolean; langkah: string; persen: number; hasil: null | { tab: string; sekolah: number; baru: number;
-  keterangan: number; cutoff: string; log_kom?: LogKomHasil; bimtek?: BimtekHasil | null }; error: string };
+  keterangan: number; cutoff: string; log_kom?: LogKomHasil; bimtek?: BimtekHasil | null; dicatat_mundur?: number }; error: string };
 type BimtekHasil = { ditulis?: number; kolom_baru?: boolean; error?: string };
 
 function teksBimtek(x?: BimtekHasil | null) {
@@ -258,7 +258,7 @@ export function CutoffView() {
               {!jalan && status.hasil && (
                 <Notice tone="ok" title={`${status.hasil.cutoff} tersimpan di ${status.hasil.tab}`}>
                   {fmt(status.hasil.sekolah)} sekolah diperbarui{status.hasil.baru ? `, ${fmt(status.hasil.baru)} sekolah baru` : ""},
-                  {" "}{fmt(status.hasil.keterangan)} keterangan otomatis ditulis ulang, dan Log Progres mendapat kolom baru.{teksLogKom(status.hasil.log_kom)}{teksBimtek(status.hasil.bimtek)}
+                  {" "}{fmt(status.hasil.keterangan)} keterangan otomatis ditulis ulang, dan Log Progres mendapat kolom baru.{teksLogKom(status.hasil.log_kom)}{teksBimtek(status.hasil.bimtek)}{status.hasil.dicatat_mundur ? ` ${fmt(status.hasil.dicatat_mundur)} sekolah yang tidak ada di file dicatat ke tab Sekolah Mengundurkan Diri untuk dicek PIC.` : ""}
                 </Notice>
               )}
               {!jalan && status.error && <Notice tone="bad" title="Penulisan cutoff gagal">{status.error}</Notice>}

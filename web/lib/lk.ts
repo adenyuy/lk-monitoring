@@ -44,6 +44,8 @@ export type FasilLk = {
   tag_auto?: string[];
   /** Jumlah sekolah per kelompok Bimtek Pelaporan. */
   bimtek?: Record<string, number>;
+  /** Kelompok bimtek yang sedang berlangsung (menurut jadwal) di antara sekolah binaan fasil ini. */
+  bimtek_aktif?: BimtekAktif[];
   tanpa_progres: boolean;
   belum_ditelepon: boolean;
   telepon?: TeleponInfo;
@@ -100,12 +102,20 @@ export type TodoItem = {
   isian: Record<string, { kendala: string; tl: string }>;
 };
 
+const BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+/** "2026-11-20" -> "20 Nov" */
+export const tglPendek = (iso: string) => `${Number(iso.slice(8, 10))} ${BULAN_PENDEK[Number(iso.slice(5, 7)) - 1] ?? ""}`;
+
+export type BimtekAktif = { label: string; kode: string; selesai: string; sekolah: number };
+
 export type SekolahDetail = {
   npsn: string;
   nama: string;
   angkatan: string;
   kab: string;
   bimtek?: string;
+  /** Sekolah ini sedang ikut bimtek (menurut jadwal): kode kelompok, hari terakhir, hotel. */
+  bimtek_aktif?: { kode: string; selesai: string; hotel: string } | null;
   tahap: Tahap;
   komponen: Komp[];
   todo: TodoItem[];

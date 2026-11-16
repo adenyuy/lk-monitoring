@@ -123,3 +123,15 @@ def test_sekolah_baru_diwarnai_kuning():
                            "startColumnIndex": 0, "endColumnIndex": 13}
     assert rc["cell"]["userEnteredFormat"]["backgroundColor"] == cutoff_baru.KUNING
     assert rc["fields"] == "userEnteredFormat.backgroundColor"
+
+
+def test_baris_sekolah_mengundurkan_diri_ikut_judul():
+    from types import SimpleNamespace
+
+    s = SimpleNamespace(petugas="Ani", npsn="123", nama="SD A", angkatan="2", provinsi="Prov. X", kab="Kab. Y", kepsek="Bu Z",
+                        hp_kepsek="08", ptn="PTN Q", koor="Koor", hp_koor="09", fasil="Fasil F", hp_fasil="07", bimtek="")
+    judul = ["PIC", "NPSN", "Nama Sekolah", "Angkatan", "Provinsi", "Kab/Kota", "Nama Kepala Sekolah", "No HP Kepala Sekolah",
+             "PTN", "Koordinator", "No HP Koordinator", "Fasilitator", "No HP Fasilitator", "Kasus", "Catatan Tambahan"]
+    r = cutoff_baru.baris_mundur(judul, s, "16/11/2026")
+    assert r[:3] == ["Ani", "123", "SD A"] and r[11:13] == ["Fasil F", "07"]
+    assert r[13] == cutoff_baru.KASUS_HILANG and "16/11/2026" in r[14] and len(r) == len(judul)

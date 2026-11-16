@@ -242,7 +242,7 @@ def _tabel_fasil(fasil: dict[str, komunikasi.Fasil], status: dict[str, dict[str,
 def _hitung(t: str) -> dict[str, Any]:
     target, bt = _pisah(t)
     nasional = target == NASIONAL
-    cakupan = lk_baru.baca_semua() if nasional else lk_baru.baca_petugas(target)
+    cakupan = lk_baru.tanpa_mundur(lk_baru.baca_semua()) if nasional else lk_baru.baca_petugas(target)
     sekolah = [s for s in cakupan if bimtek_lap.cocok(s, bt)]
     try:
         logkom = lk_baru.baca_log_kom()
