@@ -174,6 +174,7 @@ class Rencana:
     logkom: dict[str, int] = field(default_factory=dict)
     bimtek: dict[str, Any] | None = None  # hasil isi Bimtek Pelaporan otomatis
     kol_awal: int = 0                     # kolom pertama yang ditulis untuk sekolah yang sudah ada  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
+    data_file: bytes = b""                # isi file export, diarsipkan ke folder data bimtek setelah cutoff selesai
 
 
 _rencana: dict[str, Rencana] = {}
@@ -246,7 +247,7 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
         tambah.append(r)
     hilang = len([n for n in ada if n not in baru])
     rc = Rencana(token=secrets.token_urlsafe(12), week=week, nama_file=nama_file, dibuat=time.time(), judul=judul,
-                 baris=out, tambah=tambah, kol_awal=kol_awal)
+                 baris=out, tambah=tambah, kol_awal=kol_awal, data_file=data)
     rc.ringkasan = {
         "sekolah_file": len(baru), "sekolah_lk": len(ada), "cocok": len(ada & set(baru)), "baru": len(tambah),
         "tidak_di_file": hilang,
@@ -280,6 +281,7 @@ def mulai_tulis(token: str, oleh: str) -> None:
 def _tulis_aman(rc: Rencana, oleh: str) -> None:
     try:
         hasil = tulis(rc, oleh)
+        hasil["rekap_bimtek"] = _arsip_bimtek(rc)
         _status.update(hasil=hasil, persen=100, langkah="Selesai")
         with _lock:
             _rencana.pop(rc.token, None)
@@ -290,6 +292,21 @@ def _tulis_aman(rc: Rencana, oleh: str) -> None:
                        if rc.selesai else str(e))
     finally:
         _status["jalan"] = False
+
+
+def _arsip_bimtek(rc: Rencana) -> str:
+    """Simpan export ke arsip harian data bimtek lalu hitung ulang rekap di latar. Gagal di sini tidak menggagalkan cutoff."""
+    from . import rekap_bimtek
+
+    try:
+        f = rekap_bimtek.arsipkan_export(rc.data_file, rc.nama_file)
+        if not f:
+            return ""
+        rekap_bimtek.mulai_hitung()
+        return f.name
+    except Exception:  # noqa: BLE001
+        log.warning("Arsip export ke data bimtek gagal", exc_info=True)
+        return ""
 
 
 def _langkah(teks: str, persen: int) -> None:

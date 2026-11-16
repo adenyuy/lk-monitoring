@@ -51,6 +51,10 @@ export const IconBlastAdmin = () => (
 export const IconPaparan = () => (
   <Svg><rect x="3" y="4" width="18" height="12" rx="1.5" /><path d="M12 16v4" /><path d="M8 20h8" /><path d="M7.5 12.5 10.5 9l2.5 2.5 3.5-4" /></Svg>
 );
+/** Bimtek: topi wisuda + garis naik (pertumbuhan setelah pelatihan). */
+export const IconBimtek = () => (
+  <Svg><path d="M2.5 8.5 12 4l9.5 4.5L12 13z" /><path d="M6.5 10.5v4c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-4" /><path d="M21.5 8.5v5" /></Svg>
+);
 export const IconDashboard = () => (
   <Svg><rect x="3.5" y="3.5" width="7" height="9" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="5" rx="1.5" /><rect x="13.5" y="11.5" width="7" height="9" rx="1.5" /><rect x="3.5" y="15.5" width="7" height="5" rx="1.5" /></Svg>
 );

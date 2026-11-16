@@ -12,7 +12,7 @@ import { LockIcon, NoAccess } from "./NoAccess";
 import { AssistDock } from "./Assist";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
-import { IconAdmin, IconBlast, IconCutoff, IconDashboard, IconForum, IconLk, IconLogo, IconBlastAdmin } from "./Icons";
+import { IconAdmin, IconBimtek, IconBlast, IconCutoff, IconDashboard, IconForum, IconLk, IconLogo, IconBlastAdmin } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -106,9 +106,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
       )}
       <Link href="/dashboard/" className={s.item}
-        aria-current={aktif("/dashboard/") ?? aktif("/paparan/") ?? aktif("/log/")}>
+        aria-current={aktif("/dashboard/") ?? aktif("/ranking/") ?? aktif("/paparan/") ?? aktif("/log/")}>
         <span className={s.ico}><IconDashboard />{adaBaru && <span className={s.newDot} title="Ada perubahan data baru di Log" />}</span>
         <span className={s.lbl}>Dashboard</span>
+      </Link>
+      <Link href="/bimtek/" className={s.item} aria-current={aktif("/bimtek/")}>
+        <span className={s.ico}><IconBimtek /></span><span className={s.lbl}>Bimtek</span>
       </Link>
       <Link href="/forum/" className={s.item} aria-current={aktif("/forum/")}>
         <span className={s.ico}><IconForum /></span><span className={s.lbl}>Forum</span>

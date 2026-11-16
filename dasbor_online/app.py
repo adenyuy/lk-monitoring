@@ -7,7 +7,7 @@ Env (diisi di Vercel, bukan di repo):
   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET   OAuth client tipe Web application
   LKM_SESI_RAHASIA      string acak panjang untuk menandatangani cookie
   LKM_IZIN_EMAIL        email/domain yang boleh masuk, dipisah koma (mis. "a@gmail.com, @kantor.go.id")
-  LKM_ADMIN_EMAIL       email admin, dipisah koma: hanya mereka yang melihat Ranking PIC
+  LKM_ADMIN_EMAIL       (opsional) email admin, dipisah koma; Ranking PIC terbuka untuk semua yang boleh masuk
 """
 
 import base64
@@ -31,7 +31,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request  # noqa: E40
 from fastapi.responses import JSONResponse, RedirectResponse  # noqa: E402
 from google.oauth2 import service_account  # noqa: E402
 
-from app import google_auth, komunikasi, lk_baru, ranking, schedule, todo  # noqa: E402
+from app import google_auth, komunikasi, lk_baru, ranking, rekap_bimtek, schedule, todo  # noqa: E402
 from app.routers import dashboard  # noqa: E402
 from app.routers.lkb import _jalan  # noqa: E402
 from app.sheets import normalize_petugas  # noqa: E402
@@ -229,9 +229,15 @@ def _admin(email: str) -> bool:
     return auth.admin(email)
 
 
+@app.get("/api/dashboard/bimtek")
+def bimtek_rekap(_: str = Depends(auth.wajib_login)) -> dict[str, Any]:
+    """Rekap Bimtek Pelaporan (dibaca dari tab Rekap Bimtek; dihitung di laptop admin)."""
+    # pantau per PIC berdasarkan email menyusul; sementara semua yang masuk bisa memilih PIC
+    return {"rekap": _jalan(rekap_bimtek.baca), "bisa_hitung": False, "status": {}, "folder": "", "admin": True, "saya": ""}
+
+
 @app.get("/api/dashboard/ranking")
 @app.get("/api/ranking")
-def ranking_(bimtek: str = Query("", max_length=60), email: str = Depends(auth.wajib_login)) -> dict[str, Any]:
-    if not _admin(email):
-        raise HTTPException(403, "Ranking PIC hanya untuk admin.")
+def ranking_(bimtek: str = Query("", max_length=60), _: str = Depends(auth.wajib_login)) -> dict[str, Any]:
+    """Ranking PIC untuk semua email yang diizinkan masuk (LKM_IZIN_EMAIL)."""
     return _jalan(ranking.ambil, bimtek)

@@ -8,6 +8,7 @@ import s from "./submenu.module.css";
 
 const TAB = [
   { href: "/dashboard/", label: "Ringkasan" },
+  { href: "/ranking/", label: "Ranking" },
   { href: "/paparan/", label: "Paparan" },
   { href: "/log/", label: "Log" },
 ];

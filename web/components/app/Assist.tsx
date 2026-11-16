@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
 import { LockIcon } from "./NoAccess";
 import { DaftarFasil, IzinDesktop, NotifList, useNotif, type Notif } from "./Notif";
-import { IconBlast, IconCutoff, IconDashboard, IconForum, IconLk } from "./Icons";
+import { IconBimtek, IconBlast, IconCutoff, IconDashboard, IconForum, IconLk } from "./Icons";
 import s from "./app.module.css";
 
 type Bubble = {
@@ -257,7 +257,8 @@ export function AssistDock({ onTerkunci, bolehCutoff, adaBaru }: Props) {
                 <Tile href="/lk/" label="LK" icon={<IconLk />} current={kini("/lk/")} onPick={tutupMenu} autoFocus />
                 <Tile href="/blast/" label="Blast" icon={<IconBlast />} current={kini("/blast/")} onPick={tutupMenu} />
                 <Tile href="/dashboard/" label="Dashboard" icon={<IconDashboard />}
-                  current={kini("/dashboard/") ?? kini("/paparan/") ?? kini("/log/")} onPick={tutupMenu} titik={adaBaru} />
+                  current={kini("/dashboard/") ?? kini("/ranking/") ?? kini("/paparan/") ?? kini("/log/")} onPick={tutupMenu} titik={adaBaru} />
+                <Tile href="/bimtek/" label="Bimtek" icon={<IconBimtek />} current={kini("/bimtek/")} onPick={tutupMenu} />
                 {bolehCutoff ? (
                   <Tile href="/cutoff/" label="Tarik Cutoff" icon={<IconCutoff />} current={kini("/cutoff/")}
                     onPick={tutupMenu} />

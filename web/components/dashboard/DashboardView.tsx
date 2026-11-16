@@ -12,7 +12,7 @@ export type Capaian = { kode: string; label: string; tahap: Tahap; pelaku: strin
   kosong: number; tanpa_data: number; relevan: number; persen: number | null; rasio: [number, number] | null };
 export type Dash = {
   pic: string; nasional: boolean; week: number; cutoff: string; dibuat: string; umur_detik: number; menghitung: boolean;
-  distribusi: { sekolah: number; fasil: number; koor: number; jml_ptn: number; jml_kab: number; rata_sekolah_per_fasil: number;
+  distribusi: { sekolah: number; fasil: number; koor: number; jml_ptn: number; jml_kab: number; jml_prov?: number; rata_sekolah_per_fasil: number;
     maks_sekolah_per_fasil: number; tanpa_hp_fasil: number;
     angkatan: { nama: string; jumlah: number }[]; provinsi: { nama: string; jumlah: number }[];
     kab: { nama: string; jumlah: number }[]; ptn: { nama: string; jumlah: number }[] };

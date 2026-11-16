@@ -9,6 +9,8 @@ import s from "./online.module.css";
 
 const TAB = [
   { href: "/dashboard/", label: "Ringkasan" },
+  { href: "/ranking/", label: "Ranking" },
+  { href: "/bimtek/", label: "Bimtek" },
   { href: "/log/", label: "Log" },
 ];
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Button, Notice, Spinner } from "@/components/ui";
 import { Batang, Capaian, Komunikasi, Kpi, type Dash } from "@/components/dashboard/DashboardView";
 import d from "@/components/dashboard/dashboard.module.css";
-import { BimtekPanel } from "./BimtekPanel";
 import { LogProgresOnline } from "./LogProgresOnline";
 import { Tip } from "./Tip";
 import s from "./online.module.css";
@@ -24,6 +24,7 @@ type RinciFasil = { n: string; s: number; h: string[]; k: Record<string, number[
 /** Log Komunikasi satu hari, per sekolah: isi = sekolah yang sudah diberi kode. */
 type LogHari = { tanggal: string; isi: number; slot: number; kode: Record<string, number> };
 type Rank = { pic: RankPic[]; nasional: RankPic; hari_log: string[]; komponen: { kode: string; label: string }[];
+  saya?: string; pilihan_bimtek?: string[];
   kode_kom: { kode: string; arti: string }[]; berkolom: string[];
   blok: { blok: number; label: string }[]; blok_hari: number[]; dibuat: string; bimtek?: string };
 
@@ -58,20 +59,23 @@ function useDash(pic: string, bimtek = "") {
 export function DashboardOnline() {
   const [pic, setPic] = useState(NASIONAL);
   const [banding, setBanding] = useState<string | null>(null);
+  // dibuka dari halaman Ranking: /dashboard/?pic=Nama[&banding=Nama]
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (q.get("pic")) setPic(q.get("pic")!);
+    if (q.get("banding")) setBanding(q.get("banding"));
+  }, []);
   const [rank, setRank] = useState<Rank | null>(null);
   const [bimtek, setBimtek] = useState("");
   const utama = useDash(pic, bimtek);
-  const admin = !!utama.data?.admin;
 
   useEffect(() => {
-    if (!admin) return; // ranking tidak dipakai (komponennya disembunyikan)
     const q = bimtek ? `?bimtek=${encodeURIComponent(bimtek)}` : "";
     api<Rank>(`/api/dashboard/ranking${q}`).then(setRank).catch(() => setRank(null));
-  }, [admin, bimtek]);
+  }, [bimtek]);
 
   const pilihan = utama.data?.pilihan_pic ?? rank?.pic.map((x) => x.nama) ?? [];
-  const lihat = (p: string) => { setPic(p); setBanding(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const bandingkan = (a: string, b: string) => { setPic(a); setBanding(b); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   if (utama.error && !utama.data) return <Notice tone="bad" title="Dashboard tidak bisa dimuat">{utama.error}</Notice>;
   if (!utama.data) return <div className={s.memuat}><Spinner label="Memuat" /> Menghitung dashboard…</div>;
@@ -110,10 +114,8 @@ export function DashboardOnline() {
             </>
           ) : (
             <>
-              {admin && (
-                <Button variant="secondary" size="sm"
-                  onClick={() => setBanding(pic === NASIONAL ? (pilihan[0] ?? NASIONAL) : NASIONAL)}>Bandingkan</Button>
-              )}
+              <Button variant="secondary" size="sm"
+                onClick={() => setBanding(pic === NASIONAL ? (pilihan[0] ?? NASIONAL) : NASIONAL)}>Bandingkan</Button>
               <Button variant="secondary" size="sm" loading={utama.memuat} onClick={() => void utama.muat(true)}>Hitung ulang</Button>
             </>
           )}
@@ -125,11 +127,49 @@ export function DashboardOnline() {
       ) : (
         <>
           <Ringkasan x={x} />
-          <BimtekPanel x={x} aktif={bimtek} pilih={setBimtek} />
           <LogProgresOnline />
-          {admin && <Ranking rank={rank} aktif={pic} lihat={lihat} bandingkan={bandingkan} />}
         </>
       )}
+    </div>
+  );
+}
+
+/** Halaman Ranking PIC (sub-halaman Dashboard). Klik nama -> dashboard PIC itu; Bandingkan -> perbandingan dua PIC. */
+export function RankingPage() {
+  const [rank, setRank] = useState<Rank | null>(null);
+  const [bimtek, setBimtek] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const q = bimtek ? `?bimtek=${encodeURIComponent(bimtek)}` : "";
+    api<Rank>(`/api/dashboard/ranking${q}`).then((r) => { setRank(r); setError(null); })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [bimtek]);
+  const router = useRouter();
+  const ke = (q: URLSearchParams) => router.push(`/dashboard/?${q}`);
+  const lihat = (p: string) => ke(new URLSearchParams({ pic: p }));
+  const bandingkan = (a: string, b: string) => ke(new URLSearchParams({ pic: a, banding: b }));
+
+  if (error && !rank) return <Notice tone="bad" title="Ranking tidak bisa dimuat">{error}</Notice>;
+  return (
+    <div className={s.halaman}>
+      <header className={s.kepala}>
+        <div>
+          <h1>Ranking PIC{bimtek ? <small className={s.subJudul}> · {bimtek === "-" ? "bukan peserta bimtek" : bimtek}</small> : null}</h1>
+        </div>
+        {(rank?.pilihan_bimtek?.length ?? 0) > 0 && (
+          <div className={s.kontrol}>
+            <label className={s.pilih}>
+              <span>Bimtek</span>
+              <select value={bimtek} onChange={(e) => setBimtek(e.target.value)} aria-label="Saring Bimtek Pelaporan">
+                <option value="">Semua sekolah</option>
+                {rank!.pilihan_bimtek!.map((b) => <option key={b} value={b}>{b}</option>)}
+                <option value="-">Bukan peserta bimtek</option>
+              </select>
+            </label>
+          </div>
+        )}
+      </header>
+      <Ranking rank={rank} aktif="" saya={rank?.saya ?? ""} lihat={lihat} bandingkan={bandingkan} />
     </div>
   );
 }
@@ -154,7 +194,7 @@ function Ringkasan({ x }: { x: Dash }) {
         <Kpi label="Koordinator" nilai={fmt(di.koor)} ket="koordinator fasil" />
         <Kpi label="Fasilitator" nilai={fmt(di.fasil)}
           ket={`rata-rata ${String(di.rata_sekolah_per_fasil).replace(".", ",")} sekolah per fasil`} />
-        <Kpi label="Kabupaten/kota" nilai={fmt(di.jml_kab)} ket={`${fmt(di.provinsi.length)}+ provinsi`} />
+        <Kpi label="Kabupaten/kota" nilai={fmt(di.jml_kab)} ket={di.jml_prov ? `${fmt(di.jml_prov)} provinsi` : `${fmt(di.provinsi.length)}+ provinsi`} />
       </section>
 
       <div className={s.tiga}>
@@ -244,14 +284,26 @@ function hitungFilter(rinci: RinciFasil[], f: Filter, semuaKomp: string[], berko
   return h;
 }
 
-type Urut = "persen" | "cocok" | "kendala" | "tl" | "log" | "progres" | "nama";
+type Urut = "persen" | "cocok" | "kendala" | "tl" | "log" | "progres" | "sekolah" | "nama";
+/** Ukuran peringkat: label di pilihan "Peringkat menurut" dan penjelasan singkatnya. */
+const UKURAN: { u: Urut; label: string; ket: string; rendahBaik?: boolean }[] = [
+  { u: "persen", label: "Capaian", ket: "komponen selesai ÷ komponen yang sudah jatuh tempo (makin tinggi makin baik)" },
+  { u: "kendala", label: "Kendala terisi", ket: "persen sekolah×komponen belum selesai yang kolom Kendala-nya sudah diisi petugas" },
+  { u: "tl", label: "TL terisi", ket: "persen sekolah×komponen belum selesai yang kolom Tindak Lanjut-nya sudah diisi petugas" },
+  { u: "log", label: "Log Komunikasi", ket: "persen fasil yang sudah diberi kode di tab Log Komunikasi pada hari terpilih" },
+  { u: "progres", label: "Progres fisik", ket: "rata-rata Progres Fisik (%) sekolah binaan" },
+  { u: "cocok", label: "Fasil belum tuntas", ket: "jumlah fasil yang masih punya sekolah belum selesai (makin sedikit makin baik)", rendahBaik: true },
+  { u: "sekolah", label: "Jumlah sekolah", ket: "jumlah sekolah binaan" },
+  { u: "nama", label: "Nama PIC", ket: "urut abjad" },
+];
 
-function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif: string; lihat: (p: string) => void;
-  bandingkan: (a: string, b: string) => void }) {
+function Ranking({ rank, aktif, saya, lihat, bandingkan }: { rank: Rank | null; aktif: string; saya: string;
+  lihat: (p: string) => void; bandingkan: (a: string, b: string) => void }) {
   const [komp, setKomp] = useState<string[]>([]);
   const [kode, setKode] = useState<string[]>([]);
   const [hariPilih, setHariPilih] = useState<number[] | null>(null); // null = hari terakhir
   const [urut, setUrut] = useState<Urut>("persen");
+  const [naik, setNaik] = useState(false); // false = peringkat 1 (terbaik) di atas
   const [pilih, setPilih] = useState<string[]>([]);
   const [buka, setBuka] = useState<string | null>(null);
 
@@ -273,22 +325,25 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
   const nas = useMemo(() => hitungFilter((rank?.pic ?? []).flatMap((p) => p.rinci), filter, semuaKomp, berkolom, false),
     [rank, filter, semuaKomp, berkolom]);
 
-  const baris = useMemo(() => {
-    if (!rank) return [];
+  /** Urutan terbaik dulu menurut ukuran terpilih; `peringkat` = posisi di urutan itu (tidak berubah saat dibalik). */
+  const { baris, peringkat } = useMemo(() => {
+    if (!rank) return { baris: [] as RankPic[], peringkat: new Map<string, number>() };
     const nilai = (p: RankPic) => {
       const h = hasil.get(p.nama)!;
-      if (urut === "cocok") return h.cocok;
+      if (urut === "cocok") return -h.cocok; // lebih sedikit fasil belum tuntas = lebih baik
       if (urut === "kendala") return bagi(h.kendala, h.belum) ?? -1;
       if (urut === "tl") return bagi(h.tl, h.belum) ?? -1;
       if (urut === "log") return bagi(h.logIsi, h.logSlot) ?? -1;
       if (urut === "progres") return p.progres ?? -1;
+      if (urut === "sekolah") return p.sekolah;
       return bagi(h.selesai, h.harus) ?? -1;
     };
-    const out = [...rank.pic];
-    if (urut === "nama") out.sort((a, b) => a.nama.localeCompare(b.nama));
-    else out.sort((a, b) => nilai(b) - nilai(a) || a.nama.localeCompare(b.nama));
-    return out;
-  }, [rank, urut, hasil]);
+    const terbaik = [...rank.pic];
+    if (urut === "nama") terbaik.sort((a, b) => a.nama.localeCompare(b.nama));
+    else terbaik.sort((a, b) => nilai(b) - nilai(a) || a.nama.localeCompare(b.nama));
+    const peringkat = new Map(terbaik.map((p, i) => [p.nama, i + 1]));
+    return { baris: naik ? [...terbaik].reverse() : terbaik, peringkat };
+  }, [rank, urut, naik, hasil]);
 
   if (!rank) return <section className={d.card}><div className={s.memuat}><Spinner label="Memuat" /> Menyusun ranking PIC…</div></section>;
 
@@ -302,9 +357,19 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
   };
   const adaFilter = komp.length > 0 || kode.length > 0 || hariPilih !== null;
   const centang = (n: string) => setPilih((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p.slice(-1), n]);
-  const th = (u: Urut, teks: string, panah = "↓") => (
-    <button type="button" className={s.thTombol} onClick={() => setUrut(u)}>{teks}{urut === u ? ` ${panah}` : ""}</button>
+  const pilihUrut = (u: Urut) => {
+    if (u === urut) setNaik(!naik);
+    else { setUrut(u); setNaik(false); }
+  };
+  const th = (u: Urut, teks: string) => (
+    <button type="button" className={`${s.thTombol} ${urut === u ? s.thAktif : ""}`} onClick={() => pilihUrut(u)}
+      title={urut === u ? "Klik lagi untuk membalik urutan" : `Urutkan menurut ${teks}`}>
+      {teks}<i aria-hidden="true">{urut === u ? (naik ? " ▲" : " ▼") : " ↕"}</i>
+    </button>
   );
+  const sortAttr = (u: Urut): "ascending" | "descending" | undefined => (urut === u ? (naik ? "ascending" : "descending") : undefined);
+  const ukuran = UKURAN.find((x) => x.u === urut)!;
+  const posisiSaya = saya ? peringkat.get(rank.pic.find((p) => p.nama.toLowerCase() === saya.toLowerCase())?.nama ?? "") : undefined;
   const teksKomp = komp.length ? komp.map((k) => labelKomp[k]).join(", ") : "semua komponen";
   const teksHari = hari.map((i) => tglPendek(rank.hari_log[i])).join(", ");
   const teksKode = kode.length ? kode.map((k) => (k === "-" ? "belum ada" : k)).join(", ") : "";
@@ -313,8 +378,8 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
   return (
     <section className={d.card}>
       <div className={d.cardHead}>
-        <h2>Ranking PIC</h2>
-        <span>dihitung {rank.dibuat} · klik judul kolom untuk mengurutkan</span>
+        <h2>Peringkat per PIC</h2>
+        <span>dihitung {rank.dibuat} dari LK dan Log Komunikasi · klik judul kolom untuk mengurutkan</span>
       </div>
 
       <div className={s.filter}>
@@ -349,6 +414,22 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
         </p>
       </div>
 
+      <div className={s.rankUrut}>
+        <label>
+          <span>Peringkat menurut</span>
+          <select value={urut} onChange={(e) => { setUrut(e.target.value as Urut); setNaik(false); }}>
+            {UKURAN.map((x) => <option key={x.u} value={x.u}>{x.label}</option>)}
+          </select>
+        </label>
+        <button type="button" className={s.rankArah} onClick={() => setNaik(!naik)} aria-label="Balik urutan">
+          {urut === "nama" ? (naik ? "Z → A" : "A → Z") : naik ? "Terendah dulu ▲" : "Tertinggi dulu ▼"}
+        </button>
+        <p>
+          <b>#</b> = posisi menurut <b>{ukuran.label}</b>: {ukuran.ket}. Mengikuti filter di atas ({teksKomp}).
+          {posisiSaya ? <> Posisi kamu: <b>#{posisiSaya}</b> dari {rank.pic.length} PIC.</> : null}
+        </p>
+      </div>
+
       <div className={s.rankAlat}>
         <span className={s.legendaRank}>
           <i className={s.tBaik} /> di atas nasional <i className={s.tSedang} /> sekitar nasional <i className={s.tKurang} /> di bawah nasional
@@ -363,33 +444,33 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
           <thead>
             <tr>
               <th aria-label="Pilih" />
-              <th className={s.angka}><Tip isi={<>Peringkat PIC menurut <b>Capaian semua komponen</b> (tanpa filter).
-                Urutan baris bisa diganti dengan mengeklik judul kolom.</>}>#</Tip></th>
-              <th><Tip isi={<>Nama di kolom <b>PIC</b> tab WEEK aktif LK. Klik nama untuk membuka dashboard PIC itu;
-                &ldquo;Detail&rdquo; untuk rincian per fasil.</>}>{th("nama", "PIC", "↑")}</Tip></th>
-              <th className={s.angka}><Tip isi={<>Jumlah sekolah binaan PIC di tab WEEK aktif LK
-                (data cutoff terakhir{rank.bimtek ? `, hanya ${rank.bimtek}` : ""}).</>}>Sekolah</Tip></th>
-              <th><Tip isi={<><b>Komponen selesai ÷ komponen yang seharusnya sudah selesai</b> (sudah jatuh tempo), dihitung per
+              <th className={s.angka}><Tip isi={<>Posisi PIC menurut ukuran yang dipilih di &ldquo;Peringkat menurut&rdquo;
+                (sekarang: <b>{ukuran.label}</b>). Klik judul kolom untuk mengganti ukuran; klik lagi untuk membalik urutan.</>}>#</Tip></th>
+              <th aria-sort={sortAttr("nama")}><Tip isi={<>Nama di kolom <b>PIC</b> tab WEEK aktif LK. Klik nama untuk membuka dashboard PIC itu;
+                &ldquo;Detail&rdquo; untuk rincian per fasil.</>}>{th("nama", "PIC")}</Tip></th>
+              <th className={s.angka} aria-sort={sortAttr("sekolah")}><Tip isi={<>Jumlah sekolah binaan PIC di tab WEEK aktif LK
+                (data cutoff terakhir{rank.bimtek ? `, hanya ${rank.bimtek}` : ""}).</>}>{th("sekolah", "Sekolah")}</Tip></th>
+              <th aria-sort={sortAttr("persen")}><Tip isi={<><b>Komponen selesai ÷ komponen yang seharusnya sudah selesai</b> (sudah jatuh tempo), dihitung per
                 sekolah per komponen dari nilai cutoff terakhir di LK. Mengikuti filter Komponen ({teksKomp}).
                 Warna membandingkan dengan angka nasional.</>}>{th("persen", "Capaian")}</Tip></th>
-              <th className={s.angka}><Tip kanan isi={<>Fasil yang <b>masih punya minimal satu sekolah dengan komponen belum selesai</b>
+              <th className={s.angka} aria-sort={sortAttr("cocok")}><Tip kanan isi={<>Fasil yang <b>masih punya minimal satu sekolah dengan komponen belum selesai</b>
                 ({teksKomp}).{" "}{kode.length
                   ? <>Karena filter Komunikasi aktif: angka besar = fasil berkode {teksKode} pada hari {teksHari}, dari total fasil tersebut.</>
                   : <>Bila filter Komunikasi dipilih, angka ini menyaring fasil menurut kode Log Komunikasinya.</>}{" "}
                 Klik angka untuk melihat daftar fasilnya.</>}>{th("cocok", "Fasil")}</Tip></th>
-              <th className={s.angka}><Tip kanan isi={<>Dari pasangan <b>sekolah × komponen yang belum selesai</b> pada fasil di kolom Fasil,
+              <th className={s.angka} aria-sort={sortAttr("kendala")}><Tip kanan isi={<>Dari pasangan <b>sekolah × komponen yang belum selesai</b> pada fasil di kolom Fasil,
                 berapa yang kolom <b>Kendala</b>-nya sudah diisi petugas di tab WEEK
                 ({filter.sesi.length === 1 && filter.nSesi > 1 ? `sesi ${rank.blok[filter.sesi[0]].label}` : "sesi mana pun di WEEK ini"}).
                 Keterangan otomatis dari aplikasi tidak dihitung.</>}>{th("kendala", "Kendala terisi")}</Tip></th>
-              <th className={s.angka}><Tip kanan isi={<>Sama seperti Kendala terisi, untuk kolom <b>Tindak Lanjut</b> di tab WEEK.</>}>
+              <th className={s.angka} aria-sort={sortAttr("tl")}><Tip kanan isi={<>Sama seperti Kendala terisi, untuk kolom <b>Tindak Lanjut</b> di tab WEEK.</>}>
                 {th("tl", "TL terisi")}</Tip></th>
               <th><Tip kanan isi={<>Sebaran <b>kode Log Komunikasi</b> fasil di kolom Fasil pada hari {teksHari}
                 (T, T1, T2, TP, R, C, N; &ldquo;Belum ada&rdquo; = belum diberi kode). Sumber: tab Log Komunikasi di LK.
                 Arahkan kursor ke batang untuk arti kodenya.</>}>Komunikasi fasil</Tip></th>
-              <th className={s.angka}><Tip kanan isi={<>Persen <b>fasil yang sudah diberi kode</b> di tab Log Komunikasi pada hari {teksHari},
+              <th className={s.angka} aria-sort={sortAttr("log")}><Tip kanan isi={<>Persen <b>fasil yang sudah diberi kode</b> di tab Log Komunikasi pada hari {teksHari},
                 dari semua fasil PIC{hari.length > 1 ? " (dihitung per fasil per hari)" : ""}. &ldquo;Ditelepon&rdquo; = kode TP.</>}>
                 {th("log", "Log Komunikasi")}</Tip></th>
-              <th className={s.angka}><Tip kanan isi={<>Rata-rata <b>Progres Fisik (%)</b> sekolah binaan dari kolom Progres Fisik di LK
+              <th className={s.angka} aria-sort={sortAttr("progres")}><Tip kanan isi={<>Rata-rata <b>Progres Fisik (%)</b> sekolah binaan dari kolom Progres Fisik di LK
                 (cutoff terakhir). Tidak terpengaruh filter komponen, komunikasi, atau hari.</>}>{th("progres", "Progres fisik")}</Tip></th>
             </tr>
           </thead>
@@ -400,16 +481,21 @@ function Ranking({ rank, aktif, lihat, bandingkan }: { rank: Rank | null; aktif:
               const tutupBuka = () => setBuka(terbuka ? null : p.nama);
               return (
                 <Fragment key={p.nama}>
-                  <tr className={p.nama === aktif ? s.barisAktif : undefined}>
+                  <tr className={[p.nama === aktif ? s.barisAktif : "",
+                    saya && p.nama.toLowerCase() === saya.toLowerCase() ? s.barisSaya : ""].join(" ").trim() || undefined}>
                     <td><input type="checkbox" checked={pilih.includes(p.nama)} onChange={() => centang(p.nama)} aria-label={`Pilih ${p.nama}`} /></td>
-                    <td className={s.angka}>{i + 1}</td>
-                    <td><button type="button" className={s.tautan} onClick={() => lihat(p.nama)}>{p.nama}</button>
+                    <td className={s.angka}>
+                      <span className={`${s.nomorPeringkat} ${(peringkat.get(p.nama) ?? 99) <= 3 && urut !== "nama" ? s.nomorAtas : ""}`}>
+                        {peringkat.get(p.nama) ?? i + 1}
+                      </span>
+                    </td>
+                    <td className={s.kolomPic}><button type="button" className={s.tautan} onClick={() => lihat(p.nama)}>{p.nama}</button>
                       <small>{fmt(p.fasil)} fasil · <button type="button" className={s.tautanKecil} aria-expanded={terbuka}
                         onClick={tutupBuka}>{terbuka ? "Tutup detail ▴" : "Detail ▾"}</button></small></td>
                     <td className={s.angka}>{fmt(p.sekolah)}</td>
                     <td><Rasio a={h.selesai} b={h.harus} v={bagi(h.selesai, h.harus)} acuan={nasCapai} /></td>
                     <td className={s.angka}><button type="button" className={s.selTombol} onClick={tutupBuka} title="Lihat daftar fasil">
-                      <b>{fmt(h.cocok)}</b><small>{kode.length ? `dari ${fmt(h.fasilBelum)} fasil` : "fasil masih ada sekolah belum selesai"}</small></button></td>
+                      <b>{fmt(h.cocok)}</b><small>{kode.length ? `dari ${fmt(h.fasilBelum)} fasil` : "fasil belum tuntas"}</small></button></td>
                     <td className={s.angka}><Terisi a={h.kendala} b={h.belum} acuan={bagi(nas.kendala, nas.belum)} /></td>
                     <td className={s.angka}><Terisi a={h.tl} b={h.belum} acuan={bagi(nas.tl, nas.belum)} /></td>
                     <td><BatangKode kom={h.kom} arti={arti} sorot={kode} satuan={hari.length > 1 ? "fasil-hari" : "fasil"} /></td>

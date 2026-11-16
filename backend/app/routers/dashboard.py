@@ -2,8 +2,7 @@
 
 Semua angka dihitung dari isi komponen LK dan Log Komunikasi (bukan dari to-do; to-do hanya dipakai di halaman LK).
 Hasil hitungan disimpan dan dihitung ulang di latar tiap 10 menit, jadi halaman langsung terbuka.
-Semua petugas bisa memilih PIC mana pun atau "semua" (nasional), sama seperti dashboard online; Ranking PIC hanya
-untuk admin. Filter Bimtek Pelaporan membatasi ke sekolah satu kelompok bimtek.
+Semua petugas bisa memilih PIC mana pun atau "semua" (nasional), sama seperti dashboard online, termasuk Ranking PIC. Filter Bimtek Pelaporan membatasi ke sekolah satu kelompok bimtek.
 """
 
 import logging
@@ -14,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from .. import bimtek_lap, cutoff_baru, komunikasi, lk_baru, ranking, schedule, todo
+from .. import bimtek_lap, cutoff_baru, komunikasi, lk_baru, ranking, rekap_bimtek, schedule, todo
 from ..access import Access
 from ..sheets import normalize_petugas
 from .deps import require_access
@@ -99,6 +98,7 @@ def _distribusi(sekolah: list[lk_baru.Sekolah]) -> dict[str, Any]:
     return {
         "sekolah": len(sekolah), "fasil": len(fasil), "koor": len(koor),
         "jml_ptn": len({s.ptn for s in sekolah if s.ptn}), "jml_kab": len({s.kab for s in sekolah if s.kab}),
+        "jml_prov": len({s.provinsi for s in sekolah if s.provinsi}),
         "rata_sekolah_per_fasil": round(len(sekolah) / len(fasil), 1) if fasil else 0,
         "maks_sekolah_per_fasil": max(per_fasil.values()) if per_fasil else 0,
         "angkatan": [{"nama": f"Angkatan {k}" if k != "(kosong)" else k, "jumlah": v}
@@ -387,11 +387,38 @@ def dashboard(pic: str = Query("", max_length=120), bimtek: str = Query("", max_
     return out
 
 
+def _boleh_hitung(acc: Access) -> bool:
+    return (acc.admin or acc.has("cutoff")) and rekap_bimtek.folder().exists()
+
+
+@router.get("/bimtek")
+def bimtek_rekap(acc: Access = Depends(require_access)) -> dict[str, Any]:
+    """Rekap pertumbuhan sekolah setelah Bimtek Pelaporan (dari tab Rekap Bimtek di LK)."""
+    rekap = _jalan(rekap_bimtek.baca)
+    if _boleh_hitung(acc):
+        try:
+            rekap_bimtek.hitung_bila_ada_cutoff_baru(rekap)
+        except Exception:  # noqa: BLE001 - pemeriksaan otomatis tidak boleh menggagalkan halaman
+            log.warning("Cek cutoff baru untuk rekap bimtek gagal", exc_info=True)
+    return {"rekap": rekap, "bisa_hitung": _boleh_hitung(acc), "status": rekap_bimtek.status(),
+            "folder": str(rekap_bimtek.folder()) if _boleh_hitung(acc) else "",
+            "admin": acc.admin, "saya": komunikasi.petugas_saya()}
+
+
+@router.post("/bimtek/hitung")
+def bimtek_hitung(acc: Access = Depends(require_access)) -> dict[str, Any]:
+    if not (acc.admin or acc.has("cutoff")):
+        raise HTTPException(403, "Hanya admin / petugas cutoff yang bisa menghitung ulang rekap.")
+    if not rekap_bimtek.folder().exists():
+        raise HTTPException(400, f"Folder data bimtek tidak ada di laptop ini: {rekap_bimtek.folder()}")
+    rekap_bimtek.mulai_hitung()
+    return rekap_bimtek.status()
+
+
 @router.get("/ranking")
-def ranking_pic(bimtek: str = Query("", max_length=60), acc: Access = Depends(require_access)) -> dict[str, Any]:
-    if not acc.admin:
-        raise HTTPException(403, "Ranking PIC hanya untuk admin.")
-    return _jalan(ranking.ambil, bimtek)
+def ranking_pic(bimtek: str = Query("", max_length=60), _: Access = Depends(require_access)) -> dict[str, Any]:
+    """Ranking PIC: terbuka untuk semua pengguna yang terdaftar di sheet Akses."""
+    return {**_jalan(ranking.ambil, bimtek), "saya": komunikasi.petugas_saya()}
 
 
 @router.get("/log-progres")

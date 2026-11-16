@@ -1,6 +1,6 @@
 """Ranking PIC: komponen sudah diisi / yang seharusnya, isian Kendala/TL, dan Log Komunikasi per PIC.
 
-Dipakai dashboard offline (/api/dashboard/ranking) dan online (dasbor_online). Hanya admin yang boleh melihat.
+Dipakai dashboard offline (/api/dashboard/ranking) dan online (dasbor_online), terbuka untuk semua pengguna terdaftar.
 `bimtek`: hanya sekolah kelompok Bimtek Pelaporan itu ('' = semua, '-' = bukan peserta).
 """
 
@@ -21,7 +21,8 @@ _lock = threading.Lock()
 def hitung(bimtek: str = "") -> dict[str, Any]:
     """Per PIC: komponen sudah diisi / yang seharusnya (sudah due), per komponen dan total, plus pengisian
     Log Komunikasi. Satu kali baca data nasional untuk semua PIC."""
-    sekolah = [s for s in lk_baru.baca_semua() if bimtek_lap.cocok(s, bimtek)]
+    semua = lk_baru.baca_semua()
+    sekolah = [s for s in semua if bimtek_lap.cocok(s, bimtek)]
     try:
         logkom = lk_baru.baca_log_kom()
     except Exception:
@@ -139,7 +140,8 @@ def hitung(bimtek: str = "") -> dict[str, Any]:
             "komponen": [{"kode": k.kode, "label": k.label} for k in lk_baru.KOMPONEN],
             "kode_kom": komunikasi.kode_label(), "berkolom": sorted(berkolom),
             "blok": [{"blok": b, "label": lk_baru.label_blok(b, sesi)} for b in blok_urut], "blok_hari": blok_hari,
-            "bimtek": bimtek, "dibuat": schedule.now().strftime("%d/%m %H.%M")}
+            "bimtek": bimtek, "pilihan_bimtek": bimtek_lap.pilihan(semua),
+            "dibuat": schedule.now().strftime("%d/%m %H.%M")}
 
 
 def ambil(bimtek: str = "") -> dict[str, Any]:
