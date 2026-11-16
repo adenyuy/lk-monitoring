@@ -287,6 +287,13 @@ def proses(nomor: str, rows: list[Row]) -> int:
     f = next((f for f in komunikasi.fasil_saya().values() if nomor in [f.nomor, *f.nomor_lain]), None)
     n = 0
     if f:
+        try:  # balasan berisi Kendala/Tindak lanjut (kode T): ucapan terima kasih otomatis bila dinyalakan
+            from . import terima_kasih
+
+            terima_kasih.jadwalkan(nomor, f.nama)
+        except Exception:  # noqa: BLE001
+            log.warning("Jadwal terima kasih otomatis gagal", exc_info=True)
+    if f:
         week = lk_baru.week_aktif()
         blok = blok_hari_ini()
         kolom = set(lk_baru.tata(week).isian.get(blok, {}))

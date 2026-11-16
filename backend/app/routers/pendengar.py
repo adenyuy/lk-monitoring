@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .. import db
+from .. import db, terima_kasih
 from ..wa import pendengar, pengirim
 from .deps import require_feature
 
@@ -19,7 +19,8 @@ def status(_=Depends(wa_blast)) -> dict[str, Any]:
 
 
 def _ringkas() -> dict[str, Any]:
-    return {**pendengar.ringkas(), "kirim_lewat": pengirim.lewat(), "mesin_kirim": pengirim.mesin_aktif()}
+    return {**pendengar.ringkas(), "kirim_lewat": pengirim.lewat(), "mesin_kirim": pengirim.mesin_aktif(),
+            "terima_kasih": terima_kasih.aktif(), "terima_kasih_teks": terima_kasih.teks_untuk("{nama}")}
 
 
 class LewatReq(BaseModel):
@@ -32,6 +33,17 @@ def kirim_lewat(req: LewatReq, _=Depends(wa_blast)) -> dict[str, Any]:
     if req.lewat not in ("neonize", "waweb"):
         raise HTTPException(400, "Pilihan jalur kirim tidak dikenal.")
     db.set_setting("kirim_lewat", req.lewat)
+    return _ringkas()
+
+
+class SaklarReq(BaseModel):
+    nyala: bool
+
+
+@router.post("/terima-kasih")
+def atur_terima_kasih(req: SaklarReq, _=Depends(wa_blast)) -> dict[str, Any]:
+    """Nyalakan / matikan ucapan terima kasih otomatis untuk balasan berisi Kendala/Tindak lanjut (kode T)."""
+    terima_kasih.atur(req.nyala)
     return _ringkas()
 
 

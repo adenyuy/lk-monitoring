@@ -249,3 +249,6 @@
 .pilihLewat legend { font-size: 13px; font-weight: 600; padding: 0 4px; }
 .pilihLewat label { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.45; cursor: pointer; }
 .pilihLewat input { margin-top: 3px; accent-color: var(--primary); }
+.contohPesan { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--bg, #f6f7f9);
+  color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+

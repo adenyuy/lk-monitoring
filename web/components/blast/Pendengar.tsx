@@ -10,6 +10,8 @@ export type PendengarStatus = {
   status: "mati" | "menghubungkan" | "qr" | "tersambung" | "putus" | "keluar" | "galat";
   tertaut: boolean; sehat: boolean; qr_svg: string; akun: string; galat: string; sejak: string; terakhir: string;
   kirim_lewat?: "neonize" | "waweb"; mesin_kirim?: "neonize" | "waweb";
+  /** Ucapan terima kasih otomatis setelah fasil membalas Kendala/Tindak lanjut (kode T). */
+  terima_kasih?: boolean; terima_kasih_teks?: string;
 };
 
 /** Kartu kecil di halaman Blast: WhatsApp langsung (neonize) untuk kirim & baca chat, WA Web sebagai cadangan. */
@@ -60,6 +62,10 @@ function DialogPendengar({ p, onMuat, onTutup }: { p: PendengarStatus; onMuat: (
   const pilihLewat = async (lewat: "neonize" | "waweb") => {
     setGalat("");
     try { await post("/api/pendengar/kirim-lewat", { lewat }); await onMuat(); } catch (e) { setGalat(e instanceof Error ? e.message : String(e)); }
+  };
+  const aturTerimaKasih = async (nyala: boolean) => {
+    setGalat("");
+    try { await post("/api/pendengar/terima-kasih", { nyala }); await onMuat(); } catch (e) { setGalat(e instanceof Error ? e.message : String(e)); }
   };
   const lepas = async () => {
     setJalan(true);
@@ -121,6 +127,19 @@ function DialogPendengar({ p, onMuat, onTutup }: { p: PendengarStatus; onMuat: (
             <label>
               <input type="radio" name="lewat" checked={p.kirim_lewat === "waweb"} onChange={() => void pilihLewat("waweb")} />
               <span><b>Jendela WhatsApp Web</b>. Seperti dulu; chat tetap dibaca langsung.</span>
+            </label>
+          </fieldset>
+        )}
+        {p.tertaut && (
+          <fieldset className={s.pilihLewat}>
+            <legend>Terima kasih otomatis</legend>
+            <label>
+              <input type="checkbox" checked={!!p.terima_kasih} onChange={(e) => void aturTerimaKasih(e.target.checked)} />
+              <span>
+                <b>Kirim ucapan terima kasih</b> setelah fasil membalas dengan Kendala/Tindak lanjut (kode T). Sekali per fasil
+                per sesi, 1–3 menit setelah balasan, pukul 07.00–21.00, dan batal bila Anda sudah membalas sendiri.
+                {p.terima_kasih_teks && <small className={s.contohPesan}>“{p.terima_kasih_teks}”</small>}
+              </span>
             </label>
           </fieldset>
         )}
