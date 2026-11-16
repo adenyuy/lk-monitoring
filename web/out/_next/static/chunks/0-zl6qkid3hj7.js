@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,63740,e=>{"use strict";var t=e.i(71645),o=e.i(18566);e.s(["Pindah",0,function({ke:e}){let c=(0,o.useRouter)();return(0,t.useEffect)(()=>{let t=window.location.search;c.replace(`${e}${t}`)},[e,c]),null}])}]);
