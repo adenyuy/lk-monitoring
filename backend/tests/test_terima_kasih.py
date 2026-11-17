@@ -56,7 +56,7 @@ def test_sekali_per_sesi_dan_batal_bila_sudah_dibalas(tk):
     assert terima_kasih.kirim("0812", "Fasil A", "WEEK 5 sesi 1", "2026-11-16T09:59:00") == "sudah"
     assert not terima_kasih.jadwalkan("0812", "Fasil A", timer=_Timer)      # sesi ini sudah dikirimi
     with db.tx() as c:
-        c.execute("INSERT INTO neo_pesan VALUES ('p1', '0813', 1, 'oke pak', '2026-11-16T10:00:30', 'sent')")
+        c.execute("INSERT INTO neo_pesan(id, nomor, keluar, teks, waktu, status) VALUES ('p1', '0813', 1, 'oke pak', '2026-11-16T10:00:30', 'sent')")
     assert terima_kasih.kirim("0813", "Fasil B", "WEEK 5 sesi 1", "2026-11-16T10:00:00") == "dibalas"
     assert len(terkirim) == 1
 

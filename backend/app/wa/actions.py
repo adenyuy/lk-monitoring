@@ -187,6 +187,7 @@ class Row:
     text: str
     waktu: str = ""  # "10.37, 26/10/2026" dari atribut data-pre-plain-text, bila ada
     kutipan: str = ""  # teks pesan yang dikutip (bila pesan ini membalas pesan lain)
+    foto: bool = False  # pesan berisi foto yang bisa diunduh lewat pendengar
 
 
 _NOMOR = re.compile(r"^(\d{1,3})\.\s+\S")

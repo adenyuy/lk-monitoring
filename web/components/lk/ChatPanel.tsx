@@ -5,7 +5,7 @@ import { post } from "@/lib/api";
 import type { Percakapan } from "@/lib/types";
 import { bacaBalasan, type Template } from "@/lib/pesan";
 import { Button, Spinner } from "@/components/ui";
-import { formatWa } from "@/components/today/WaPanel";
+import { FotoWa, formatWa, IkonTelepon } from "@/components/today/WaPanel";
 import s from "./lk.module.css";
 
 const CENTANG: Record<string, string> = { read: "Dibaca", delivered: "Diterima", sent: "Terkirim", pending: "Menunggu" };
@@ -77,12 +77,14 @@ export function ChatPanel({ nomor, nama, peran, template, onIsiLk, onTerkirim }:
 
       <div className={s.thread} ref={threadRef}>
         {pesan.length > 0 ? pesan.map((m, i) => {
+          if (m.jenis === "telepon") return <div key={i} className={s.logTelepon}><IkonTelepon />{m.teks}<small>{m.waktu}</small></div>;
           const bisaIsi = !!onIsiLk && !m.keluar && bacaBalasan(m.teks).length > 0;
           return (
             <div key={i} className={`${s.msg} ${m.keluar ? s.msgOut : ""}`}>
               <div className={s.bubble}>
                 {m.kutipan && <div className={s.kutipan}>{m.kutipan}</div>}
-                {formatWa(m.teks)}
+                {m.foto && <FotoWa src={m.foto} className={s.foto} />}
+                {m.teks && formatWa(m.teks)}
               </div>
               <div className={s.msgMeta}>
                 {m.waktu || (m.keluar ? "Anda" : lawan)}

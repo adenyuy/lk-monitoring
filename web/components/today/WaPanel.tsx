@@ -8,6 +8,27 @@ import { JawabPicker } from "./JawabPicker";
 import s from "./today.module.css";
 
 /** Tampilkan *teks* gaya WhatsApp sebagai huruf tebal. */
+/** Foto di chat: diunduh dari WhatsApp saat ditampilkan, klik untuk ukuran penuh. */
+export function FotoWa({ src, className }: { src: string; className?: string }) {
+  const [gagal, setGagal] = useState(false);
+  if (gagal) return <span className={className} data-gagal="">Foto tidak bisa dimuat (WhatsApp belum tersambung atau foto sudah kedaluwarsa)</span>;
+  return (
+    <a href={src} target="_blank" rel="noreferrer" title="Buka foto ukuran penuh">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className={className} src={src} alt="Foto dari WhatsApp" loading="lazy" onError={() => setGagal(true)} />
+    </a>
+  );
+}
+
+export function IkonTelepon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+      strokeLinejoin="round" aria-hidden="true">
+      <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
+    </svg>
+  );
+}
+
 export function formatWa(teks: string) {
   return teks.split(/(\*[^*\n]+\*)/g).map((bagian, i) =>
     bagian.length > 2 && bagian.startsWith("*") && bagian.endsWith("*")
@@ -203,11 +224,14 @@ export function WaPanel({ nomor, data, onChanged, onTeruskan, isi, tersembunyi }
 
       <div className={s.thread} ref={threadRef}>
         {pesan.length > 0 ? (
-          pesan.map((m, i) => (
+          pesan.map((m, i) => m.jenis === "telepon" ? (
+            <div key={i} className={s.logTelepon}><IkonTelepon />{m.teks}<small>{m.waktu}</small></div>
+          ) : (
             <div key={i} className={`${s.msg} ${m.keluar ? s.msgOut : ""}`}>
               <div className={s.bubble}>
                 {m.kutipan && <div className={s.kutipan}>{m.kutipan}</div>}
-                {formatWa(m.teks)}
+                {m.foto && <FotoWa src={m.foto} className={s.foto} />}
+                {m.teks && formatWa(m.teks)}
               </div>
               <div className={s.msgMeta}>
                 {m.waktu || (m.keluar ? "Kamu" : "Fasil")}

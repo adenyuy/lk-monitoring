@@ -1,8 +1,10 @@
 """Baca percakapan dan balas fasil langsung dari aplikasi (lewat jendela WhatsApp app)."""
 
+from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from .. import aktivitas, events, schedule, store, tagging
@@ -59,9 +61,47 @@ def _hasil(nomor: str, info: actions.ChatInfo, rows: list[actions.Row]) -> dict[
         "status": info.status,
         "dibaca_pada": schedule.now().strftime("%H.%M"),
         "perlu_balas": info.terakhir_masuk,
-        "pesan": [{"keluar": r.out, "teks": r.text, "waktu": r.waktu, "status": r.status, "kutipan": r.kutipan}
-                  for r in rows if r.text][-40:],
+        "pesan": _tampilan(nomor, rows)[-40:],
     }
+
+
+def _jam(w: datetime) -> str:
+    return f"{w:%H.%M}, {w:%d/%m/%Y}"
+
+
+def _tampilan(nomor: str, rows: list[actions.Row]) -> list[dict[str, Any]]:
+    """Pesan untuk panel chat, disisipi log telepon sesuai urutan waktu. Foto diberi alamat unduhannya."""
+    from ..wa import pendengar
+
+    try:
+        tel = pendengar.panggilan(nomor)
+    except Exception:
+        tel = []
+
+    def telepon(t: dict[str, Any]) -> dict[str, Any]:
+        arah = "keluar" if t["keluar"] else "masuk"
+        hasil = "diangkat" if t["hasil"] == "diangkat" else "tidak diangkat"
+        lama = f", {max(1, round(t['durasi'] / 60))} menit" if t["hasil"] == "diangkat" and t["durasi"] else ""
+        return {"keluar": t["keluar"], "teks": f"Telepon {arah}, {hasil}{lama}", "waktu": _jam(t["waktu"]),
+                "status": "", "jenis": "telepon"}
+
+    out, i = [], 0
+    for r in rows:
+        if not r.text:
+            continue
+        try:
+            w = datetime.strptime(r.waktu, "%H.%M, %d/%m/%Y")
+        except ValueError:
+            w = None
+        while w and i < len(tel) and tel[i]["waktu"] <= w:
+            out.append(telepon(tel[i]))
+            i += 1
+        x = {"keluar": r.out, "teks": r.text, "waktu": r.waktu, "status": r.status, "kutipan": r.kutipan}
+        if r.foto:
+            x["teks"] = r.text.removeprefix("[foto]").strip()
+            x["foto"] = f"/api/chat/{nomor}/foto/{quote(r.id, safe='')}"
+        out.append(x)
+    return out + [telepon(t) for t in tel[i:]]
 
 
 def _jalan(fn, timeout: float):
@@ -121,6 +161,20 @@ def baca(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
 
     chat_refresh._catat_siklus(n, rows)  # centang & balasan yang terlihat ikut menentukan kode Log Komunikasi
     return _hasil(n, info, rows)
+
+
+@router.get("/{nomor}/foto/{pid}")
+def foto(nomor: str, pid: str, _=Depends(wa_blast)) -> Response:
+    n = _nomor_fasil(nomor)
+    from ..wa import pendengar
+
+    try:
+        data = pendengar.foto(n, pid)
+    except Exception as e:
+        raise HTTPException(502, f"Foto tidak bisa diunduh dari WhatsApp: {e}") from e
+    if not data:
+        raise HTTPException(404, "Foto tidak tersedia (pendengar WhatsApp belum tersambung atau fotonya sudah kedaluwarsa).")
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
 class BalasReq(BaseModel):

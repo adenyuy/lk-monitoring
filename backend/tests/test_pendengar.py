@@ -23,7 +23,7 @@ def siap(monkeypatch):
     p._db()
     kom_siklus._db()
     with db.tx() as c:
-        for t in ("neo_pesan", "neo_lid", "kom_amat", "kom_balas", "kom_mulai"):
+        for t in ("neo_pesan", "neo_panggilan", "neo_lid", "kom_amat", "kom_balas", "kom_mulai"):
             c.execute(f"DELETE FROM {t}")
     monkeypatch.setattr(p, "_nomor_milik", lambda: {FASIL})
     monkeypatch.setattr(schedule, "now", lambda: datetime(2026, 11, 9, 10))  # Senin
@@ -142,3 +142,23 @@ def test_chat_lewat_hp_hari_ini_terhitung_di_blast():
     finally:
         with db.tx() as c:
             c.execute("DELETE FROM kom_mulai WHERE nomor = '6281200000009'")
+
+
+def test_pesan_panjang_tersimpan_utuh(siap):
+    teks = "\n".join(f"{i}. SD NEGERI {i}\nKendala: proses upload\nTindak lanjut: konfirmasi" for i in range(1, 120))
+    assert len(teks) > 4000
+    p.on_pesan(pesan("P1", True, teks, alt=jid(FASIL, "s.whatsapp.net")))
+    assert p.baris_chat(FASIL)[0].text == teks
+
+
+def test_foto_ditandai_dan_telepon_disisipkan_di_chat(siap):
+    from app.routers import chat
+
+    p.simpan_pesan("F1", FASIL, False, "[foto] bukti upload", datetime(2026, 11, 6, 9), media=b"proto")
+    p.simpan_pesan("T2", FASIL, True, "terima kasih", datetime(2026, 11, 6, 11))
+    p.simpan_panggilan("C1", FASIL, True, "diangkat", datetime(2026, 11, 6, 10), 125)
+    p.simpan_panggilan("C2", FASIL, False, "tidak", datetime(2026, 11, 6, 12))
+    out = chat._tampilan(FASIL, p.baris_chat(FASIL))
+    assert [x["teks"] for x in out] == ["bukti upload", "Telepon keluar, diangkat, 2 menit", "terima kasih",
+                                        "Telepon masuk, tidak diangkat"]
+    assert out[0]["foto"] == f"/api/chat/{FASIL}/foto/F1" and out[1]["jenis"] == "telepon"

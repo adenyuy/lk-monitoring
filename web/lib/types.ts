@@ -178,7 +178,7 @@ export type Percakapan = {
   status: "belum_ada" | "terkirim" | "dibaca" | "dibalas";
   dibaca_pada: string;
   perlu_balas?: boolean;
-  pesan: { keluar: boolean; teks: string; waktu: string; status: string; kutipan?: string }[];
+  pesan: { keluar: boolean; teks: string; waktu: string; status: string; kutipan?: string; foto?: string; jenis?: "telepon" }[];
 };
 
 export type ChatRekap = "belum" | "gagal" | "terkirim" | "dibaca" | "dibalas";

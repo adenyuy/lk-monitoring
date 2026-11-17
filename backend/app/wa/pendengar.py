@@ -43,6 +43,15 @@ CREATE TABLE IF NOT EXISTS neo_pesan (
     status TEXT NOT NULL DEFAULT ''      -- pesan keluar: sent | delivered | read
 );
 CREATE INDEX IF NOT EXISTS neo_pesan_nomor ON neo_pesan(nomor, waktu);
+CREATE TABLE IF NOT EXISTS neo_panggilan (
+    id     TEXT PRIMARY KEY,
+    nomor  TEXT NOT NULL,
+    keluar INTEGER NOT NULL,
+    hasil  TEXT NOT NULL,                -- diangkat | tidak
+    waktu  TEXT NOT NULL,
+    durasi INTEGER NOT NULL DEFAULT 0    -- detik
+);
+CREATE INDEX IF NOT EXISTS neo_panggilan_nomor ON neo_panggilan(nomor, waktu);
 CREATE TABLE IF NOT EXISTS neo_lid (
     lid   TEXT PRIMARY KEY,
     nomor TEXT NOT NULL
@@ -56,6 +65,8 @@ def _db() -> None:
     if not _siap:
         with db.tx() as c:
             c.executescript(SCHEMA)
+            if "media" not in {r[1] for r in c.execute("PRAGMA table_info(neo_pesan)")}:
+                c.execute("ALTER TABLE neo_pesan ADD COLUMN media BLOB")  # pesan foto (protobuf) untuk diunduh nanti
         _siap = True
 
 
@@ -70,13 +81,18 @@ def waktu_dari(ts: int | float) -> datetime:
     return datetime.fromtimestamp(ts, tz=kini.tzinfo) if ts else kini  # zona waktu sama dengan jam aplikasi (WIB)
 
 
-def simpan_pesan(pid: str, nomor: str, keluar: bool, teks: str, waktu: datetime, status: str = "") -> None:
+MAKS_TEKS = 65536  # batas panjang pesan WhatsApp; pesan rekap panjang harus tersimpan utuh
+
+
+def simpan_pesan(pid: str, nomor: str, keluar: bool, teks: str, waktu: datetime, status: str = "",
+                 media: bytes | None = None) -> None:
     _db()
     with db.tx() as c:
-        c.execute("INSERT INTO neo_pesan(id, nomor, keluar, teks, waktu, status) VALUES(?,?,?,?,?,?) "
-                  "ON CONFLICT(id) DO UPDATE SET teks = CASE WHEN excluded.teks != '' THEN excluded.teks ELSE teks END",
-                  (pid, nomor, int(keluar), teks[:4000], waktu.isoformat(timespec="seconds"),
-                   (status or "sent") if keluar else ""))
+        c.execute("INSERT INTO neo_pesan(id, nomor, keluar, teks, waktu, status, media) VALUES(?,?,?,?,?,?,?) "
+                  "ON CONFLICT(id) DO UPDATE SET teks = CASE WHEN excluded.teks != '' THEN excluded.teks ELSE teks END, "
+                  "media = COALESCE(excluded.media, media)",
+                  (pid, nomor, int(keluar), teks[:MAKS_TEKS], waktu.isoformat(timespec="seconds"),
+                   (status or "sent") if keluar else "", media))
         if keluar and status:
             _naik(c, nomor, [pid], status, None)
 
@@ -121,12 +137,53 @@ def baris_chat(nomor: str) -> list[Row]:
     _db()
     sejak = (schedule.now() - timedelta(days=SIMPAN_HARI)).isoformat(timespec="seconds")
     out = []
-    for r in db.query("SELECT id, keluar, teks, waktu, status FROM neo_pesan WHERE nomor = ? AND waktu >= ? "
-                      "ORDER BY waktu, rowid", (nomor, sejak)):
+    for r in db.query("SELECT id, keluar, teks, waktu, status, media IS NOT NULL AS foto FROM neo_pesan "
+                      "WHERE nomor = ? AND waktu >= ? ORDER BY waktu, rowid", (nomor, sejak)):
         w = datetime.fromisoformat(r["waktu"])
         out.append(Row(id=r["id"], out=bool(r["keluar"]), status=r["status"] if r["keluar"] else "", text=r["teks"],
-                       waktu=f"{w:%H.%M}, {w:%d/%m/%Y}"))
+                       waktu=f"{w:%H.%M}, {w:%d/%m/%Y}", foto=bool(r["foto"])))
     return out
+
+
+def foto(nomor: str, pid: str) -> bytes | None:
+    """Isi foto satu pesan. Diunduh sekali dari WhatsApp lalu disimpan di folder media; None bila tidak ada."""
+    import hashlib
+
+    _db()
+    r = db.query_one("SELECT media FROM neo_pesan WHERE id = ? AND nomor = ?", (pid, nomor))
+    if not r or not r["media"]:
+        return None
+    berkas = paths.DATA_DIR / "media" / f"{hashlib.sha1(pid.encode()).hexdigest()}.jpg"
+    if berkas.exists():
+        return berkas.read_bytes()
+    if _klien is None:
+        return None
+    from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
+
+    data = _klien.download_any(Message.FromString(r["media"]))
+    if not data:
+        return None
+    berkas.parent.mkdir(parents=True, exist_ok=True)
+    berkas.write_bytes(data)
+    return data
+
+
+def simpan_panggilan(cid: str, nomor: str, keluar: bool, hasil: str, waktu: datetime, durasi: int = 0) -> None:
+    _db()
+    with db.tx() as c:
+        c.execute("INSERT INTO neo_panggilan(id, nomor, keluar, hasil, waktu, durasi) VALUES(?,?,?,?,?,?) "
+                  "ON CONFLICT(id) DO NOTHING", (cid, nomor, int(keluar), hasil, waktu.isoformat(timespec="seconds"),
+                                                 int(durasi or 0)))
+
+
+def panggilan(nomor: str) -> list[dict[str, Any]]:
+    """Log telepon WhatsApp dengan nomor ini (3 minggu terakhir), urut waktu."""
+    _db()
+    sejak = (schedule.now() - timedelta(days=SIMPAN_HARI)).isoformat(timespec="seconds")
+    return [{"keluar": bool(r["keluar"]), "hasil": r["hasil"], "durasi": r["durasi"],
+             "waktu": datetime.fromisoformat(r["waktu"]).replace(tzinfo=None)}
+            for r in db.query("SELECT keluar, hasil, waktu, durasi FROM neo_panggilan WHERE nomor = ? AND waktu >= ? "
+                              "ORDER BY waktu", (nomor, sejak))]
 
 
 def ada_riwayat() -> bool:
@@ -140,6 +197,7 @@ def bersihkan() -> None:
     batas = (schedule.now() - timedelta(days=SIMPAN_HARI + 7)).isoformat(timespec="seconds")
     with db.tx() as c:
         c.execute("DELETE FROM neo_pesan WHERE waktu < ?", (batas,))
+        c.execute("DELETE FROM neo_panggilan WHERE waktu < ?", (batas,))
 
 
 def olah(nomor: str) -> ChatInfo | None:
@@ -333,6 +391,14 @@ def _teks(pesan) -> str:
     return ""
 
 
+def _media_foto(pesan) -> bytes | None:
+    """Protobuf pesan foto (berisi kunci unduhan) untuk diunduh saat dibuka; None bila bukan foto."""
+    try:
+        return pesan.SerializeToString() if pesan.HasField("imageMessage") else None
+    except Exception:
+        return None
+
+
 def on_pesan(e) -> None:
     src = e.Info.MessageSource
     if src.IsGroup:
@@ -343,7 +409,8 @@ def on_pesan(e) -> None:
     if not nomor or nomor not in _nomor_milik():
         return
     teks = _teks(e.Message)
-    simpan_pesan(e.Info.ID, nomor, keluar, teks, waktu_dari(e.Info.Timestamp), "sent" if keluar else "")
+    simpan_pesan(e.Info.ID, nomor, keluar, teks, waktu_dari(e.Info.Timestamp), "sent" if keluar else "",
+                 _media_foto(e.Message))
     antrekan(nomor)
 
 
@@ -396,13 +463,41 @@ def on_riwayat(e) -> None:
                 continue
             keluar = bool(w.key.fromMe)
             st = status_dari.get(_nama_status(w), "sent") if keluar else ""
-            simpan_pesan(w.key.ID, nomor, keluar, _teks(w.message), t, st)
+            simpan_pesan(w.key.ID, nomor, keluar, _teks(w.message), t, st, _media_foto(w.message))
             sentuh.add(nomor)
             pesan += 1
-    log.info("Riwayat chat: %d percakapan, %d peta LID, %d cocok dengan fasil, %d pesan disimpan",
-             jumlah, peta, cocok, pesan)
+    telepon = _riwayat_telepon(getattr(e.Data, "callLogRecords", []), milik, batas, sentuh)
+    log.info("Riwayat chat: %d percakapan, %d peta LID, %d cocok dengan fasil, %d pesan, %d telepon disimpan",
+             jumlah, peta, cocok, pesan, telepon)
     for n in sentuh:
         antrekan(n)
+
+
+def _nomor_teks(j: str) -> str:
+    """Nomor HP dari JID berbentuk teks ("628..@s.whatsapp.net" atau "...@lid")."""
+    u, _, srv = (j or "").partition("@")
+    u = u.partition(":")[0]
+    return (nomor_lid(u) or _pn_dari_lid(u)) if srv == "lid" else u
+
+
+def _riwayat_telepon(catatan, milik: set[str], batas: datetime, sentuh: set[str]) -> int:
+    n = 0
+    for rec in catatan:
+        try:
+            if rec.groupJID:
+                continue
+            keluar = not rec.isIncoming
+            lawan = rec.participants[0].userJID if keluar and len(rec.participants) else rec.callCreatorJID
+            nomor = _nomor_teks(lawan)
+            t = waktu_dari(rec.startTime)
+            if not nomor or nomor not in milik or t < batas or not rec.callID:
+                continue
+            simpan_panggilan(rec.callID, nomor, keluar, "diangkat" if rec.callResult == 0 else "tidak", t, rec.duration)
+            sentuh.add(nomor)
+            n += 1
+        except Exception:
+            log.warning("Satu catatan telepon di riwayat tidak terbaca", exc_info=True)
+    return n
 
 
 def _pn_dari_lid(lid: str) -> str:
@@ -446,9 +541,17 @@ def on_panggil(ev, jenis: str) -> None:
     elif jenis == "accept":
         _panggilan.setdefault(cid, {"nomor": nomor, "keluar": keluar, "diangkat": False, "mulai": time.time()})
         _panggilan[cid]["diangkat"] = True
+        _panggilan[cid]["angkat"] = time.time()
     elif jenis == "terminate":
         p = _panggilan.pop(cid, None)
-        if not p or not p["keluar"] or not p["nomor"] or p["nomor"] not in _nomor_milik():
+        if not p or not p["nomor"] or p["nomor"] not in _nomor_milik():
+            return
+        try:  # log telepon untuk panel chat, masuk maupun keluar
+            simpan_panggilan(cid, p["nomor"], p["keluar"], "diangkat" if p["diangkat"] else "tidak",
+                             waktu_dari(p["mulai"]), int(time.time() - p["angkat"]) if p.get("angkat") else 0)
+        except Exception:
+            log.exception("Log telepon gagal disimpan")
+        if not p["keluar"]:
             return
         hasil = "diangkat" if p["diangkat"] else "tidak"
         if hasil == "tidak" and time.time() - p["mulai"] < MIN_DERING:
