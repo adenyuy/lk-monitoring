@@ -116,16 +116,6 @@ def client(monkeypatch):
     app.dependency_overrides.clear()
 
 
-def test_api_undangan(client):
-    r = client.post("/api/undangan-wag", json={"aktif": True, "link": "", "tim": "", "teks": ""})
-    assert r.status_code == 400
-    r = client.post("/api/undangan-wag", json={"aktif": True, "link": LINK, "tim": "3", "teks": ""})
-    assert r.status_code == 200, r.text
-    d = r.json()
-    assert d["aktif"] and d["link"] == LINK and "Tim Monitoring 3" in d["contoh"] and "{salam}" not in d["contoh"]
-    assert client.get("/api/undangan-wag").json()["aktif"]
-
-
 def test_undangan_langsung_semua_fasil_tanpa_sesi_akhir_pekan_dan_batas_harian():
     undangan_wag.simpan(aktif=True, link=LINK, tim="", teks="")
     db.set_setting("batas_harian", 10)

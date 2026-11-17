@@ -134,29 +134,6 @@ def pasang_link(link: str, untuk_tim: bool) -> str:
     return sid
 
 
-def kontak_pic() -> list[dict[str, str]]:
-    """Tab tersembunyi "Kontak PIC" di sheet Broadcast: nama dan nomor WhatsApp teman petugas."""
-    from .sheets import normalize_nomor
-
-    def load() -> list[dict[str, str]]:
-        ss = gspread_client().open_by_key(config.BROADCAST_SHEET_ID)
-        nilai = ss.values_get("'Kontak PIC'!A1:D").get("values", [])
-        if not nilai:
-            return []
-        judul = [" ".join(str(h).lower().split()) for h in nilai[0]]
-        i_nama = judul.index("nama pic") if "nama pic" in judul else 1
-        i_nomor = judul.index("nomor pic") if "nomor pic" in judul else 2
-        out = []
-        for r in nilai[1:]:
-            nama = str(r[i_nama]).strip() if i_nama < len(r) else ""
-            nomor = normalize_nomor(str(r[i_nomor])) if i_nomor < len(r) else ""
-            if nama and nomor:
-                out.append({"nama": " ".join(nama.split()), "nomor": nomor})
-        return out
-
-    return cache.get("kontak_pic", 600, load)
-
-
 def _ss():
     return gspread_client().open_by_key(sheet_id())
 

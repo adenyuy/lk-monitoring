@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from . import backup_lk, chat_refresh, config, db, lk_otomatis, paths
 from .routers import (admin, bimtek, blast, blast_admin, chat, core, cutoff, dashboard, eskalasi, forum, lkb, log,
-                      paparan, pendengar as rute_pendengar, rekap, send, today, wa)
+                      paparan, pendengar as rute_pendengar, rekap, send, wa)
 from .wa import pendengar
 from .wa.browser import worker
 
@@ -83,7 +83,6 @@ async def jaga_asal(request: Request, call_next):
 app.include_router(core.router)
 app.include_router(wa.router)
 app.include_router(send.router)
-app.include_router(today.router)
 app.include_router(lkb.router)
 app.include_router(blast.router)
 app.include_router(blast_admin.router)

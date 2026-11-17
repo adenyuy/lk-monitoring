@@ -5,9 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .. import aktivitas, db, eskalasi, schedule
-from ..wa import actions
-from . import chat
+from .. import aktivitas, eskalasi
 from ..access import Access
 from ..sheets import normalize_petugas
 from .deps import require_access, require_feature
@@ -49,6 +47,8 @@ def daftar(npsn: str = Query("", max_length=4000), semua: bool = False, paksa: b
         eskalasi.sheet_id()
     except eskalasi.LinkBelumAda:
         return {"perlu_link": True, "opsi": None, "masalah": [], "faq": [], "saya": {}}
+    except Exception as e:  # mis. login Google habis / offline: pesan terbaca, bukan 500
+        raise HTTPException(502, f"LK Eskalasi tidak bisa dibuka: {e}") from e
     saya, pic = _saya(acc), _pic(acc)
     if paksa:
         eskalasi.cache.drop("esk_opsi")
@@ -79,17 +79,6 @@ def pasang_link(req: LinkReq, acc: Access = Depends(wa_blast)) -> dict[str, Any]
     untuk_tim = acc.admin
     _jalan(eskalasi.pasang_link, req.link, untuk_tim)
     return {"ok": True, "untuk_tim": untuk_tim}
-
-
-@router.get("/kontak")
-def kontak(_=Depends(wa_blast)) -> dict[str, Any]:
-    """Teman petugas dari tab Kontak PIC sheet Broadcast, tanpa diri sendiri."""
-    saya = normalize_petugas(db.get_setting("nama_petugas") or "")
-    try:
-        semua = eskalasi.kontak_pic()
-    except Exception as e:
-        raise HTTPException(502, f"Tab Kontak PIC di sheet Broadcast tidak bisa dibaca: {e}") from e
-    return {"kontak": [k for k in semua if normalize_petugas(k["nama"]) != saya]}
 
 
 class CatatReq(BaseModel):
@@ -147,61 +136,3 @@ def ubah(mid: str, req: UbahReq, acc: Access = Depends(require_access)) -> dict[
     m = _jalan(eskalasi.ubah, mid, req.model_dump(exclude_unset=True, exclude={"baris", "sidik"}), saya, pic,
                req.baris, req.sidik)
     return {"masalah": _keluar(m, saya, pic)}
-
-
-# ---------- chat teman PIC (dibaca & dibalas di panel aplikasi, bukan di WhatsApp Web) ----------
-
-def _nomor_teman(nomor: str) -> dict[str, str]:
-    from ..sheets import normalize_nomor
-
-    n = normalize_nomor(nomor)
-    try:
-        teman = next((k for k in eskalasi.kontak_pic() if k["nomor"] == n), None)
-    except Exception as e:
-        raise HTTPException(502, f"Tab Kontak PIC di sheet Broadcast tidak bisa dibaca: {e}") from e
-    if not teman:
-        raise HTTPException(403, "Nomor ini tidak ada di Kontak PIC.")
-    return teman
-
-
-def _percakapan(rows) -> dict[str, Any]:
-    return {"pesan": [{"keluar": r.out, "teks": r.text, "waktu": r.waktu, "status": r.status, "kutipan": r.kutipan}
-                      for r in rows if r.text][-40:],
-            "dibaca_pada": schedule.now().strftime("%H.%M")}
-
-
-@router.post("/teman/{nomor}/baca")
-def baca_teman(nomor: str, _=Depends(wa_blast)) -> dict[str, Any]:
-    t = _nomor_teman(nomor)
-    chat._siap()
-    _, rows = chat._jalan(lambda b: actions.read_thread(b, t["nomor"]), timeout=90)
-    return _percakapan(rows)
-
-
-class KirimTemanReq(BaseModel):
-    pesan: str = Field(min_length=1, max_length=chat.MAKS_BALASAN)
-    fasil: str = ""  # nomor fasil yang ditanyakan, untuk riwayat
-
-
-@router.post("/teman/{nomor}/kirim")
-def kirim_teman(nomor: str, req: KirimTemanReq, _=Depends(wa_blast)) -> dict[str, Any]:
-    t = _nomor_teman(nomor)
-    teks = req.pesan.strip()
-    if not teks:
-        raise HTTPException(400, "Pesan masih kosong.")
-    chat._siap()
-
-    def run(b):
-        res = actions.reply(b, t["nomor"], teks)
-        if res.status != "terkirim":
-            return res, None
-        b.page.wait_for_timeout(800)
-        return res, actions.read_thread(b, t["nomor"])
-
-    res, thread = chat._jalan(run, timeout=120)
-    if res.status != "terkirim":
-        raise HTTPException(502, f"Pesan belum terkirim: {res.keterangan}")
-    if req.fasil:
-        from ..sheets import normalize_nomor
-        aktivitas.catat(normalize_nomor(req.fasil), "lk", f"Ditanyakan ke teman PIC {t['nama']}")
-    return _percakapan(thread[1])

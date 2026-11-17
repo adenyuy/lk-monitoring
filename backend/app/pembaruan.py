@@ -18,6 +18,7 @@ from . import config, paths
 
 log = logging.getLogger(__name__)
 INTERVAL_DETIK = 30 * 60
+JEDA_PAKSA_DETIK = 60
 _lock = threading.Lock()
 _hasil: dict[str, Any] = {"aktif": False, "versi": config.VERSION, "versi_baru": "", "ada_baru": False, "dicek": 0.0}
 _tanpa_jendela = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -74,7 +75,8 @@ def aktif() -> bool:
 def cek(paksa: bool = False) -> dict[str, Any]:
     """Bandingkan versi lokal dengan origin/release. Hasil di-cache 30 menit."""
     with _lock:
-        if not paksa and time.time() - _hasil["dicek"] < INTERVAL_DETIK:
+        # paksa: paling cepat tiap 60 dtk (rute ini tanpa login, jadi situs lain bisa memanggilnya berulang)
+        if time.time() - _hasil["dicek"] < (JEDA_PAKSA_DETIK if paksa else INTERVAL_DETIK):
             return dict(_hasil)
         _hasil["dicek"] = time.time()
         _hasil["aktif"] = aktif()

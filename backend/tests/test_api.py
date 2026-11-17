@@ -128,20 +128,16 @@ def test_paket_lk_monitoring_memasang_alamat_sheet(monkeypatch):
     paths.CREDENTIALS_FILE.unlink()
 
 
-def test_bypass_wajib_kalimat_risiko(monkeypatch):
-    from fastapi.testclient import TestClient
-    from app import db
-    from app.main import app
-    from app.routers import send
 
-    app.dependency_overrides[send.wa_blast] = lambda: None
-    monkeypatch.setattr(send, "_kondisi", lambda: {})
-    try:
-        c = TestClient(app)
-        assert c.post("/api/send/bypass", json={"aktif": True}).status_code == 400
-        r = c.post("/api/send/bypass", json={"aktif": True, "konfirmasi": " Risiko ditanggung sendiri "})
-        assert r.status_code == 200 and db.get_setting("bypass_sesi")
-        assert c.post("/api/send/bypass", json={"aktif": False}).status_code == 200
-        assert db.get_setting("bypass_sesi") is None
-    finally:
-        app.dependency_overrides.clear()
+def test_cek_pembaruan_paksa_dibatasi_60_detik(monkeypatch):
+    from app import pembaruan
+
+    n = []
+    monkeypatch.setattr(pembaruan, "aktif", lambda: n.append(1) or False)
+    monkeypatch.setitem(pembaruan._hasil, "dicek", 0.0)
+    pembaruan.cek(paksa=True)
+    pembaruan.cek(paksa=True)  # dalam 60 dtk: pakai hasil tersimpan, tidak cek ulang
+    assert len(n) == 1
+    monkeypatch.setitem(pembaruan._hasil, "dicek", pembaruan.time.time() - 61)
+    pembaruan.cek(paksa=True)
+    assert len(n) == 2

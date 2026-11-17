@@ -1182,6 +1182,37 @@ def rencana_kolom_tanggal(h1: list[Any], h2: list[Any], hari: date,
 _sudah_tgl: set[str] = set()
 
 
+def _rapikan_ganda(ss, tab: str, sheet_id: int, hari: date) -> None:
+    """Laptop lain bisa menambah kolom tanggal yang sama di saat bersamaan: sisakan satu kolom per tanggal.
+
+    Kolom yang sudah berisi kode tidak pernah dihapus (posisi kolom bisa sudah bergeser oleh laptop lain).
+    Bila salinan berisi bukan yang pertama, salinan itu dipindah ke posisi pertama supaya urutan tanggal tetap.
+    Dua salinan yang sama-sama berisi dibiarkan (dirapikan manual)."""
+    for _ in range(12):  # tiap putaran satu pemindahan, lalu judul dibaca ulang
+        h2 = (ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]]) or [[]])[0]
+        per: dict[date, list[int]] = {}
+        for i, d in _tanggal_kolom(h2, hari).items():
+            per.setdefault(d, []).append(i)
+        hapus: list[int] = []
+        for ii in (x for x in per.values() if len(x) > 1):
+            isi = ss.values_batch_get([f"'{tab}'!{col_letter(i)}3:{col_letter(i)}" for i in ii]).get(
+                "valueRanges", [])
+            berisi = sorted(i for i, v in zip(ii, isi) if any(str(x).strip() for b in v.get("values", []) for x in b))
+            if berisi and berisi[0] != ii[0]:
+                ss.batch_update({"requests": [{"moveDimension": {
+                    "source": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": berisi[0],
+                               "endIndex": berisi[0] + 1},
+                    "destinationIndex": ii[0]}}]})
+                break
+            hapus += [i for i in ii if i not in berisi and i != (berisi[0] if berisi else ii[0])]
+        else:
+            if hapus:
+                ss.batch_update({"requests": [
+                    {"deleteDimension": {"range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": i,
+                                                   "endIndex": i + 1}}} for i in sorted(hapus, reverse=True)]})
+            return
+
+
 def pastikan_tanggal_log(hari: date | None = None, week: int | None = None, ss=None) -> bool:
     """Pastikan kolom Senin–Sabtu minggu `hari` ada di Log Komunikasi. True bila sheet diubah."""
     hari = hari or schedule.now().date()
@@ -1239,26 +1270,30 @@ def pastikan_tanggal_log(hari: date | None = None, week: int | None = None, ss=N
                     "sheetId": w.id, "startRowIndex": 0, "endRowIndex": 1,
                     "startColumnIndex": a, "endColumnIndex": b}}} for a, b in blok]})
         if r.sisip:
-            # Laptop lain bisa menambah kolom yang sama di saat bersamaan: sisakan satu saja per tanggal
-            h2 = (ss.values_get(f"'{tab}'!A2:ZZ2").get("values", [[]]) or [[]])[0]
-            per: dict[date, list[int]] = {}
-            for i, d in _tanggal_kolom(h2, hari).items():
-                per.setdefault(d, []).append(i)
-            hapus = sorted((i for ii in per.values() for i in ii[1:]), reverse=True)
-            if hapus:
-                ss.batch_update({"requests": [
-                    {"deleteDimension": {"range": {"sheetId": w.id, "dimension": "COLUMNS", "startIndex": i,
-                                                   "endIndex": i + 1}}} for i in hapus]})
+            _rapikan_ganda(ss, tab, w.id, hari)
         cache.drop("lk2_logkom")
         _sudah_tgl.add(kunci)
         log.info("Log Komunikasi: minggu %s disiapkan (%d kolom baru)", kunci, len(r.sisip))
         return True
 
 
+def laptop_admin() -> bool:
+    """Kolom tanggal Log Komunikasi hanya ditambah dari laptop admin. Bila 23 laptop menambahnya bersamaan
+    (Senin pagi), kolom ganda muncul dan posisi kolom bergeser di tengah penulisan laptop lain."""
+    try:
+        from . import access, google_auth
+
+        email = google_auth.current_email()
+        return bool(email) and access.access_for(email).admin
+    except Exception:  # belum login / sheet Akses tak terbaca: anggap bukan admin
+        return False
+
+
 def _loop_tanggal_log() -> None:
     while True:
         try:
-            pastikan_tanggal_log()
+            if laptop_admin():
+                pastikan_tanggal_log()
         except lk_baru.LinkBelumAda:
             pass
         except Exception:

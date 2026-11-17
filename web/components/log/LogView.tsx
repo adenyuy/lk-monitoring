@@ -1,10 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import type { Aktivitas, FasilTercatat, KalenderLog, LogHari, Perubahan } from "@/lib/types";
 import { Notice } from "@/components/ui";
-import { FasilDrawer } from "@/components/today/FasilDrawer";
 import s from "./log.module.css";
 
 export const KUNCI_DILIHAT = "lkm-perubahan-dilihat"; // dibaca juga oleh AppShell
@@ -43,7 +43,7 @@ type Saring = "semua" | "data" | "fasil";
 export function LogView() {
   const [tab, setTab] = useState<"hari" | "fasil">("hari");
   const [nomorFasil, setNomorFasil] = useState<string | null>(null);
-  const [drawer, setDrawer] = useState<string | null>(null);
+  const router = useRouter();
 
   // Tandai log perubahan sudah dilihat (titik merah di menu hilang)
   useEffect(() => {
@@ -80,9 +80,10 @@ export function LogView() {
       </div>
 
       {tab === "hari" ? <PerHari onFasil={bukaFasil} /> : (
-        <PerFasil nomor={nomorFasil} onPilih={setNomorFasil} onBuka={setDrawer} />
+        // Chat & isian LK dibuka di halaman LK (LK format baru), sama seperti notifikasi
+        <PerFasil nomor={nomorFasil} onPilih={setNomorFasil}
+          onBuka={(n) => router.push(`/lk/?fasil=${encodeURIComponent(n)}`)} />
       )}
-      {drawer && <FasilDrawer nomor={drawer} versi={0} onClose={() => setDrawer(null)} />}
     </div>
   );
 }

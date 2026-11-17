@@ -227,3 +227,18 @@ def test_tanpa_agregasi_tanpa_tim(ss):
     m = eskalasi.daftar(["111"])[0]
     x = eskalasi.ubah(m["id"], {"agregasi": "Tidak"}, "Ani", False, m["baris"], m["sidik"])
     assert x["agregasi"] == "Tidak" and x["tim"] == []
+
+
+def test_daftar_google_tidak_terbaca_jadi_502_bukan_500(monkeypatch):
+    from fastapi import HTTPException
+
+    from app.access import Access
+    from app.routers import eskalasi as rute
+
+    def gagal():
+        raise RuntimeError("Belum masuk ke akun Google.")
+
+    monkeypatch.setattr(eskalasi, "sheet_id", gagal)
+    with pytest.raises(HTTPException) as e:
+        rute.daftar(npsn="", semua=True, paksa=False, acc=Access("uji@contoh.id", "Uji", ("wa_blast",)))
+    assert e.value.status_code == 502 and "Belum masuk" in e.value.detail

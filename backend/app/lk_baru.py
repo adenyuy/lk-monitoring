@@ -794,6 +794,19 @@ def pastikan_legenda() -> bool:
 pastikan_legenda_c2 = pastikan_legenda  # nama lama
 
 
+def _judul_tanggal(kolom: str, tanggal: str) -> bool:
+    """Judul baris 2 kolom `kolom` di Log Komunikasi masih tanggal `tanggal` ('Sen 09/11')."""
+    h = _ss().values_get(f"'{TAB_LOG_KOM}'!{kolom}2").get("values") or [[]]
+    m = _RE_TGL.search(str(h[0][0]) if h[0] else "")
+    if not m:
+        return False
+    d = date.fromisoformat(tanggal)
+    try:
+        return _tahun_untuk(int(m.group(2)), int(m.group(1)), d) == d
+    except ValueError:
+        return False
+
+
 def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:
     """Tulis kode komunikasi satu hari untuk beberapa sekolah. Mengembalikan jumlah sel yang ditulis."""
     if not npsn_kode:
@@ -807,10 +820,10 @@ def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:
             lk = baca_log_kom(refresh=True)
         _cek_kom_terakhir = time.time()
         if tanggal not in lk.tanggal:
-            from .cutoff_baru import pastikan_tanggal_log
+            from .cutoff_baru import laptop_admin, pastikan_tanggal_log
 
-            try:  # kolom tanggal belum ada: buat dulu (Senin–Sabtu)
-                if pastikan_tanggal_log(date.fromisoformat(tanggal)):
+            try:  # kolom tanggal belum ada: laptop admin membuatnya (Senin–Sabtu); laptop lain menunggu sinkron berikut
+                if laptop_admin() and pastikan_tanggal_log(date.fromisoformat(tanggal)):
                     lk = baca_log_kom(refresh=True)
             except Exception:
                 log.exception("Kolom tanggal Log Komunikasi gagal dibuat")
@@ -818,6 +831,11 @@ def tulis_log_kom(tanggal: str, npsn_kode: dict[str, str]) -> int:
             raise LkError(f"Tab {TAB_LOG_KOM} belum punya kolom untuk tanggal {tanggal}. "
                           "Kolom tanggal dibuat otomatis untuk Senin–Sabtu.")
         c = col_letter(lk.tanggal[tanggal])
+        if not _judul_tanggal(c, tanggal):  # kolom bergeser sejak cache dibaca: baca ulang, jangan tulis ke hari lain
+            lk = baca_log_kom(refresh=True)
+            if tanggal not in lk.tanggal:
+                raise LkError(f"Kolom tanggal {tanggal} di tab {TAB_LOG_KOM} tidak ketemu setelah dibaca ulang.")
+            c = col_letter(lk.tanggal[tanggal])
         data = []
         for npsn, k in npsn_kode.items():
             n = lk.baris.get(npsn)

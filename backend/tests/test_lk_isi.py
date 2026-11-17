@@ -1,9 +1,7 @@
 import pytest
-from fastapi import HTTPException
 
-from app import db, sheets
+from app import sheets
 from tests import lk_uji
-from app.routers import lk
 
 BARIS = ["Petugas Contoh", "11112222", "SD CONTOH 1", "Kab. Contoh", "Fasil Contoh", "6281200000001",
          "Prioritas 1", "3. Chat hanya di Read", 0.3, "Tidak", "Tidak", 0.32, "Tidak", "Tidak",
@@ -61,36 +59,6 @@ def test_tolak_bila_baris_bergeser(monkeypatch):
     assert ss.ditulis is None
 
 
-def _endpoint(monkeypatch):
-    data = lk_uji.parse([BARIS])
-    ditulis = []
-    db.set_setting("nama_petugas", "Petugas Contoh")
-    monkeypatch.setattr(lk, "read_lk", lambda week: data)
-    monkeypatch.setattr(lk, "read_validasi", lambda: sheets.parse_validasi(OPSI))
-    monkeypatch.setattr(lk, "write_isian", lambda week, p, kol=None: ditulis.extend(p))
-    monkeypatch.setattr(lk, "kolom_lk", lambda week, refresh=False: lk_uji.KOL)
-    return data, ditulis
-
-
-def test_endpoint_isi_menulis_dan_memperbarui_cache(monkeypatch):
-    data, ditulis = _endpoint(monkeypatch)
-    req = lk.IsiReq(blok=2, sekolah=[lk.Isian(npsn="11112222", komunikasi="0. Terhubung",
-                                              isian={"b1": "6. Lainnya", "b2": "Dihubungi ulang besok"})])
-    assert lk.isi(req) == {"disimpan": 1, "blok": 2}
-    assert ditulis[0][1] == {"I": "0. Terhubung", "X": "6. Lainnya", "Y": "Dihubungi ulang besok"}
-    assert data[0].komunikasi == "0. Terhubung" and data[0].isian[2]["b1"] == "6. Lainnya"
-
-
-def test_endpoint_tolak_pilihan_asing_dan_sekolah_lain(monkeypatch):
-    _endpoint(monkeypatch)
-    with pytest.raises(HTTPException) as e:
-        lk.isi(lk.IsiReq(blok=1, sekolah=[lk.Isian(npsn="11112222", isian={"a1": "karangan sendiri"})]))
-    assert e.value.status_code == 400
-    with pytest.raises(HTTPException) as e:
-        lk.isi(lk.IsiReq(blok=1, sekolah=[lk.Isian(npsn="55556666", komunikasi="0. Terhubung")]))
-    assert e.value.status_code == 403
-
-
 JUDUL_BARU = (lk_uji.JUDUL_LAMA[:9] + ["Status Komunikasi (bantuan)", "Waktu Tunggu"] + lk_uji.JUDUL_LAMA[9:]
               + ["Helper 1", "Helper 2"])
 
@@ -115,10 +83,3 @@ def test_kolom_tolak_bila_judul_hilang():
     with pytest.raises(sheets.LkKolomError, match=r"C2 \(sesi 2\)"):
         sheets.parse_kolom(JUDUL_BARU[:-3])
 
-
-def test_endpoint_menulis_ke_kolom_baru(monkeypatch):
-    data, ditulis = _endpoint(monkeypatch)
-    monkeypatch.setattr(lk, "kolom_lk", lambda week, refresh=False: sheets.parse_kolom(JUDUL_BARU))
-    lk.isi(lk.IsiReq(blok=2, sekolah=[lk.Isian(npsn="11112222", komunikasi="0. Terhubung",
-                                               isian={"a1": "1. Progres belum diunggah", "c2": "TL"})]))
-    assert ditulis[0][1] == {"I": "0. Terhubung", "X": "1. Progres belum diunggah", "AC": "TL"}

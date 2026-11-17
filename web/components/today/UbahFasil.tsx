@@ -1,19 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { post } from "@/lib/api";
 import { Button } from "@/components/ui";
 import s from "./wag.module.css";
 
-/** Popup ubah nama / nomor WhatsApp fasil. Bawaan: LK lama (Broadcast + LK 50%); `kirim` dan `ket` untuk LK baru. */
-export function UbahFasilDialog({ nomor, nama, nomorTersamar, onClose, onSaved, kirim, ket }: {
+/** Popup ubah nama / nomor WhatsApp fasil. `kirim` menyimpan ke LK (lihat FasilPanel). */
+export function UbahFasilDialog({ nama, nomorTersamar, onClose, onSaved, kirim, ket }: {
   nomor: string;
   nama: string;
   nomorTersamar: string;
   onClose: () => void;
   onSaved: (nomorBaru: string) => void;
   /** Simpan; mengembalikan kunci/nomor baru. */
-  kirim?: (nama: string, nomorBaru: string) => Promise<string>;
+  kirim: (nama: string, nomorBaru: string) => Promise<string>;
   ket?: string;
 }) {
   const [namaBaru, setNamaBaru] = useState(nama);
@@ -40,12 +39,7 @@ export function UbahFasilDialog({ nomor, nama, nomorTersamar, onClose, onSaved, 
     setBusy(true);
     setError(null);
     try {
-      if (kirim) {
-        onSaved(await kirim(namaBaru, nomorBaru));
-      } else {
-        const r = await post<{ nomor: string }>(`/api/fasil/${nomor}/ubah`, { nama: namaBaru, nomor_baru: nomorBaru });
-        onSaved(r.nomor);
-      }
+      onSaved(await kirim(namaBaru, nomorBaru));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
