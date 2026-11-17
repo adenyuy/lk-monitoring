@@ -26,18 +26,17 @@
 }
 
 .kepala h1 {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
-.kepala p {
-  margin-top: 6px;
+.kepala p:not(:global(.chips)) {
+  margin-top: 4px;
   color: var(--muted);
-  font-size: 14.5px;
+  font-size: 13.5px;
   line-height: 1.55;
-  max-width: 60ch;
 }
 
 .aksiKepala {
@@ -53,23 +52,23 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
 .pipa button {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   font: inherit;
   color: var(--ink);
   background: none;
   border: 0;
-  padding: 18px 22px 18px 26px;
+  padding: 12px 18px 12px 24px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background-color 0.15s;
 }
 
 /* panah pemisah antar tahap */
@@ -88,15 +87,15 @@
 }
 
 .pipa button:hover {
-  background: #fafbfd;
+  background: #f7fbfe;
 }
 
 .pipa button[aria-pressed="true"] {
-  background: var(--primary-soft);
+  background: var(--pita-lembut);
 }
 
 .pipa button[aria-pressed="true"] + button::before {
-  background: var(--primary-soft);
+  background: var(--pita-lembut);
 }
 
 .pipa button[aria-pressed="true"]::after {
@@ -106,24 +105,54 @@
   right: 0;
   bottom: 0;
   height: 3px;
-  background: var(--primary);
+  background: linear-gradient(90deg, var(--pita-a), var(--pita-b));
 }
 
 .pipaAngka {
-  font-size: 30px;
+  margin-left: auto;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .pipaNama {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   font-size: 13.5px;
   font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-2);
+}
+
+.pipaNo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--halus);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.pipa button[aria-pressed="true"] .pipaNo {
+  background: linear-gradient(180deg, var(--pita-b), var(--pita-a));
+  color: #fff;
+}
+
+.pipa button[aria-pressed="true"] .pipaAngka {
+  color: var(--pita-a);
 }
 
 .pipaKet {
-  font-size: 12.5px;
+  font-size: 12px;
+  font-weight: 400;
   color: var(--muted);
 }
 
@@ -136,16 +165,21 @@
 .peringatan button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   border-radius: 999px;
-  padding: 6px 14px 6px 10px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink-2);
+  padding: 3px 11px 3px 9px;
+  border: 0;
+  background: rgb(255 255 255 / 16%);
+  color: #fff;
   cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+
+.peringatan button:hover {
+  background: rgb(255 255 255 / 26%);
 }
 
 .peringatan button b {
@@ -154,20 +188,19 @@
 
 .peringatan button::before {
   content: "";
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--warn-fg);
+  background: #f6c453;
 }
 
 .peringatan button.pLewat::before {
-  background: var(--rail-lewat);
+  background: #ff9a76;
 }
 
 .peringatan button[aria-pressed="true"] {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: #fff;
+  background: #fff;
+  color: var(--pita-a);
 }
 
 /* ---------- toolbar ---------- */
@@ -175,13 +208,19 @@
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
+}
+
+.toolbar .pilih {
+  flex: 0 1 190px;
+  min-width: 0;
+  height: 42px;
 }
 
 .cari {
   position: relative;
-  flex: 1 1 280px;
+  flex: 1 1 300px;
   min-width: 0;
 }
 
@@ -196,12 +235,13 @@
 
 .cari input {
   width: 100%;
+  height: 42px;
   font: inherit;
   font-size: 14px;
   color: var(--ink);
-  border: 1px solid #d5dae3;
+  border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 10px 12px 10px 38px;
+  padding: 0 12px 0 38px;
   background: var(--surface);
 }
 
@@ -241,30 +281,26 @@
 
 .daftarKasus {
   list-style: none;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.daftarKasus > li + li {
-  border-top: 1px solid var(--halus);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .kasus {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 160px;
-  gap: 20px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   width: 100%;
   text-align: left;
   font: inherit;
   color: inherit;
   background: none;
   border: 0;
-  padding: 16px 20px 16px 24px;
+  padding: 14px 18px 14px 21px;
   cursor: pointer;
+  transition: background-color .15s;
 }
 
 .kasus::before {
@@ -278,11 +314,12 @@
 }
 
 .kasus:hover {
-  background: #fafbfd;
+  background: #f7fbfe;
 }
 
 .kasus[aria-current="true"] {
-  background: var(--primary-soft);
+  background: var(--pita-lembut);
+  box-shadow: inset -3px 0 0 var(--pita-a);
 }
 
 .kasus:focus-visible {
@@ -293,13 +330,6 @@
 .rail_lewat::before { background: var(--rail-lewat); }
 .rail_dekat::before { background: var(--rail-dekat); }
 .rail_selesai::before { background: var(--rail-selesai); }
-
-.kasusUtama {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
 
 .kasusAtas {
   display: flex;
@@ -338,15 +368,192 @@
 .metaKasus {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  align-items: center;
+  gap: 4px 12px;
   font-size: 12.5px;
   color: var(--muted);
   margin-top: 2px;
 }
 
-.metaKasus b {
-  font-weight: 500;
+.tahapChip {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--pita-a);
+  background: var(--pita-lembut);
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.waktu {
+  flex: none;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 1px 9px;
+  background: var(--halus);
   color: var(--ink-2);
+}
+
+.waktuLewat {
+  background: #fdeee6;
+  color: var(--rail-lewat);
+}
+
+.waktuDekat {
+  background: #fdf6e3;
+  color: #9a6a00;
+}
+
+.waktuSelesai {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+/* ---------- layar kerja: antrean kiri, rincian kanan ---------- */
+
+.kerja {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 20px;
+  height: calc(100vh - 48px);
+  min-height: 520px;
+}
+
+.antrean {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.daftarKasus > li + li {
+  border-top: 1px solid var(--line-soft);
+}
+
+.antrean .pita {
+  margin: 0;
+  border-radius: 0;
+  flex-wrap: wrap;
+}
+
+.antrean .pita h2 span {
+  font-size: 12.5px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.halaman {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.halaman > span:last-child {
+  display: flex;
+  gap: 8px;
+}
+
+.kosongAntrean {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  padding: 40px 20px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.kosongAntrean b {
+  color: var(--ink);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.detailKepala {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: linear-gradient(90deg, var(--pita-a), var(--pita-b));
+  color: #fff;
+}
+
+.detailKepala > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.detailKepala small {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: .85;
+}
+
+.detailKepala h2 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.detailKepala p {
+  font-size: 12.5px;
+  opacity: .9;
+  margin-top: 2px;
+}
+
+.detailIsi {
+  overflow-y: auto;
+  padding: 16px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detailKosong {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 56px 28px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.detailKosong span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--pita-lembut);
+  color: var(--pita-a);
+  margin-bottom: 6px;
+}
+
+.detailKosong b {
+  color: var(--ink);
+  font-size: 15px;
 }
 
 .lencana {
@@ -368,48 +575,6 @@
 .lencanaPrioritas {
   background: #fdeee6;
   color: var(--rail-lewat);
-}
-
-.kasusTahap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 3px;
-}
-
-.kasusTahap small {
-  font-size: 12px;
-  color: var(--ink-2);
-  font-weight: 500;
-}
-
-.kasusWaktu {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  text-align: right;
-  font-size: 12.5px;
-  color: var(--muted);
-  padding-top: 2px;
-}
-
-.kasusWaktu b {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.waktuLewat b {
-  color: var(--rail-lewat);
-}
-
-.waktuDekat b {
-  color: #9a6a00;
-}
-
-.waktuSelesai b {
-  color: var(--rail-selesai);
 }
 
 /* ---------- pelacak tahap ---------- */
@@ -510,7 +675,7 @@
 .faqKepala {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .faqJudul {
@@ -522,15 +687,15 @@
 }
 
 .faqJudul h1 {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
-.faqJudul p {
-  margin-top: 6px;
+.faqJudul p:not(:global(.chips)) {
+  margin-top: 4px;
   color: var(--muted);
-  font-size: 14.5px;
+  font-size: 13.5px;
   max-width: 66ch;
   line-height: 1.55;
 }
@@ -544,81 +709,156 @@
   left: 18px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--primary);
+  color: var(--pita-a);
   pointer-events: none;
 }
 
 .cariBesar input {
   width: 100%;
   font: inherit;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--ink);
-  background: var(--surface);
-  border: 1px solid #d5dae3;
-  border-radius: 14px;
-  padding: 16px 18px 16px 50px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  background: #f6f8fb;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 18px 14px 50px;
 }
 
 .cariBesar input:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(35, 70, 160, 0.12);
+  background: #fff;
+  border-color: var(--pita-a);
+  box-shadow: 0 0 0 4px rgb(18 127 194 / 14%);
 }
 
-.faqBar {
+/* tata letak: saringan di kiri, hasil di kanan */
+.faqLayout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.faqSamping {
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  scrollbar-width: thin;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.saringKartu {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saringKartu h2 {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 10px;
+}
+
+.saringList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: none;
+}
+
+.saringList button {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid var(--line);
-}
-
-.faqTab {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-
-.faqTab button {
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--muted);
-  background: none;
+  width: 100%;
+  padding: 8px 10px;
   border: 0;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  padding: 10px 12px;
+  border-radius: 9px;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--ink-2);
+  text-align: left;
   cursor: pointer;
+  transition: background-color .15s, color .15s;
 }
 
-.faqTab button span {
-  margin-left: 6px;
-  font-size: 12.5px;
+.saringList button:hover {
+  background: var(--pita-lembut);
+  color: var(--pita-a);
+}
+
+.saringList button:focus-visible {
+  outline: 2px solid var(--pita-a);
+  outline-offset: 2px;
+}
+
+.saringList b {
+  flex: none;
+  min-width: 26px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--halus);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.saringList button[aria-pressed="true"] {
+  background: linear-gradient(180deg, var(--pita-b), var(--pita-a));
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgb(18 127 194 / 22%);
+}
+
+.saringList button[aria-pressed="true"] b {
+  background: rgb(255 255 255 / 22%);
+  color: #fff;
+}
+
+.hasilKepala {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+}
+
+.hasilKepala h2 {
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hasilKepala h2 small {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pita-a);
+  background: var(--pita-lembut);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.hasilKepala > span {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
   color: var(--muted);
-}
-
-.faqTab button[aria-pressed="true"] {
-  color: var(--ink);
-  border-bottom-color: var(--primary);
-}
-
-.faqTab button[aria-pressed="true"] span {
-  color: var(--primary);
-}
-
-.faqBar .pilih {
-  margin-bottom: 8px;
-}
-
-.faqLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 290px;
-  gap: 28px;
-  align-items: start;
 }
 
 .faqUtama {
@@ -628,40 +868,102 @@
   min-width: 0;
 }
 
-.faqSamping {
-  position: sticky;
-  top: 24px;
-}
-
 /* jawaban resmi: panel biru tenang */
 .resmi {
-  background: linear-gradient(180deg, #f3f6fd, #f8f9fd);
-  border: 1px solid #dbe3f6;
-  border-radius: 16px;
-  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.resmi h2 {
+.pita {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -18px -20px 12px;
+  padding: 12px 20px;
+  border-radius: 11px 11px 0 0;
+  background: linear-gradient(90deg, var(--pita-a), var(--pita-b));
+  color: #fff;
+}
+
+.pita h2 {
   font-size: 15px;
   font-weight: 600;
-  color: var(--primary);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.pita span {
+  font-size: 12.5px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
 .resmi > p {
   font-size: 13px;
   color: var(--muted);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+/* kartu alur: cari, cek jawaban, lalu lapor */
+.alur {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.alur .pita {
+  margin-bottom: 0;
+}
+
+.langkah {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.langkah li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.langkah b {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--pita-lembut);
+  color: var(--pita-a);
+  font-size: 12px;
+}
+
+.langkah strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .resmiItem {
-  border-top: 1px solid #dbe3f6;
-  padding: 12px 0 4px;
+  border-top: 1px solid var(--line-soft);
+  padding: 12px 0;
 }
 
 .resmiItem summary {
@@ -681,9 +983,16 @@
 
 .resmiItem summary::after {
   content: "+";
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   margin-left: auto;
-  color: var(--primary);
-  font-weight: 500;
+  border-radius: 50%;
+  background: var(--pita-lembut);
+  color: var(--pita-a);
+  font-weight: 600;
 }
 
 .resmiItem[open] summary::after {
@@ -691,10 +1000,13 @@
 }
 
 .resmiJawab {
-  margin-top: 8px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f4faf6;
   font-size: 14px;
   line-height: 1.6;
-  color: var(--ink-2);
+  color: var(--ink);
 }
 
 .resmiMeta {
@@ -715,12 +1027,18 @@
   position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 18px 20px 16px 22px;
+  border-radius: 12px;
+  padding: 18px 20px 14px 22px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   overflow: hidden;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.qaKartu:hover {
+  border-color: #c6dcee;
+  box-shadow: 0 6px 18px rgb(16 24 40 / 6%);
 }
 
 .qaKartu::before {
@@ -847,6 +1165,9 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+  margin-top: 2px;
 }
 
 .tahapBaris {
@@ -932,32 +1253,65 @@
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
   .faqLayout {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .faqSamping {
     position: static;
-    order: -1;
+    max-height: none;
+  }
+
+  .saringList {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .saringList button {
+    width: auto;
+    flex: none;
+    white-space: nowrap;
   }
 }
 
-@media (max-width: 860px) {
-  .kasus {
+@media (max-width: 1000px) {
+  .kerja {
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
+    height: auto;
+    min-height: 0;
   }
 
-  .kasusWaktu {
-    align-items: flex-start;
-    text-align: left;
-    flex-direction: row;
-    gap: 8px;
+  .daftarKasus {
+    overflow: visible;
   }
 
-  .kasusTahap {
-    max-width: 200px;
+  /* rincian jadi layar penuh saat kasus dipilih */
+  .detail {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .detailBuka {
+    display: flex;
+  }
+}
+
+@media (max-width: 620px) {
+  .toolbar .pilih {
+    flex: 1 1 100%;
+  }
+
+  .kasusAtas {
+    flex-wrap: wrap;
+  }
+
+  .waktu {
+    margin-left: 0;
   }
 }
 
@@ -977,7 +1331,8 @@
   }
 
   .pipa button {
-    padding: 14px 16px;
+    padding: 12px 12px;
+    gap: 8px;
   }
 
   .pipa button + button::before {
@@ -993,15 +1348,15 @@
   }
 
   .pipaAngka {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .pipaKet {
     display: none;
   }
 
-  .faqTab button {
-    padding: 9px 9px;
-    font-size: 13.5px;
+  .langkah {
+    grid-template-columns: minmax(0, 1fr);
   }
+
 }

@@ -41,8 +41,11 @@ function IkonCentang() {
 function JawabanResmi({ daftar }: { daftar: FaqResmi[] }) {
   return (
     <section className={h.resmi} aria-labelledby="judul-resmi">
-      <h2 id="judul-resmi"><IkonCentang /> Jawaban resmi</h2>
-      <p>Sudah diputuskan tim untuk satu tema. Rujuk jawaban ini, tidak perlu dieskalasi lagi.</p>
+      <div className={h.pita}>
+        <h2 id="judul-resmi"><IkonCentang /> Jawaban resmi</h2>
+        <span>{daftar.length} tema</span>
+      </div>
+      <p>Sudah diputuskan tim. Rujuk jawaban ini ke fasil, tidak perlu dilaporkan lagi.</p>
       {daftar.map((f) => (
         <details key={f.kode} className={h.resmiItem}>
           <summary><span className={`${h.lencana} ${h.lencanaTema}`}>{f.kode}</span>{f.pertanyaan}</summary>
@@ -178,40 +181,55 @@ export function FaqEskalasi() {
   const adaSamping = !!info2 && (info2.pengumuman.length > 0 || info2.admin);
   const grup = useMemo(() => kelompokkan(info?.masalah ?? []), [info]);
   const q = cari.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const cocok = (g: Grup) => (!kelompok || g.baris[0].permasalahan === kelompok) && q.every((k) => g.cari.includes(k));
+  const cocokCari = (g: Grup) => q.every((k) => g.cari.includes(k));
+  const diKelompok = (g: Grup, o: string) => !o || g.baris[0].permasalahan === o;
   const lolos: Record<Saring, (g: Grup) => boolean> = {
     semua: () => true,
     dijawab: (g) => g.baris.some((m) => m.jawaban),
     belum: (g) => !g.baris.some((m) => m.jawaban),
     saya: (g) => g.baris.some((m) => m.milik_saya),
   };
-  const dasar = grup.filter(cocok);
+  const dasar = grup.filter((g) => cocokCari(g) && diKelompok(g, kelompok));
+  const jumlahKelompok = (o: string) => grup.filter((g) => cocokCari(g) && lolos[saring](g) && diKelompok(g, o)).length;
   const tampil = dasar.filter(lolos[saring]);
   const resmi = (info?.faq ?? []).filter((f) => (!kelompok || f.kelompok === kelompok)
     && q.every((k) => `${f.kode} ${f.pertanyaan} ${f.jawaban} ${f.kelompok}`.toLowerCase().includes(k)));
 
   const ganti = (baru: Masalah) => setInfo((d) => d && { ...d, masalah: d.masalah.map((m) => (m.baris === baru.baris ? baru : m)) });
-  const TAB: [Saring, string][] = [["semua", "Semua"], ["dijawab", "Sudah dijawab"], ["belum", "Belum dijawab"], ["saya", "Laporan saya"]];
+  const TAB: [Saring, string][] = [["semua", "Semua masalah"], ["dijawab", "Sudah dijawab"], ["belum", "Belum dijawab"], ["saya", "Laporan saya"]];
+  const adaSaring = saring !== "semua" || !!kelompok || q.length > 0;
+  const hapusSaring = () => { setSaring("semua"); setKelompok(""); setCari(""); setBatas(20); };
 
   return (
     <div className={h.page}>
       <header className={h.faqKepala}>
         <div className={h.faqJudul}>
           <div>
+            <p className="chips">
+              <span className="chip">LK Eskalasi</span>
+              {info && <span className="chip">{grup.length} masalah tercatat</span>}
+            </p>
             <h1>FAQ</h1>
-            <p>Masalah sekolah yang pernah dilaporkan ke LK Eskalasi, beserta jawaban tim. Cari dulu sebelum melapor:
-              kalau sudah dijawab, cukup rujuk jawabannya.</p>
+            <p>Masalah sekolah yang pernah dilaporkan, beserta jawaban dari tim terkait.</p>
           </div>
           <div className={h.aksiKepala}>
-            <Button variant="ghost" onClick={() => void muat(true)} loading={segar} disabled={!info}>Muat ulang</Button>
+            <Button variant="secondary" onClick={() => void muat(true)} loading={segar} disabled={!info}>Muat ulang</Button>
             <Button onClick={() => setLapor(true)} disabled={!info?.opsi}>Laporkan masalah</Button>
           </div>
         </div>
-        <label className={h.cariBesar}>
-          <IkonCari size={20} />
-          <input type="search" value={cari} onChange={(e) => { setCari(e.target.value); setBatas(20); }}
-            placeholder="Cari masalah, nama sekolah, NPSN, atau ID" aria-label="Cari di FAQ" />
-        </label>
+        <section className={h.alur} aria-labelledby="judul-alur">
+          <div className={h.pita}><h2 id="judul-alur">Cari dulu sebelum melapor</h2></div>
+          <label className={h.cariBesar}>
+            <IkonCari size={20} />
+            <input type="search" value={cari} onChange={(e) => { setCari(e.target.value); setBatas(20); }}
+              placeholder="Cari masalah, nama sekolah, NPSN, atau ID" aria-label="Cari di FAQ" />
+          </label>
+          <ol className={h.langkah}>
+            <li><b>1</b><span><strong>Cari</strong> kata kunci masalah, nama sekolah, NPSN, atau ID.</span></li>
+            <li><b>2</b><span><strong>Sudah dijawab?</strong> Rujuk jawaban tim ke fasil.</span></li>
+            <li><b>3</b><span><strong>Belum ada?</strong> Tekan Laporkan masalah, tim terkait yang menjawab.</span></li>
+          </ol>
+        </section>
       </header>
 
       {info?.perlu_link && <PasangLink onSelesai={() => void muat(true)} />}
@@ -219,20 +237,38 @@ export function FaqEskalasi() {
       {!info && !galat && <p className={h.memuat}><Spinner /> Membaca LK Eskalasi…</p>}
 
       {info?.opsi && (
-        <div className={adaSamping ? h.faqLayout : h.faqUtama}>
-          <div className={h.faqUtama}>
-            <div className={h.faqBar}>
-              <div className={h.faqTab} role="group" aria-label="Saring">
+        <div className={h.faqLayout}>
+          <aside className={h.faqSamping} aria-label="Saring dan pengumuman">
+            <section className={h.saringKartu} aria-labelledby="judul-status">
+              <h2 id="judul-status">Status</h2>
+              <div className={h.saringList} role="group" aria-labelledby="judul-status">
                 {TAB.map(([k, l]) => (
                   <button key={k} type="button" aria-pressed={saring === k} onClick={() => { setSaring(k); setBatas(20); }}>
-                    {l}<span>{dasar.filter(lolos[k]).length}</span>
+                    <span>{l}</span><b>{dasar.filter(lolos[k]).length}</b>
                   </button>
                 ))}
               </div>
-              <select className={h.pilih} value={kelompok} onChange={(e) => setKelompok(e.target.value)} aria-label="Kelompok permasalahan">
-                <option value="">Semua permasalahan</option>
-                {info.opsi.permasalahan.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
+            </section>
+            <section className={h.saringKartu} aria-labelledby="judul-kelompok">
+              <h2 id="judul-kelompok">Permasalahan</h2>
+              <div className={h.saringList} role="group" aria-labelledby="judul-kelompok">
+                {["", ...info.opsi.permasalahan].map((o) => (
+                  <button key={o || "semua"} type="button" aria-pressed={kelompok === o} onClick={() => { setKelompok(o); setBatas(20); }}>
+                    <span>{o || "Semua permasalahan"}</span><b>{jumlahKelompok(o)}</b>
+                  </button>
+                ))}
+              </div>
+            </section>
+            {adaSamping && <Pengumuman daftar={info2!.pengumuman} admin={info2!.admin} onUbah={() => void muatInfo()} />}
+          </aside>
+
+          <div className={h.faqUtama}>
+            <div className={h.hasilKepala}>
+              <h2>{TAB.find(([k]) => k === saring)![1]}{kelompok && <small>{kelompok}</small>}</h2>
+              <span>
+                {tampil.length} masalah
+                {adaSaring && <button type="button" className={h.tautan} onClick={hapusSaring}>Hapus saringan</button>}
+              </span>
             </div>
 
             {saring === "semua" && resmi.length > 0 && <JawabanResmi daftar={resmi} />}
@@ -252,16 +288,11 @@ export function FaqEskalasi() {
             ) : (
               <div className={h.kosong}>
                 <b>{q.length ? "Belum ada yang cocok" : "Belum ada masalah di sini"}</b>
-                <span>{q.length ? "Belum pernah dilaporkan? Catat supaya tim terkait bisa menjawab." : "Coba tab atau kelompok lain."}</span>
+                <span>{q.length ? "Belum pernah dilaporkan? Catat supaya tim terkait bisa menjawab." : "Coba status atau permasalahan lain."}</span>
                 {q.length > 0 && <Button onClick={() => setLapor(true)}>Laporkan masalah</Button>}
               </div>
             )}
           </div>
-          {adaSamping && (
-            <aside className={h.faqSamping} aria-label="Pengumuman">
-              <Pengumuman daftar={info2!.pengumuman} admin={info2!.admin} onUbah={() => void muatInfo()} />
-            </aside>
-          )}
         </div>
       )}
 

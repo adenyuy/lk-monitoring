@@ -7,6 +7,7 @@ import { Button, Notice, Spinner } from "@/components/ui";
 import { pesan } from "@/components/forum/bersama";
 import { FormMasalah } from "./FormMasalah";
 import { Dialog, Jawaban, nadaWaktu, namaTahap, PasangLink, Rincian, Tahap, tahapKe, terlambat, tgl, TindakLanjut } from "./bagian";
+import s from "./esk.module.css";
 import h from "./halaman.module.css";
 
 type Saring = "aktif" | "perlu" | "menunggu" | "dijawab" | "selesai" | "lewat" | "tanpa_tema";
@@ -39,31 +40,27 @@ export function IkonCari({ size = 16 }: { size?: number }) {
 
 const judulKasus = (m: Masalah) => (m.npsn ? m.nama || `NPSN ${m.npsn}` : m.topik || m.sumber || "Tanpa sekolah");
 
+const WARNA_WAKTU: Record<string, string> = { lewat: h.waktuLewat, dekat: h.waktuDekat, selesai: h.waktuSelesai };
+
 function Kasus({ m, aktif, onBuka }: { m: Masalah; aktif: boolean; onBuka: () => void }) {
   const nada = nadaWaktu(m);
   return (
     <button type="button" className={`${h.kasus} ${h[`rail_${nada}`] ?? ""}`} aria-current={aktif} onClick={onBuka}>
-      <span className={h.kasusUtama}>
-        <span className={h.kasusAtas}>
-          <span className={h.idKasus}>{m.id || `baris ${m.baris}`}</span>
-          <span className={h.namaKasus}>{judulKasus(m)}</span>
-          {m.tingkat.startsWith("Tingkat 3") && <span className={`${h.lencana} ${h.lencanaPrioritas}`}>Prioritas</span>}
-          {m.kode_tema && <span className={`${h.lencana} ${h.lencanaTema}`} title={m.tema}>{m.kode_tema}</span>}
-        </span>
-        <span className={h.ketKasus}>{m.keterangan.replace(/^PRIORITAS TINGGI:\s*/i, "")}</span>
-        <span className={h.metaKasus}>
-          {m.permasalahan && <span><b>{m.permasalahan}</b></span>}
-          <span>{m.agregasi === "Tidak" ? "Tanpa agregasi" : m.tim.length ? `Ke ${m.tim.join(", ")}` : "Tim belum dipilih"}</span>
-          {m.petugas && <span>Petugas {m.petugas}</span>}
+      <span className={h.kasusAtas}>
+        <span className={h.idKasus}>{m.id || `baris ${m.baris}`}</span>
+        <span className={h.namaKasus}>{judulKasus(m)}</span>
+        <span className={`${h.waktu} ${WARNA_WAKTU[nada] ?? ""}`}>
+          {m.status === "Selesai" ? (m.tgl_selesai ? `Selesai ${tgl(m.tgl_selesai)}` : "Selesai") : m.status_waktu || "Tanpa tenggat"}
         </span>
       </span>
-      <span className={h.kasusTahap}>
-        <Tahap m={m} />
-        <small>{namaTahap(m)}</small>
-      </span>
-      <span className={`${h.kasusWaktu} ${nada === "lewat" ? h.waktuLewat : nada === "dekat" ? h.waktuDekat : nada === "selesai" ? h.waktuSelesai : ""}`}>
-        <b>{m.status === "Selesai" ? (m.tgl_selesai ? `Selesai ${tgl(m.tgl_selesai)}` : "Selesai") : m.status_waktu || "Tanpa tenggat"}</b>
-        <span>Dicatat {m.tgl_awal ? tgl(m.tgl_awal) : "–"}</span>
+      <span className={h.ketKasus}>{m.keterangan.replace(/^PRIORITAS TINGGI:\s*/i, "")}</span>
+      <span className={h.metaKasus}>
+        <span className={h.tahapChip}>{namaTahap(m)}</span>
+        {m.tingkat.startsWith("Tingkat 3") && <span className={`${h.lencana} ${h.lencanaPrioritas}`}>Prioritas</span>}
+        {m.kode_tema && <span className={`${h.lencana} ${h.lencanaTema}`} title={m.tema}>{m.kode_tema}</span>}
+        {m.permasalahan && <span>{m.permasalahan}</span>}
+        <span>{m.agregasi === "Tidak" ? "Tanpa agregasi" : m.tim.length ? m.tim.join(", ") : "Tim belum dipilih"}</span>
+        <span>Masuk {m.tgl_awal ? tgl(m.tgl_awal) : "–"}</span>
       </span>
     </button>
   );
@@ -99,6 +96,12 @@ export function EskalasiView() {
   }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void muat(); }, [muat]);
+  useEffect(() => {
+    if (pilih === null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPilih(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pilih]);
 
   const opsi = info?.opsi;
   const daftarPic = useMemo(() => [...new Set(Object.values(opsi?.pic ?? {}))].sort(), [opsi]);
@@ -139,12 +142,15 @@ export function EskalasiView() {
     <div className={h.page}>
       <header className={h.kepala}>
         <div>
+          <p className="chips">
+            <span className="chip">PIC Eskalasi</span>
+            {info && <span className="chip">{dasar.filter(lolos.aktif).length} kasus belum selesai</span>}
+          </p>
           <h1>Eskalasi</h1>
-          <p>Teruskan kasus ke tim tujuan, kelompokkan dengan kode tema, lalu tutup begitu jawabannya masuk.
-            Kasus yang belum selesai dieskalasikan ulang tiap 3 hari.</p>
+          <p>Teruskan kasus ke tim tujuan, beri kode tema, lalu tutup begitu jawabannya masuk.</p>
         </div>
         <div className={h.aksiKepala}>
-          <Button variant="ghost" onClick={() => void muat(true)} loading={segar} disabled={!info}>Muat ulang</Button>
+          <Button variant="secondary" onClick={() => void muat(true)} loading={segar} disabled={!info}>Muat ulang</Button>
           <Button onClick={() => setLapor(true)} disabled={!opsi}>Laporkan masalah</Button>
         </div>
       </header>
@@ -153,26 +159,17 @@ export function EskalasiView() {
       {galat && <Notice tone="bad" title="LK Eskalasi tidak bisa dibuka">{galat}</Notice>}
       {!info && !galat && <p className={h.memuat}><Spinner /> Membaca LK Eskalasi…</p>}
 
-      {opsi && (
+      {opsi && info && (
         <>
           <nav className={h.pipa} aria-label="Tahap kasus">
-            {PIPA.map((x) => (
+            {PIPA.map((x, i) => (
               <button key={x.k} type="button" aria-pressed={saring === x.k} onClick={() => pakai(x.k)}>
+                <i className={h.pipaNo}>{i + 1}</i>
+                <span className={h.pipaNama}>{x.nama}<small className={h.pipaKet}>{x.ket}</small></span>
                 <span className={h.pipaAngka}>{dasar.filter(lolos[x.k]).length}</span>
-                <span className={h.pipaNama}>{x.nama}</span>
-                <span className={h.pipaKet}>{x.ket}</span>
               </button>
             ))}
           </nav>
-
-          <div className={h.peringatan}>
-            <button type="button" className={h.pLewat} aria-pressed={saring === "lewat"} onClick={() => pakai("lewat")}>
-              <b>{dasar.filter(lolos.lewat).length}</b> lewat batas waktu
-            </button>
-            <button type="button" aria-pressed={saring === "tanpa_tema"} onClick={() => pakai("tanpa_tema")}>
-              <b>{dasar.filter(lolos.tanpa_tema).length}</b> perlu kode tema
-            </button>
-          </div>
 
           <div className={h.toolbar}>
             <label className={h.cari}>
@@ -186,56 +183,87 @@ export function EskalasiView() {
             </select>
             <select className={h.pilih} value={tim} onChange={(e) => { setTim(e.target.value); setHal(0); }} aria-label="Tim tujuan">
               <option value="">Semua tim</option>
-              {opsi.tim.map((t) => <option key={t} value={t}>{t}</option>)}
+              {opsi.tim.map((x) => <option key={x} value={x}>{x}</option>)}
             </select>
             <select className={h.pilih} value={kelompok} onChange={(e) => { setKelompok(e.target.value); setHal(0); }} aria-label="Permasalahan">
               <option value="">Semua permasalahan</option>
               {opsi.permasalahan.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
-            {adaSaring && (
-              <button type="button" className={h.hapusSaring} onClick={() => { setPic(""); setTim(""); setKelompok(""); setCari(""); setHal(0); }}>
+            {(adaSaring || saring !== "aktif") && (
+              <button type="button" className={h.hapusSaring}
+                onClick={() => { setPic(""); setTim(""); setKelompok(""); setCari(""); setSaring("aktif"); setHal(0); }}>
                 Hapus saringan
               </button>
             )}
           </div>
 
-          <div className={h.bawahDaftar}>
-            <span><b style={{ color: "var(--ink)" }}>{judulDaftar}</b>&nbsp; {tampil.length} kasus{pic ? ` untuk PIC ${pic}` : ""}</span>
-            {saring !== "aktif" && <button type="button" className={h.hapusSaring} onClick={() => pakai(saring)}>Tampilkan semua yang belum selesai</button>}
-          </div>
+          <div className={h.kerja}>
+            <section className={h.antrean} aria-labelledby="judul-antrean">
+              <div className={h.pita}>
+                <h2 id="judul-antrean">{judulDaftar}<span>{tampil.length}</span></h2>
+                <div className={h.peringatan}>
+                  <button type="button" className={h.pLewat} aria-pressed={saring === "lewat"} onClick={() => pakai("lewat")}>
+                    <b>{dasar.filter(lolos.lewat).length}</b> lewat batas
+                  </button>
+                  <button type="button" aria-pressed={saring === "tanpa_tema"} onClick={() => pakai("tanpa_tema")}>
+                    <b>{dasar.filter(lolos.tanpa_tema).length}</b> perlu kode tema
+                  </button>
+                </div>
+              </div>
 
-          {tampil.length === 0 ? (
-            <div className={h.kosong}><b>Tidak ada kasus di sini</b>Coba tahap lain atau hapus saringan.</div>
-          ) : (
-            <>
-              <ul className={h.daftarKasus}>
-                {potong.map((m) => (
-                  <li key={m.baris}><Kasus m={m} aktif={pilih === m.baris} onBuka={() => setPilih(m.baris)} /></li>
-                ))}
-              </ul>
+              {tampil.length === 0 ? (
+                <div className={h.kosongAntrean}><b>Tidak ada kasus di sini</b>Coba tahap lain atau hapus saringan.</div>
+              ) : (
+                <ul className={h.daftarKasus}>
+                  {potong.map((m) => (
+                    <li key={m.baris}><Kasus m={m} aktif={pilih === m.baris} onBuka={() => setPilih(m.baris)} /></li>
+                  ))}
+                </ul>
+              )}
               {halaman > 1 && (
-                <div className={h.bawahDaftar}>
+                <div className={h.halaman}>
                   <span>Halaman {hal + 1} dari {halaman}</span>
-                  <span style={{ display: "flex", gap: 8 }}>
+                  <span>
                     <Button size="sm" variant="secondary" disabled={hal === 0} onClick={() => setHal(hal - 1)}>Sebelumnya</Button>
                     <Button size="sm" variant="secondary" disabled={hal >= halaman - 1} onClick={() => setHal(hal + 1)}>Berikutnya</Button>
                   </span>
                 </div>
               )}
-            </>
-          )}
-        </>
-      )}
+            </section>
 
-      {dipilih && opsi && info && (
-        <Dialog laci judul={`${dipilih.id} ${judulKasus(dipilih)}`} onClose={() => setPilih(null)}
-          sub={[dipilih.permasalahan, dipilih.status !== "Selesai" ? dipilih.status_waktu : ""].filter(Boolean).join(", ")}>
-          <div className={h.laciTahap}><Tahap m={dipilih} lengkap /></div>
-          <Jawaban m={dipilih} />
-          <TindakLanjut key={`${dipilih.baris}-${dipilih.jawaban}-${dipilih.status}-${dipilih.kode_tema}-${dipilih.status_eskalasi}`}
-            m={dipilih} opsi={opsi} saya={info.saya.nama ?? ""} pic={!!info.saya.pic} onTersimpan={ganti} />
-          <Rincian m={dipilih} opsi={opsi} />
-        </Dialog>
+            <aside className={`${h.detail} ${dipilih ? h.detailBuka : ""}`} aria-label="Rincian kasus">
+              {dipilih ? (
+                <>
+                  <header className={h.detailKepala}>
+                    <div>
+                      <small>{dipilih.id || `baris ${dipilih.baris}`}</small>
+                      <h2>{judulKasus(dipilih)}</h2>
+                      <p>{[dipilih.permasalahan, dipilih.status !== "Selesai" ? dipilih.status_waktu : ""].filter(Boolean).join(", ")}</p>
+                    </div>
+                    <button type="button" className={s.tutup} onClick={() => setPilih(null)} aria-label="Tutup rincian">
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </header>
+                  <div className={h.detailIsi}>
+                    <div className={h.laciTahap}><Tahap m={dipilih} lengkap /></div>
+                    <Jawaban m={dipilih} />
+                    <TindakLanjut key={`${dipilih.baris}-${dipilih.jawaban}-${dipilih.status}-${dipilih.kode_tema}-${dipilih.status_eskalasi}`}
+                      m={dipilih} opsi={opsi} saya={info.saya.nama ?? ""} pic={!!info.saya.pic} onTersimpan={ganti} />
+                    <Rincian m={dipilih} opsi={opsi} />
+                  </div>
+                </>
+              ) : (
+                <div className={h.detailKosong}>
+                  <span aria-hidden="true"><IkonCari size={22} /></span>
+                  <b>Pilih kasus dari antrean</b>
+                  <p>Rincian, jawaban tim, dan form tindak lanjut muncul di sini.</p>
+                </div>
+              )}
+            </aside>
+          </div>
+        </>
       )}
 
       {lapor && opsi && info && (

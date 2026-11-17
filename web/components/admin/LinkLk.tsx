@@ -34,13 +34,16 @@ export function LinkLk() {
 
   return (
     <section className={s.card} aria-labelledby="h-lk">
-      <h2 id="h-lk">Sheet LK Monitoring <span>{info?.terpasang ? "terpasang" : "belum terpasang"}</span></h2>
+      <div className={s.cardHead}>
+        <h2 id="h-lk">Sheet LK Monitoring</h2>
+        <span className={`${s.status} ${info?.terpasang ? s.statusOk : ""}`}><i />{info?.terpasang ? "Terpasang" : "Belum terpasang"}</span>
+      </div>
       <p className={s.ketKecil}>
-        Sheet berisi tab WEEK n, Log Komunikasi, dan Log Progres. Cukup dipasang sekali; anggota tim otomatis memakainya.
-        {info?.link && <> Saat ini: <a href={info.link} target="_blank" rel="noreferrer">buka sheet</a>.</>}
+        Berisi tab WEEK n, Log Komunikasi, dan Log Progres. Cukup dipasang sekali; anggota tim otomatis memakainya.
+        {info?.link && <> <a href={info.link} target="_blank" rel="noreferrer">Buka sheet</a></>}
       </p>
       <div className={s.linkBaris}>
-        <input className={s.cari} type="url" value={link} onChange={(e) => setLink(e.target.value)}
+        <input type="url" value={link} onChange={(e) => setLink(e.target.value)}
           placeholder="https://docs.google.com/spreadsheets/d/…" aria-label="Link sheet LK" />
         <Button size="sm" loading={busy} disabled={link.trim().length < 10} onClick={() => void simpan()}>
           {info?.terpasang ? "Ganti link" : "Pasang"}
