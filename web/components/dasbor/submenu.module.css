@@ -1,6 +1,10 @@
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; }
-.tab { position: relative; padding: 10px 14px; font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none;
-  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
-.tab:hover { color: var(--ink); }
-.tab[aria-current="page"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
-.titik { position: absolute; top: 9px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #d92d20; }
+/* Tab: bilah putih bersegmen, tab aktif berupa pil biru */
+.tabs { display: flex; width: fit-content; max-width: 100%; gap: 4px; padding: 5px; margin-bottom: 20px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgb(16 24 40 / 4%); overflow-x: auto; scrollbar-width: none; }
+.tab { position: relative; padding: 9px 18px; font-size: 14px; font-weight: 500; color: var(--ink-2); text-decoration: none;
+  border-radius: 10px; white-space: nowrap; transition: background-color .15s, color .15s, box-shadow .15s; }
+.tab:hover { color: var(--pita-a); background: var(--pita-lembut); }
+.tab[aria-current="page"] { color: #fff; font-weight: 600; background: linear-gradient(180deg, var(--pita-b), var(--pita-a));
+  box-shadow: 0 4px 10px rgb(18 127 194 / 25%); }
+.tab:focus-visible { outline: 2px solid var(--pita-a); outline-offset: 2px; }
+.titik { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: #d92d20; }

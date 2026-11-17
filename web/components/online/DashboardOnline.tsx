@@ -85,9 +85,10 @@ export function DashboardOnline() {
     <div className={`${s.halaman} ${utama.memuat ? s.redup : ""}`}>
       <header className={s.kepala}>
         <div>
-          <p className={s.eyebrow}>WEEK {x.week}{x.cutoff ? ` · ${x.cutoff}` : ""} · dihitung {x.dibuat}</p>
+          <p className="chips"><span className="chip">Week {x.week}</span>{x.cutoff ? <span className="chip">{x.cutoff}</span> : null}</p>
           <h1>{banding !== null ? "Perbandingan PIC" : x.nasional ? "Dashboard nasional" : `Dashboard ${x.pic}`}
             {x.bimtek ? <small className={s.subJudul}> · {x.bimtek === "-" ? "bukan peserta bimtek" : x.bimtek}</small> : null}</h1>
+          <p className={s.sub}>Data per {x.dibuat}</p>
         </div>
         <div className={s.kontrol}>
           <label className={s.pilih}>
@@ -198,9 +199,9 @@ function Ringkasan({ x }: { x: Dash }) {
       </section>
 
       <div className={s.tiga}>
-        <section className={d.card}><div className={d.cardHead}><h2>Angkatan</h2><span>jumlah sekolah</span></div><Batang data={di.angkatan} /></section>
-        <section className={d.card}><div className={d.cardHead}><h2>Sebaran provinsi</h2><span>8 teratas</span></div><Batang data={di.provinsi} /></section>
-        <section className={d.card}><div className={d.cardHead}><h2>Sebaran PTN</h2><span>8 teratas</span></div><Batang data={di.ptn} /></section>
+        <section className={`${d.card} ${s.isiPenuh}`}><div className={d.cardHead}><h2>Angkatan</h2><span>jumlah sekolah</span></div><Batang data={di.angkatan} /></section>
+        <section className={`${d.card} ${s.isiPenuh}`}><div className={d.cardHead}><h2>Sebaran provinsi</h2><span>8 teratas</span></div><Batang data={di.provinsi} /></section>
+        <section className={`${d.card} ${s.isiPenuh}`}><div className={d.cardHead}><h2>Sebaran PTN</h2><span>8 teratas</span></div><Batang data={di.ptn} /></section>
       </div>
 
       <section className={d.card}>
@@ -209,7 +210,7 @@ function Ringkasan({ x }: { x: Dash }) {
       </section>
 
       <div className={s.duaSeimbang}>
-        <section className={d.card}>
+        <section className={`${d.card} ${s.isiPenuh}`}>
           <div className={d.cardHead}><h2>Sebaran progres fisik</h2>
             <span>rata-rata {persen(x.progres.rata)} · {fmt(x.progres.ada)} sekolah melapor</span></div>
           <Batang data={x.progres.sebaran} />

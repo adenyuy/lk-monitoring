@@ -18,7 +18,7 @@ def _sk(npsn: str, kirim50: str, tgl: str, progres: str = "40", hari: str = "") 
 
 
 def test_hitung_konversi_dan_dampak(tmp_path, monkeypatch):
-    monkeypatch.setattr(rekap_bimtek, "_peta_pic", lambda: {"1": ("Ani", "Koor A", "PTN A"), "2": ("Budi", "", "")})
+    monkeypatch.setattr(rekap_bimtek, "_peta_pic", lambda: {"1": ("Ani", "Koor A", "PTN A", "2"), "2": ("Budi", "", "", "")})
     monkeypatch.setattr(rekap_bimtek, "simpan_lk_harian", lambda d: None)   # tanpa akses LK
     monkeypatch.setattr(rekap_bimtek.lk_baru, "npsn_mundur", lambda refresh=False: frozenset({"8"}))  # 8 mengundurkan diri
     d = tmp_path / "data-bimtek"
@@ -72,6 +72,7 @@ def test_hitung_konversi_dan_dampak(tmp_path, monkeypatch):
     assert {n: b["kategori"] for n, b in baris.items()} == {"1": "sebelum", "2": "saat", "3": "saat", "4": "belum"}
     assert baris["1"]["pic"] == "Ani" and baris["1"]["nama"] == "SD 1" and "hp" not in " ".join(kol)
     assert baris["1"]["koor"] == "Koor A" and baris["1"]["ptn"] == "PTN A" and baris["3"]["koor"] == ""
+    assert baris["1"]["angkatan"] == "2" and baris["2"]["angkatan"] == ""
     i50 = r["komponen_urut"].index("l50")
     assert baris["4"]["awal_kode"][i50] == "B" and baris["4"]["akhir_kode"][i50] == "B"   # belum -> masih belum
     assert baris["2"]["awal_kode"][i50] == "B" and baris["2"]["akhir_kode"][i50] == "S"   # belum -> sudah

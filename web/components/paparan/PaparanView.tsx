@@ -182,12 +182,12 @@ export function PaparanView() {
     <div className={`${s.page} ${memuat ? s.memuat : ""}`}>
       <header className={s.head}>
         <div>
-          <p className={s.eyebrow}>WEEK {d.week}{d.cutoff ? `, ${d.cutoff}` : ""}</p>
+          <p className="chips"><span className="chip">Week {d.week}</span>{d.cutoff ? <span className="chip">{d.cutoff}</span> : null}</p>
           <h1>Paparan {d.pic}</h1>
           <p className={s.sub}>Data per {d.dibuat}. {tampil.length} slide akan dipaparkan.</p>
         </div>
         <div className={s.aksi}>
-          <Button variant="ghost" onClick={() => void muat(true)} loading={memuat}>Perbarui data</Button>
+          <Button variant="secondary" onClick={() => void muat(true)} loading={memuat}>Perbarui data</Button>
           <Button variant="secondary" onClick={() => setTampilkan(true)} disabled={!tampil.length}>Presentasi</Button>
           <Button onClick={mulaiGs} disabled={!tampil.length} loading={gs.tahap === "membuat"}>Buat Google Slides</Button>
         </div>

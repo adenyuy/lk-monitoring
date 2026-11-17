@@ -93,6 +93,7 @@ function LogProgres({ data }: { data: Data }) {
 
 /** Garis tren per cutoff; tiap titik diberi label nilai (dan jumlah bila ada). Satuan % atau hari. */
 function Tren({ cutoff, nilai }: { cutoff: string[]; nilai: Nilai[] }) {
+  const [sorot, setSorot] = useState<number | null>(null);
   const hari = nilai.every((x) => x.persen === null);
   const angka = nilai.map((x) => (hari ? x.hari : x.persen));
   const ada = angka.filter((v): v is number => v !== null);
@@ -109,6 +110,15 @@ function Tren({ cutoff, nilai }: { cutoff: string[]; nilai: Nilai[] }) {
   const awal = titik[0];
   const naik = titik.length > 1 ? akhir.v - awal.v : null;
   const baik = naik === null ? null : hari ? naik <= 0 : naik >= 0;
+  // Label nilai hanya di titik awal & akhir (atau titik yang disorot); sumbu tiap `langkah` cutoff dihitung dari akhir,
+  // supaya tetap terbaca walau cutoff makin banyak.
+  const langkah = Math.max(1, Math.ceil(titik.length / 6));
+  const sumbu = new Set(titik.filter((_, k) => (titik.length - 1 - k) % langkah === 0).map((p) => p.i));
+  const label = sorot !== null ? titik.filter((p) => p.i === sorot) : titik.length > 1 ? [awal, akhir] : [akhir];
+  const jangkar = (px: number) => (px > W - 40 ? "end" : px < 40 ? "start" : "middle");
+  const lebarKolom = titik.length > 1 ? (W - KIRI - KANAN) / (titik.length - 1) : W;
+  const dasar = H - BAWAH;
+  const xSorot = titik.find((p) => p.i === sorot)?.x ?? null;
 
   return (
     <div className={s.lpTren}>
@@ -118,25 +128,49 @@ function Tren({ cutoff, nilai }: { cutoff: string[]; nilai: Nilai[] }) {
           <span className={baik ? s.tBaikT : s.tKurangT}>{naik > 0 ? "▲" : "▼"} {Math.abs(naik).toFixed(1).replace(".", ",")} {hari ? "hari" : "poin"} sejak {pecahLabel(cutoff[awal.i])[0]}</span>
         )}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" className={s.lpSvg}
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" className={s.lpSvg} onMouseLeave={() => setSorot(null)}
         aria-label={titik.map((p) => `${cutoff[p.i]}: ${teks(p.v)}`).join(", ")}>
-        <line x1={KIRI - 8} x2={W - KANAN + 8} y1={H - BAWAH} y2={H - BAWAH} className={s.lpDasar} />
+        <line x1={KIRI - 8} x2={W - KANAN + 8} y1={dasar} y2={dasar} className={s.lpDasar} />
+        {titik.length > 1 && (
+          <path className={s.lpArsir}
+            d={`M${awal.x},${dasar} ${titik.map((p) => `L${p.x},${p.y}`).join(" ")} L${akhir.x},${dasar} Z`} />
+        )}
         <polyline points={titik.map((p) => `${p.x},${p.y}`).join(" ")} className={s.lpGaris} />
+        {sorot !== null && titik.some((p) => p.i === sorot) && (() => {
+          const p = titik.find((t) => t.i === sorot)!;
+          return <line x1={p.x} x2={p.x} y1={ATAS - 6} y2={dasar} className={s.lpPandu} />;
+        })()}
         {titik.map((p) => {
-          const n = nilai[p.i];
           const terakhir = p === akhir;
+          const tampil = p.i === sorot || (sorot === null && (terakhir || p === awal));
           return (
-            <g key={p.i}>
-              <circle cx={p.x} cy={p.y} r={terakhir ? 4.5 : 3.5} className={terakhir ? s.lpTitikAkhir : s.lpTitik} />
-              <text x={p.x} y={p.y - (n.a !== null && n.b !== null ? 20 : 10)} textAnchor="middle" className={s.lpNilai}>{teks(p.v)}</text>
-              {n.a !== null && n.b !== null && (
-                <text x={p.x} y={p.y - 9} textAnchor="middle" className={s.lpJumlah}>{fmt(n.a)}/{fmt(n.b)}</text>
-              )}
-              <text x={p.x} y={H - BAWAH + 15} textAnchor="middle" className={s.lpSumbu}>{pecahLabel(cutoff[p.i])[0].replace("Cutoff", "C")}</text>
-              <text x={p.x} y={H - BAWAH + 28} textAnchor="middle" className={s.lpSumbuTgl}>{pecahLabel(cutoff[p.i])[1]}</text>
+            <circle key={p.i} cx={p.x} cy={p.y} r={terakhir || p.i === sorot ? 4.5 : titik.length > 12 ? 2.5 : 3.5}
+              className={terakhir ? s.lpTitikAkhir : tampil ? s.lpTitikSorot : s.lpTitik} />
+          );
+        })}
+        {label.map((p) => {
+          const n = nilai[p.i];
+          const ada = n.a !== null && n.b !== null;
+          return (
+            <g key={`l${p.i}`} className={s.lpLabel}>
+              <text x={p.x} y={p.y - (ada ? 22 : 11)} textAnchor={jangkar(p.x)} className={s.lpNilai}>{teks(p.v)}</text>
+              {ada && <text x={p.x} y={p.y - 10} textAnchor={jangkar(p.x)} className={s.lpJumlah}>{fmt(n.a!)}/{fmt(n.b!)}</text>}
             </g>
           );
         })}
+        {titik.map((p) => (p.i === sorot || (sumbu.has(p.i) && (xSorot === null || Math.abs(p.x - xSorot) > 40))) && (
+          <g key={`s${p.i}`}>
+            <text x={p.x} y={dasar + 15} textAnchor={jangkar(p.x)} className={p.i === sorot ? s.lpSumbuSorot : s.lpSumbu}>
+              {pecahLabel(cutoff[p.i])[0].replace("Cutoff", "C")}</text>
+            <text x={p.x} y={dasar + 28} textAnchor={jangkar(p.x)} className={s.lpSumbuTgl}>{pecahLabel(cutoff[p.i])[1]}</text>
+          </g>
+        ))}
+        {titik.map((p) => (
+          <rect key={`h${p.i}`} x={p.x - lebarKolom / 2} y={0} width={lebarKolom} height={H} fill="transparent"
+            onMouseEnter={() => setSorot(p.i)}>
+            <title>{`${cutoff[p.i]}: ${teks(p.v)}`}</title>
+          </rect>
+        ))}
       </svg>
     </div>
   );

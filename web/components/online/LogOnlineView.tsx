@@ -50,8 +50,9 @@ export function LogOnlineView() {
     <div className={`${s.halaman} ${memuat ? s.redup : ""}`}>
       <header className={s.kepala}>
         <div>
-          <p className={s.eyebrow}>WEEK {d.week} · dibaca {d.dibuat}</p>
+          <p className="chips"><span className="chip">Week {d.week}</span></p>
           <h1>Log pengisian {d.detail ? d.detail.nama : "semua PIC"}</h1>
+          <p className={s.sub}>Dibaca {d.dibuat}</p>
         </div>
         <label className={s.pilih}>
           <span>Lihat</span>

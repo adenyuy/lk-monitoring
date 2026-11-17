@@ -34,8 +34,12 @@
 .kepala h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
 .subJudul { font-size: 16px; font-weight: 500; color: var(--muted); }
 .pilih { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.pilih select { height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px;
-  background: #fff; color: var(--ink); min-width: 220px; }
+.pilih select { height: 38px; border: 1px solid var(--line); border-radius: 10px; padding: 0 36px 0 12px; font: inherit; font-size: 14px;
+  color: var(--ink); min-width: 220px; cursor: pointer; appearance: none;
+  background: #f6f8fb url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6474' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+  transition: border-color .15s, background-color .15s; }
+.pilih select:hover { border-color: #b9d7ef; background-color: #fff; }
+.pilih select:focus-visible { outline: 2px solid var(--pita-a); outline-offset: 1px; background-color: #fff; }
 
 .kartu { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); padding: 18px 20px; min-width: 0; }
 .kartuKepala { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; margin-bottom: 14px; }
@@ -113,11 +117,15 @@
 }
 
 /* ---------- dashboard online ---------- */
-.kontrol { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.kontrol { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 8px 8px 16px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgb(16 24 40 / 4%); }
+.kontrol > button { height: 38px; border-radius: 10px; }
 .kpi5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .kpi2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .tiga { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.duaSeimbang { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; align-items: start; }
+.duaSeimbang { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; align-items: stretch; }
+.isiPenuh { display: flex; flex-direction: column; }
+.isiPenuh > ul { flex: 1; justify-content: space-around; }
 .ketKecil { font-size: 12.5px; color: var(--muted); }
 .inline { display: inline !important; margin-left: 4px; }
 
@@ -189,9 +197,14 @@
 .lpAngka span { font-size: 12px; }
 .lpSvg { display: block; overflow: visible; }
 .lpDasar { stroke: var(--line); stroke-width: 1; }
-.lpGaris { fill: none; stroke: var(--primary); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
-.lpTitik { fill: #fff; stroke: var(--primary); stroke-width: 2; }
-.lpTitikAkhir { fill: var(--primary); stroke: #fff; stroke-width: 2; }
+.lpGaris { fill: none; stroke: var(--pita-a); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.lpArsir { fill: var(--pita-a); opacity: .08; }
+.lpPandu { stroke: var(--pita-b); stroke-width: 1; stroke-dasharray: 3 3; }
+.lpTitik { fill: #fff; stroke: var(--pita-a); stroke-width: 1.75; }
+.lpTitikSorot { fill: #fff; stroke: var(--pita-a); stroke-width: 2.25; }
+.lpTitikAkhir { fill: var(--pita-a); stroke: #fff; stroke-width: 2; }
+.lpLabel text { paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.lpSumbuSorot { font-size: 10.5px; fill: var(--pita-a); font-weight: 600; }
 .lpNilai { font-size: 11.5px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
 .lpJumlah { font-size: 9.5px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 .lpSumbu { font-size: 10.5px; fill: var(--ink); }
@@ -283,3 +296,4 @@
 .barisSaya > td:first-child { box-shadow: inset 3px 0 0 #d9a23a; }
 .kolomPic { min-width: 180px; }
 .tabel td.angka small, .selTombol small { white-space: nowrap; }
+.sub { font-size: 13px; color: var(--muted); margin-top: 4px; }

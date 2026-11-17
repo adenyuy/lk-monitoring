@@ -85,7 +85,7 @@ export function DashboardView() {
     <div className={`${s.page} ${memuat ? s.memuat : ""}`}>
       <header className={s.head}>
         <div>
-          <p className={s.eyebrow}>WEEK {d.week}{d.cutoff ? ` · ${d.cutoff}` : ""}</p>
+          <p className="chips"><span className="chip">Week {d.week}</span>{d.cutoff ? <span className="chip">{d.cutoff}</span> : null}</p>
           <h1>Dashboard {d.nasional ? "nasional" : d.pic}</h1>
         </div>
         <div className={s.headKanan}>

@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { post } from "@/lib/api";
 import { Button, Notice, Spinner } from "@/components/ui";
 import {
-  DataPer, KET_KOMP, KOMP_PENDEK, KUADRAN, NAMA_SUMBER, PILIHAN_HARI, belumMulai, berlangsung, fmt, hrefKelompok, kuadranDari,
-  labelBimtek, pct, poin, rentang, sumberData, teksTahap, tgl, tglPanjang, tungguFasil, useRekap, warnaDari, type Kelompok, type Kuadran,
+  DataPer, KET_KOMP, KOMP_PENDEK, KUADRAN, PILIHAN_HARI, belumMulai, berlangsung, fmt, hariIni, hrefKelompok, kuadranDari,
+  labelBimtek, pct, poin, rentang, selisihHari, tgl, tglPanjang, useRekap, warnaDari, type Kelompok, type Kuadran,
   type Rekap,
 } from "./BimtekView";
 import { BimtekNasional, judulNasional, tglJam } from "./BimtekNasional";
@@ -106,21 +106,22 @@ export function BimtekDetail({ kode }: { kode?: string }) {
   const pilih = (kode ?? "").toUpperCase();
   const k = r?.kelompok.find((x) => x.kode.toUpperCase() === pilih);
   const onHitung = data.bisa_hitung ? () => void hitung() : undefined;
-  const kepala = !r ? { judul: "Bimtek Pelaporan", sub: "" } : !pilih ? judulNasional(r)
-    : { judul: labelBimtek(pilih), sub: k ? `${rentang(k.mulai, k.selesai)} ${k.selesai.slice(0, 4)}` : "" };
+  const kepala = !r ? { judul: "Bimtek Pelaporan", chip: [] } : !pilih ? judulNasional(r)
+    : { judul: labelBimtek(pilih), chip: k ? [`${rentang(k.mulai, k.selesai)} ${k.selesai.slice(0, 4)}`] : [] };
   const status = k && !belumMulai(k) ? (berlangsung(k) ? "berjalan" : k.tahap) : k ? "akan datang" : "";
   return (
     <div className={b.halaman}>
       <header className={b.kepalaBimtek}>
         <div className={b.judulBimtek}>
-          <h1>{kepala.judul}</h1>
-          {(kepala.sub || status) && (
-            <p>
-              {kepala.sub}
-              {status && <span className={`${b.status} ${b[`status_${status.replace(" ", "_")}`]}`}>
-                {status === "berjalan" ? "Sedang berlangsung" : status === "akan datang" ? "Coming soon" : teksTahap(status)}</span>}
+          {(kepala.chip.length > 0 || status) && (
+            <p className="chips">
+              {kepala.chip.map((c) => <span key={c} className="chip">{c}</span>)}
+              {k && (status === "berjalan" || status === "akan datang") && <span className={`${b.status} ${b[`status_${status.replace(" ", "_")}`]}`}>
+                {status === "berjalan" ? `Hari ke-${selisihHari(k.mulai, hariIni()) + 1} dari ${selisihHari(k.mulai, k.selesai) + 1}`
+                  : `${selisihHari(hariIni(), k.mulai)} hari lagi`}</span>}
             </p>
           )}
+          <h1>{kepala.judul}</h1>
         </div>
         <DataPer r={r} data={data} onHitung={onHitung} />
       </header>
@@ -158,7 +159,7 @@ function MenuBimtek({ r, pilih }: { r: Rekap; pilih: string }) {
         <Link key={k.kode} href={hrefKelompok(k.kode)} className={b.tabItem}
           aria-current={k.kode.toUpperCase() === pilih ? "page" : undefined}>
           {labelBimtek(k.kode).replace(" ke-", " ")}
-          {berlangsung(k) && <span className={b.tandaLangsung} title="Sedang berlangsung"><i />Live</span>}
+          {berlangsung(k) && <span className={b.tandaLangsung} title="Sedang berlangsung"><i /><span className="sr-only">Sedang berlangsung</span></span>}
         </Link>
       ))}
     </nav>
@@ -190,7 +191,6 @@ function Isi({ r, k, admin, saya }: { r: Rekap; k: Kelompok; admin: boolean; say
   return (
     <div className={b.halaman} style={{ ["--w" as string]: warnaDari(k.kode) }}>
       <KartuDetail r={r} k={k} />
-      {langsung && <PantauPic r={r} k={k} rows={sekolah} admin={admin} saya={saya} />}
       <Komponen r={r} k={k} rows={sekolah} adaSesudah={adaSesudah} />
       <PerHotel r={r} k={k} rows={sekolah} adaSesudah={adaSesudah} onPilih={adaSesudah ? pilihHotel : undefined} />
       <KurvaSatu r={r} k={k} />
@@ -203,44 +203,29 @@ function Isi({ r, k, admin, saya }: { r: Rekap; k: Kelompok; admin: boolean; say
           <p>Data terakhir {tglJam(r.data_terbaru.waktu)}, sebelum bimtek mulai. Setiap cutoff otomatis memperbarui halaman ini.</p>
         </section>
       )}
+      {langsung && <PantauPic r={r} k={k} rows={sekolah} admin={admin} saya={saya} />}
     </div>
   );
 }
 
 /* ---------- 1. kartu: sekolah, hotel, kapan data diambil ---------- */
 function KartuDetail({ r, k }: { r: Rekap; k: Kelompok }) {
-  const data = new Date(r.data_terbaru.waktu), sudahT1 = data >= new Date(k.t1);
-  const lain = (p?: { jenis: string; waktu: string }) => (p ? `${NAMA_SUMBER[p.jenis] ?? p.jenis} ${tglJam(p.waktu)}` : "tidak ada (hanya Lap. 50%)");
-  const hotel = k.hotel ?? [];
+  const sudahT1 = new Date(r.data_terbaru.waktu) >= new Date(k.t1);
   return (
     <dl className={`${b.strip} ${b.stripDetail}`}>
-      <div>
-        <dt>Sekolah</dt>
-        <dd>{fmt(k.peserta_daftar ?? k.sekolah)}</dd>
-        <p className={b.stripKet}>{fmt(k.l50.wajib)} sudah wajib Lap. 50%</p>
-      </div>
-      <div>
-        <dt>Hotel</dt>
-        <dd>{hotel.length || "–"}</dd>
-        <p className={b.stripKet}>{hotel.length ? [...new Set(hotel.map((h) => h.region))].join(", ") : "pemetaan belum ada"}</p>
-      </div>
+      <div><dt>Sekolah</dt><dd>{fmt(k.peserta_daftar ?? k.sekolah)}</dd></div>
+      <div><dt>Hotel</dt><dd>{k.hotel?.length || "–"}</dd></div>
       <div>
         <dt><Tip isi={<>Akhir hari sebelum bimtek mulai. Lap. 50% dihitung dari tanggal kirim di export aplikasi; komponen lain
           dari data tersimpan terakhir sebelum bimtek.</>}>Data sebelum</Tip></dt>
         <dd className={b.ddTanggal}>{tgl(k.t0)} {k.t0.slice(0, 4)}</dd>
-        <p className={b.stripKet}>Komponen lain: {lain(k.awal)}</p>
       </div>
       <div>
         <dt><Tip isi={<>Akhir hari terakhir bimtek. Lap. 50% dari tanggal kirim; komponen lain dari export paling lambat 2 hari
           setelah bimtek selesai.</>}>Data hari terakhir bimtek</Tip></dt>
         <dd className={`${b.ddTanggal} ${sudahT1 ? "" : b.redupDd}`}>{sudahT1 ? `${tgl(k.selesai)} ${k.selesai.slice(0, 4)}` : "Belum"}</dd>
-        <p className={b.stripKet}>{sudahT1 ? `Komponen lain: ${lain(k.akhir1)}` : `diukur ${tgl(k.selesai)} malam`}</p>
       </div>
-      <div>
-        <dt>Data hari ini</dt>
-        <dd className={b.ddTanggal}>{tglJam(r.data_terbaru.waktu)}</dd>
-        <p className={b.stripKet}>{sumberData(r).replace("dari ", "")}</p>
-      </div>
+      <div><dt>Data hari ini</dt><dd className={b.ddTanggal}>{tglJam(r.data_terbaru.waktu)}</dd></div>
     </dl>
   );
 }
@@ -283,7 +268,7 @@ function PerHotel({ r, k, rows, adaSesudah, onPilih }: { r: Rekap; k: Kelompok; 
       <td className={b.angka}>{sel(x.p0, x.n0)}</td>
       {adaSesudah && <td className={b.angka}>{sel(x.p1, x.n1)}</td>}
       {adaSesudah && <td className={`${b.angka} ${b.kolomDelta}`}>{x.delta === null ? "–"
-        : <b className={x.delta >= 0 ? b.naik : b.turun}>{poin(x.delta)} poin</b>}</td>}
+        : <b className={x.delta >= 0 ? b.naik : b.turun}>{poin(x.delta)}%</b>}</td>}
       {adaSesudah && <td className={b.angka}>{sel(x.p2, x.n2)}</td>}
       {l50 && adaSesudah && <>
         <td className={b.angka}>{fmt(x.setuju)}<small>{pct(persen(x.setuju, x.terkirim))}</small></td>
@@ -302,10 +287,10 @@ function PerHotel({ r, k, rows, adaSesudah, onPilih }: { r: Rekap; k: Kelompok; 
             Klik hotel untuk melihat sekolahnya di rincian.</>}>Per hotel</Tip>
         </h2>
         {pilihan.length > 1 && (
-          <div className={`${b.chip} ${b.chipPenuh}`} role="group" aria-label="Pilih komponen">
-            {pilihan.map((x) => (
-              <button key={x} type="button" aria-pressed={kodeAktif === x} onClick={() => setKomp(x)}>{KOMP_PENDEK[x]}</button>
-            ))}
+          <div className={b.saringBaris}>
+            <select value={kodeAktif} onChange={(e) => setKomp(e.target.value)} aria-label="Pilih komponen">
+              {pilihan.map((x) => <option key={x} value={x}>{(k.komponen ?? []).find((c) => c.kode === x)?.label ?? KOMP_PENDEK[x]}</option>)}
+            </select>
           </div>
         )}
       </div>
@@ -332,81 +317,124 @@ function PerHotel({ r, k, rows, adaSesudah, onPilih }: { r: Rekap; k: Kelompok; 
   );
 }
 
-/* ---------- 4. pergerakan per komponen: sebelum, hari terakhir, hari ini ---------- */
+/* ---------- 4. pergerakan per komponen: tabel (kiri), batang bertumpuk (kanan) ---------- */
+const WARNA_KOMP = { sebelum: "#0f6aa6", selama: "#5aaee3", belum: "#e4e9ef" };
+const RUMUS_PERSEN = <>Persen = sekolah yang selesai ÷ sekolah yang komponennya jatuh tempo sebelum bimtek. Untuk reviu: sekolah
+  yang semua laporannya sudah direviu ÷ sekolah yang sudah mengirim pada tanggal itu. Angka kecil = jumlah sekolah selesai.</>;
 function Komponen({ r, k, rows, adaSesudah }: { r: Rekap; k: Kelompok; rows: Hasil[]; adaSesudah: boolean }) {
   const urut = r.komponen_urut ?? [];
-  const komp = komponenAda(r, k, rows, adaSesudah);
+  const [sorot, setSorot] = useState<string | null>(null);
   const jalan = berlangsung(k);
-  const tanpa = (k.komponen ?? []).filter((c) => !c.ada && !komp.includes(c));
-  const nol = (k.komponen ?? []).filter((c) => c.ada && !komp.includes(c));
-  const warna = warnaDari(k.kode);
+  const isi = komponenAda(r, k, rows, adaSesudah).map((c) => {
+    const t = tigaTitik(rows, urut.indexOf(c.kode), adaSesudah, adalahReviu(c.kode));
+    const p = [persen(t.n0, t.d0), persen(t.n1, t.d1), persen(t.n2, t.d2)];
+    // selama bimtek berjalan, "sesudah" = data hari ini
+    const nAkhir = t.n1 ?? (jalan ? t.n2 : null), pAkhir = p[1] ?? (jalan ? p[2] : null);
+    return { c, t, p, nAkhir, pAkhir };
+  });
+  const sel = (v: number | null, n: number | null) => (v === null ? <span className={b.redup}>–</span>
+    : <span className={b.tanggalSel}><b>{pct(v)}</b><small>{fmt(n ?? 0)}</small></span>);
   return (
-    <section className={b.panel} aria-labelledby="h-komp">
-      <div className={b.panelHead}>
-        <h2 id="h-komp" className={b.h2}>
-          <Tip isi={<>Persen sekolah yang komponennya selesai, dari sekolah yang komponen itu sudah jatuh tempo sebelum bimtek:
-            sebelum bimtek (titik kosong), hari terakhir bimtek (titik tengah), dan hari ini (titik penuh). Untuk reviu: dari
-            sekolah yang sudah mengirim laporannya pada tanggal itu.</>}>Pergerakan per komponen</Tip>
-        </h2>
-        <ul className={b.legenda}>
-          <li><span className={b.legendaStatis}><i className={b.titikKosong} style={{ ["--w" as string]: warna }} />Sebelum</span></li>
-          {adaSesudah && <li><span className={b.legendaStatis}><i className={b.titikTengah} style={{ ["--w" as string]: warna }} />Hari terakhir</span></li>}
-          {adaSesudah && <li><span className={b.legendaStatis}><i className={b.titikPenuh} style={{ ["--w" as string]: warna }} />Hari ini</span></li>}
-        </ul>
-      </div>
-      {tanpa.length > 0 && <p className={b.ket}>{tanpa.map((c) => c.label).join(", ")}: belum ada data log di LK sebelum bimtek ini.</p>}
-      {nol.length > 0 && <p className={b.ket}>{nol.map((c) => c.label).join(", ")}: belum ada yang jatuh tempo sebelum bimtek.</p>}
-      <div className={b.gulir}>
-        <table className={`${b.tabel} ${b.tabelKomp}`}>
-          <thead>
-            <tr>
-              <th>Komponen</th><th className={b.angka}>Jatuh tempo</th>
-              <th className={b.angka}>Sebelum<small>{tgl(k.t0)}</small></th>
-              {adaSesudah && <th className={b.angka}>Hari terakhir<small>{tgl(k.selesai)}</small></th>}
-              {adaSesudah && <th className={`${b.angka} ${b.kolomDelta}`}><Tip isi={jalan
-                ? "Kenaikan sejak sebelum bimtek sampai data hari ini. Ikut berubah tiap cutoff selama bimtek, lalu dikunci di hari terakhir."
-                : "Kenaikan selama bimtek: hari terakhir dikurangi sebelum, dalam poin persen."}>{jalan ? "Δ s.d. hari ini" : "Δ"}</Tip></th>}
-              {adaSesudah && <th className={b.angka}>Hari ini<small>{tgl(r.data_terbaru.waktu)}</small></th>}
-              <th className={b.kolomJalur} aria-hidden="true"><span className={b.dbSkala}><span>0%</span><span>50%</span><span>100%</span></span></th>
-            </tr>
-          </thead>
-          <tbody>
-            {komp.map((c) => {
-              const t = tigaTitik(rows, urut.indexOf(c.kode), adaSesudah, adalahReviu(c.kode));
-              const p = [persen(t.n0, t.d0), persen(t.n1, t.d1), persen(t.n2, t.d2)];
-              const sel = (v: number | null, n: number | null) => (v === null ? <span className={b.redup}>–</span>
-                : <span className={b.tanggalSel}><b>{pct(v)}</b><small>{fmt(n ?? 0)}</small></span>);
-              const ada = p.filter((v): v is number => v !== null);
-              return (
-                <tr key={c.kode}>
-                  <td>{KET_KOMP[c.kode] ? <Tip isi={KET_KOMP[c.kode]}>{c.label}</Tip> : c.label}</td>
-                  <td className={b.angka}>{fmt(t.due)}{adalahReviu(c.kode) && <small>sudah kirim</small>}</td>
-                  <td className={b.angka}>{sel(p[0], t.n0)}</td>
-                  {adaSesudah && <td className={b.angka}>{sel(p[1], t.n1)}</td>}
-                  {adaSesudah && (() => {
-                    const akhir = p[1] ?? (jalan ? p[2] : null);
-                    return <td className={`${b.angka} ${b.kolomDelta}`}>{p[0] === null || akhir === null ? <span className={b.redup}>–</span>
-                      : <b className={akhir - p[0] >= 0 ? b.naik : b.turun}>{poin(akhir - p[0])}</b>}</td>;
-                  })()}
-                  {adaSesudah && <td className={b.angka}>{sel(p[2], t.n2)}</td>}
-                  <td className={b.kolomJalur}>
-                    {t.due > 0 && (
-                      <span className={b.dbJalur} style={{ ["--w" as string]: warna }}>
-                        <span className={b.dbGaris} />
-                        {ada.length > 1 && <span className={b.dbRuas} style={{ left: `${Math.min(...ada)}%`, width: `${Math.max(...ada) - Math.min(...ada)}%` }} />}
-                        {p[0] !== null && <span className={b.dbAwal} style={{ left: `${p[0]}%` }} />}
-                        {p[1] !== null && <span className={b.dbTengah} style={{ left: `${p[1]}%` }} />}
-                        {p[2] !== null && <span className={b.dbAkhir} style={{ left: `${p[2]}%` }} />}
-                      </span>
+    <div className={`${b.duaKartu} ${b.duaKartuLebar}`}>
+      <section className={b.panel} aria-labelledby="h-komp">
+        <div className={b.panelHead}>
+          <h2 id="h-komp" className={b.h2}>
+            <Tip isi={<>Persen sekolah yang komponennya selesai, dari sekolah yang komponen itu sudah jatuh tempo sebelum bimtek.
+              Untuk reviu: dari sekolah yang sudah mengirim laporannya pada tanggal itu, jadi persennya bisa turun bila banyak
+              kiriman baru masuk; karena itu Δ dihitung dari jumlah sekolah.</>}>Pergerakan per komponen</Tip>
+          </h2>
+        </div>
+        <div className={b.gulir}>
+          <table className={`${b.tabel} ${b.tabelJadwal}`}>
+            <thead>
+              <tr>
+                <th>Komponen</th><th className={b.angka}>Jatuh tempo</th>
+                <th className={b.angka}><Tip isi={RUMUS_PERSEN}>Sebelum</Tip></th>
+                {adaSesudah && <th className={b.angka}><Tip isi={RUMUS_PERSEN}>Hari terakhir</Tip></th>}
+                {adaSesudah && <th className={`${b.angka} ${b.kolomDelta}`}><Tip kanan isi={<>
+                  <b>Δ = jumlah sekolah selesai {jalan ? "hari ini" : "di hari terakhir"} − jumlah sebelum bimtek.</b> Angka kecil = selisih
+                  persennya. Untuk reviu, sekolah dihitung selesai bila semua laporannya sudah direviu. Kalau sekolah mengirim
+                  laporan baru (mingguan/bulanan berulang), statusnya kembali menunggu reviu, jadi jumlahnya bisa turun.
+                  Negatif = antrean reviu bertambah (laporan baru masuk lebih cepat dari yang direviu fasil).</>}>Δ</Tip></th>}
+                {adaSesudah && <th className={b.angka}><Tip kanan isi={RUMUS_PERSEN}>Hari ini</Tip></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {isi.map(({ c, t, p, nAkhir, pAkhir }) => {
+                const dn = t.n0 !== null && nAkhir !== null ? nAkhir - t.n0 : null;
+                return (
+                  <tr key={c.kode}>
+                    <td>{KET_KOMP[c.kode] ? <Tip isi={KET_KOMP[c.kode]}>{c.label}</Tip> : c.label}</td>
+                    <td className={b.angka}>{fmt(t.due)}{adalahReviu(c.kode) && <small>sudah kirim</small>}</td>
+                    <td className={b.angka}>{sel(p[0], t.n0)}</td>
+                    {adaSesudah && <td className={b.angka}>{sel(p[1], t.n1)}</td>}
+                    {adaSesudah && (
+                      <td className={`${b.angka} ${b.kolomDelta}`}>{dn === null || p[0] === null || pAkhir === null ? <span className={b.redup}>–</span>
+                        : <span className={b.tanggalSel}><b className={dn >= 0 ? b.naik : b.turun}>{dn >= 0 ? "+" : "−"}{fmt(Math.abs(dn))}</b>
+                          <small>{poin(pAkhir - p[0])}%</small></span>}</td>
                     )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                    {adaSesudah && <td className={b.angka}>{sel(p[2], t.n2)}</td>}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section className={b.panel} aria-labelledby="h-komp-batang">
+        <div className={b.panelHead}>
+          <h2 id="h-komp-batang" className={b.h2}>
+            <Tip isi={<>Panjang batang = sekolah yang komponennya jatuh tempo (untuk reviu: yang sudah mengirim). Biru tua =
+              sekolah yang sudah selesai sebelum bimtek; biru muda = tambahannya sampai data hari ini. Angka hijau/merah =
+              naik atau turunnya.</>}>Sebelum bimtek & hari ini</Tip>
+          </h2>
+        </div>
+        <ul className={`${b.legendaKotak} ${b.legendaBaris}`}>
+          <li><i style={{ background: WARNA_KOMP.sebelum }} />Sebelum bimtek</li>
+          <li><i style={{ background: WARNA_KOMP.selama }} />Naik s.d. hari ini</li>
+          <li><i style={{ background: WARNA_KOMP.belum }} />Belum</li>
+        </ul>
+        <ul className={`${b.batangList} ${b.batangRapat}`}>
+          {isi.map(({ c, t, p }) => {
+            const n0 = t.n0 ?? 0, n2 = t.n2 ?? n0, due = Math.max(1, t.due), d = n2 - n0;
+            const lebar = (n: number) => `${(Math.max(0, n) / due) * 100}%`;
+            // reviu bisa turun (ada kiriman baru): bagian gelap = yang lebih kecil dari keduanya
+            const gelap = Math.min(n0, n2), tambah = Math.max(0, d);
+            const naik = d === 0 ? null : <em className={d > 0 ? b.naik : b.turun}>{d > 0 ? "+" : "−"}{fmt(Math.abs(d))}</em>;
+            // angka sebelum di ujung bagian gelap, naik/turun di ujung batang; digabung bila keduanya terlalu berdekatan
+            const pisah = Math.abs(d) / due >= 0.12;
+            const ujung = (n: number) => (n / due < 0.25 ? { left: 0 } : { left: lebar(n), transform: "translateX(-100%)" });
+            return (
+              <li key={c.kode} onMouseEnter={() => setSorot(c.kode)} onMouseLeave={() => setSorot(null)}>
+                <span className={b.batangNama}>{KOMP_PENDEK[c.kode] ?? c.label}</span>
+                <span className={b.batangWadah}>
+                  {pisah ? <>
+                    <span className={b.batangAngka} style={ujung(n0)}>{fmt(n0)}</span>
+                    <span className={b.batangAngka} style={{ left: lebar(Math.max(n0, n2)), transform: "translateX(-100%)" }}>{naik}</span>
+                  </> : <span className={b.batangAngka} style={ujung(Math.max(n0, n2))}>{fmt(n0)}{naik && <> {naik}</>}</span>}
+                  <span className={b.batangJalur} aria-hidden="true">
+                    <span style={{ width: lebar(gelap), background: WARNA_KOMP.sebelum }} />
+                    <span style={{ width: lebar(tambah), background: WARNA_KOMP.selama }} />
+                    <span style={{ width: lebar(t.due - gelap - tambah), background: WARNA_KOMP.belum }} />
+                  </span>
+                </span>
+                <span className={b.batangTeks}><span><b>{pct(p[2] ?? p[0])}</b> dari {fmt(t.due)} sekolah</span></span>
+                {sorot === c.kode && (
+                  <div className={b.batangTip} role="status">
+                    <b>{c.label}</b>
+                    <span><i style={{ background: WARNA_KOMP.sebelum }} />Sebelum ({tgl(k.t0)} {k.t0.slice(0, 4)})<em>{fmt(n0)} sekolah</em></span>
+                    <span><i style={{ background: WARNA_KOMP.selama }} />Hari ini ({tglJam(r.data_terbaru.waktu)})<em>{fmt(n2)} sekolah</em></span>
+                    <span><i />{d >= 0 ? "Naik" : "Turun"}<em>{d >= 0 ? "+" : "−"}{fmt(Math.abs(d))} sekolah · {poin((p[2] ?? 0) - (p[0] ?? 0))}%</em></span>
+                    <span><i style={{ background: WARNA_KOMP.belum }} />Belum<em>{fmt(Math.max(0, t.due - n2))} sekolah</em></span>
+                    <span><i />{adalahReviu(c.kode) ? "Sudah kirim" : "Jatuh tempo"}<em>{fmt(t.due)} sekolah</em></span>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    </div>
   );
 }
 
@@ -545,7 +573,7 @@ function Rincian({ r, k, sekolah, pic, setPic, hotel, setHotel, saring, setSarin
   const [kuadran, setKuadran] = useState<Kuadran | "">("");
   const [batas, setBatas] = useState(7);
   const i50 = (r.komponen_urut ?? []).indexOf("l50");
-  const kuadranS = (s: Hasil) => kuadranDari(r, s.fasil, s.akhir_kode?.[i50], batas);
+  const kuadranS = (s: Hasil) => kuadranDari(s.akhir_kode?.[i50], s.rev50, s.tunggu50, batas);
   const urut = r.komponen_urut ?? [];
   const kodeAda = k.capaian?.komponen ?? [];
   const kolom = urut.map((kode, i) => ({ kode, i })).filter((x) => kodeAda.includes(x.kode));
@@ -571,14 +599,14 @@ function Rincian({ r, k, sekolah, pic, setPic, hotel, setHotel, saring, setSarin
       : u === "sudah" ? "Sudah" : u === "turun" ? "Sudah → Belum" : "-");
     const judul = ["NPSN", "Nama Sekolah", "PIC", "Fasilitator", "Kab/Kota", "Provinsi", "Hotel", "Bimtek", "Tanggal Bimtek",
       ...kolom.map((x) => `${KOMP_PENDEK[x.kode]} (sebelum → sesudah)`), "Komponen masih belum", "Efektivitas (%)",
-      "Tgl Kirim 50%", "Kirim 50%", "Reviu 50%", "Menunggu reviu (hari)", `Sekolah x fasil (batas ${batas} hari)`,
-      "Tunggu reviu terlama fasil (hari)", "Progres sebelum (%)", "Progres sekarang (%)", "Data per"];
+      "Tgl Kirim 50%", "Kirim 50%", "Reviu 50%", "Waktu tunggu reviu (hari)", `Status (batas reviu ${batas} hari)`,
+      "Progres sebelum (%)", "Progres sekarang (%)", "Data per"];
     const isi = baris.map((s) => [s.npsn, s.nama, s.pic, s.fasil, s.kab, s.prov, s.hotel ?? "", labelBimtek(k.kode), rentang(k.mulai, k.selesai),
       ...kolom.map((x) => teksUbah(s.ubah[x.i])),
       kolom.filter((x) => s.ubah[x.i] === "tetap").map((x) => KOMP_PENDEK[x.kode]).join(", "),
       s.efektif === null ? "" : s.efektif.toFixed(0), s.tgl50.replace("T", " "), KAT50[s.kategori] ?? "", REV50[s.rev50 ?? ""] ?? "",
       s.rev50 === "menunggu" ? s.tunggu50 ?? "" : "", KUADRAN.find((q) => q.k === kuadranS(s))?.label ?? "",
-      tungguFasil(r, s.fasil) ?? "", s.progres_awal ?? "", s.progres ?? "", r.data_terbaru.waktu.replace("T", " ")]);
+      s.progres_awal ?? "", s.progres ?? "", r.data_terbaru.waktu.replace("T", " ")]);
     const csv = "﻿" + [judul, ...isi].map((x) => x.map(sel).join(";")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
@@ -607,13 +635,13 @@ function Rincian({ r, k, sekolah, pic, setPic, hotel, setHotel, saring, setSarin
             {KUADRAN.map((q) => (
               <button key={q.k} type="button" aria-pressed={kuadran === q.k} title={q.ket} className={b[`kq_${q.k}`]}
                 onClick={() => { setKuadran(q.k); setHal(0); }}>
-                <i />{q.label} <small>{fmt(dasarK.filter((s) => kuadranS(s) === q.k).length)}</small>
+                {q.label} <small>{fmt(dasarK.filter((s) => kuadranS(s) === q.k).length)}</small>
               </button>
             ))}
           </div>
           <label className={b.pilihBatas}>
-            <Tip kanan isi={<>Fasil disebut telat mereviu kalau ada Lap. 50% sekolah binaannya yang menunggu reviu lebih lama
-              dari batas ini.</>}>Fasil telat mereviu bila lebih dari</Tip>
+            <Tip kanan isi={<>Lap. 50% sekolah disebut telat direviu (fasil bermasalah) kalau menunggu reviu lebih lama dari
+              batas ini.</>}>Telat direviu bila lebih dari</Tip>
             <select value={batas} onChange={(e) => { setBatas(Number(e.target.value)); setHal(0); }} aria-label="Batas hari reviu">
               {PILIHAN_HARI.map((h) => <option key={h} value={h}>{h} hari</option>)}
             </select>
@@ -641,10 +669,9 @@ function Rincian({ r, k, sekolah, pic, setPic, hotel, setHotel, saring, setSarin
           <thead>
             <tr>
               <th>Sekolah</th><th>PIC / fasil</th><th>Hotel</th>
-              <th><Tip isi={<>Kelompok sekolah: apakah sekolahnya belum kirim Lap. 50%, dan apakah fasilnya
-                telat mereviu.</>}>Sekolah × fasil</Tip></th><th>Kirim Lap. 50%</th><th>Reviu Lap. 50%</th>
-              <th className={b.angka}><Tip isi={<>Berapa hari Lap. 50% paling lama menunggu reviu dari fasil ini (semua sekolah
-                binaannya).</>}>Tunggu fasil</Tip></th>
+              <th><Tip isi={<>Sekolah bermasalah: Lap. 50% jatuh tempo tapi belum dikirim. Fasil bermasalah: sudah dikirim tapi
+                menunggu reviu lebih lama dari batas hari.</>}>Status</Tip></th><th>Kirim Lap. 50%</th><th>Reviu Lap. 50%</th>
+              <th className={b.angka}><Tip isi={<>Berapa hari Lap. 50% sekolah ini sudah menunggu reviu fasil.</>}>Waktu tunggu reviu</Tip></th>
               <th className={b.angka}>Progres fisik</th>
               <th className={b.angka}>Efektivitas</th>
               {kolom.map((x) => (
@@ -660,12 +687,12 @@ function Rincian({ r, k, sekolah, pic, setPic, hotel, setHotel, saring, setSarin
                 <td className={b.kolomSekolah}><b>{s.nama}</b><small>NPSN {s.npsn} · {s.kab}</small></td>
                 <td className={b.kolomPic}>{s.pic || "–"}<small>{s.fasil}</small></td>
                 <td className={b.kolomHotel}>{s.hotel || "–"}</td>
-                <td><span className={`${b.kq} ${b[`kq_${kuadranS(s)}`]}`}><i />{KUADRAN.find((q) => q.k === kuadranS(s))?.label}</span></td>
+                <td><span className={`${b.kq} ${b[`kq_${kuadranS(s)}`]}`}>{KUADRAN.find((q) => q.k === kuadranS(s))?.label}</span></td>
                 <td className={b.kolomKirim}>
                   {s.tgl50 ? <>{tgl(s.tgl50)}<small>{KAT50[s.kategori]}</small></> : <span className={s.kategori === "belum" ? b.turun : b.redup}>{KAT50[s.kategori] ?? "–"}</span>}
                 </td>
                 <td><Reviu s={s} /></td>
-                <td className={b.angka}>{(() => { const t = tungguFasil(r, s.fasil); return t === null ? <span className={b.redup}>–</span>
+                <td className={b.angka}>{(() => { const t = s.rev50 === "menunggu" ? s.tunggu50 ?? null : null; return t === null ? <span className={b.redup}>–</span>
                   : <b className={t > batas ? b.turun : undefined}>{t} hari</b>; })()}</td>
                 <td className={b.angka}>{s.progres === null ? "–" : <>{pct(s.progres)}<small>{s.progres_awal === null ? "" : `dari ${pct(s.progres_awal)}`}</small></>}</td>
                 <td className={b.angka}><Meter v={s.efektif} /></td>

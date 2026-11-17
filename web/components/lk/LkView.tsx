@@ -89,7 +89,7 @@ export function LkView() {
     <div className={s.page}>
       <header className={s.head}>
         <div>
-          <p className={s.eyebrow}>WEEK {data.week} · {data.tanggal_panjang}</p>
+          <p className="chips"><span className="chip">Week {data.week}</span><span className="chip">{data.tanggal_panjang}</span></p>
           <h1>Lembar kerja</h1>
           <p className={s.sub}>
             Isi sesi <b>{data.blok_label}</b>. {data.cutoff ? <>Data {data.cutoff.replace(/^Cutoff \d+ /, "cutoff ")}.</> : null}

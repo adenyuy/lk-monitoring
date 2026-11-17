@@ -40,7 +40,6 @@ export type Rekap = {
   kolom_sekolah?: string[];
   komponen_urut?: string[];
   /** hari menunggu reviu Lap. 50% per fasil (semua binaan), urut terlama dulu */
-  fasil_tunggu?: Record<string, number[]>;
 };
 export type Resp = { rekap: Rekap | null; bisa_hitung: boolean; folder: string; admin?: boolean; saya?: string;
   status: { jalan?: boolean; mulai?: string; error?: string; selesai?: string } };
@@ -64,10 +63,10 @@ export const fmt = (n: number) => n.toLocaleString("id-ID");
 export const KOMP_PENDEK: Record<string, string> = { lp: "LP", lp_rev: "Reviu LP", mg: "Mingguan", mg_rev: "Reviu Mg",
   bl: "Bulanan", bl_rev: "Reviu Bl", l50: "Lap. 50%", l50_rev: "Reviu 50%", l100: "Lap. 100%" };
 export const KET_KOMP: Record<string, string> = {
-  mg: "Persen selesai = semua Laporan Mingguan yang jatuh tempo terkirim; bisa turun karena tiap minggu ada yang baru jatuh tempo. Konversi = sekolah tertunggak yang mengirim laporan baru setelah bimtek.",
-  mg_rev: "Konversi = sekolah tertunggak yang laporan mingguannya bertambah direviu setelah bimtek.",
-  bl: "Persen selesai = semua Laporan Bulanan yang jatuh tempo terkirim. Konversi = sekolah tertunggak yang mengirim laporan baru setelah bimtek.",
-  bl_rev: "Konversi = sekolah tertunggak yang laporan bulanannya bertambah direviu setelah bimtek.",
+  mg: "Selesai = semua Laporan Mingguan yang jatuh tempo sudah terkirim. Bisa turun karena tiap minggu ada laporan baru yang jatuh tempo.",
+  mg_rev: "Selesai = semua Laporan Mingguan yang dikirim sudah direviu. Bisa turun bila sekolah mengirim laporan baru yang belum direviu.",
+  bl: "Selesai = semua Laporan Bulanan yang jatuh tempo sudah terkirim. Bisa turun karena tiap bulan ada laporan baru yang jatuh tempo.",
+  bl_rev: "Selesai = semua Laporan Bulanan yang dikirim sudah direviu. Bisa turun bila sekolah mengirim laporan baru yang belum direviu.",
   l50: "Dari tanggal kirim per sekolah, jadi tersedia untuk semua kelompok.",
 };
 /** Asal data hari ini: salinan LK setelah cutoff, atau file export aplikasi. */
@@ -103,7 +102,6 @@ export function belumEfektif(r: Rekap, k: Kelompok): number {
 
 export const hrefKelompok = (kode: string) => `/bimtek/${kode.toLowerCase()}/`;
 
-export const teksTahap = (t: string) => (t === "akan datang" ? "Akan datang" : t === "berjalan" ? "Berjalan" : "Selesai");
 
 
 /* ---------- data per kapan + tombol hitung ---------- */
@@ -147,20 +145,20 @@ export const hariIni = () => {
 export const berlangsung = (k: Kelompok) => { const h = hariIni(); return k.mulai <= h && h <= k.selesai; };
 /** Bimtek yang belum mulai menurut kalender. */
 export const belumMulai = (k: Kelompok) => hariIni() < k.mulai;
+/** Selisih hari kalender a -> b (tanggal "YYYY-MM-DD"). */
+export const selisihHari = (a: string, b: string) => Math.round((Date.parse(b.slice(0, 10)) - Date.parse(a.slice(0, 10))) / 86400000);
 
-/* ---------- matriks sekolah x fasil ---------- */
-export type Kuadran = "keduanya" | "sekolah" | "fasil" | "aman";
+/* ---------- status Lap. 50% per sekolah ---------- */
+export type Kuadran = "sekolah" | "fasil" | "aman";
 export const KUADRAN: { k: Kuadran; label: string; ket: string }[] = [
-  { k: "keduanya", label: "Sekolah & fasil bermasalah", ket: "Sekolah belum kirim Lap. 50%, dan fasilnya juga telat mereviu." },
-  { k: "sekolah", label: "Sekolah bermasalah", ket: "Sekolah belum kirim Lap. 50%. Fasilnya tidak telat mereviu." },
-  { k: "fasil", label: "Fasil bermasalah", ket: "Sekolah sudah kirim (atau belum wajib), tapi fasilnya telat mereviu." },
-  { k: "aman", label: "Aman", ket: "Sekolah sudah kirim (atau belum wajib), dan fasilnya tidak telat mereviu." },
+  { k: "sekolah", label: "Sekolah bermasalah", ket: "Lap. 50% sudah jatuh tempo tapi belum dikirim, jadi fasil belum bisa mereviu." },
+  { k: "fasil", label: "Fasil bermasalah", ket: "Sekolah sudah kirim Lap. 50%, tapi laporannya menunggu reviu fasil lebih lama dari batas hari." },
+  { k: "aman", label: "Aman", ket: "Lap. 50% sudah dikirim dan tidak tertahan di reviu, atau belum jatuh tempo." },
 ];
 export const PILIHAN_HARI = [1, 3, 7, 14];
-/** Hari tunggu reviu terlama milik fasil (semua sekolah binaannya); null bila tidak ada yang menunggu. */
-export const tungguFasil = (r: Rekap, fasil: string) => r.fasil_tunggu?.[fasil]?.[0] ?? null;
-export function kuadranDari(r: Rekap, fasil: string, kode50: string | undefined, batas: number): Kuadran {
-  const s = kode50 === "B", t = tungguFasil(r, fasil), f = t !== null && t > batas;
-  return s && f ? "keduanya" : s ? "sekolah" : f ? "fasil" : "aman";
+/** Status satu sekolah: belum kirim padahal jatuh tempo -> sekolah; laporannya menunggu reviu > batas hari -> fasil. */
+export function kuadranDari(kode50: string | undefined, rev50: string | undefined, tunggu50: number | null | undefined, batas: number): Kuadran {
+  if (kode50 === "B") return "sekolah";
+  return rev50 === "menunggu" && tunggu50 != null && tunggu50 > batas ? "fasil" : "aman";
 }
 

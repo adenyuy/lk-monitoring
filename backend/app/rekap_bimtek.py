@@ -601,22 +601,11 @@ def hitung(d: Path | None = None) -> dict[str, Any]:
         "kelompok": hasil,
         "kurva": {"tanggal": [h.isoformat() for h in hari], "seri": seri},
         "kolom_sekolah": KOLOM_SEKOLAH, "komponen_urut": KOMP_URUT,
-        # hari menunggu reviu Lap. 50% per fasil (semua sekolah binaannya, bukan hanya peserta): matriks sekolah x fasil
-        "fasil_tunggu": _fasil_tunggu(terbaru, sekarang),
     }
 
 
-def _fasil_tunggu(terbaru: "Potret", sekarang: datetime) -> dict[str, list[int]]:
-    out: dict[str, list[int]] = {}
-    for n, v in terbaru.rev50.items():
-        fasil = terbaru.identitas.get(n, ("", "", "", ""))[1]
-        if v == "menunggu" and fasil and n in terbaru.tunggu50:
-            out.setdefault(fasil, []).append(int(terbaru.tunggu50[n]))
-    return {f: sorted(x, reverse=True) for f, x in out.items()}
-
-
 KOLOM_SEKOLAH = ["npsn", "nama", "pic", "fasil", "prov", "kab", "tgl50", "kategori", "progres_awal", "progres",
-                 "verif50", "awal_kode", "akhir_kode", "hotel", "rev50", "tunggu50", "t1_kode", "koor", "ptn"]
+                 "verif50", "awal_kode", "akhir_kode", "hotel", "rev50", "tunggu50", "t1_kode", "koor", "ptn", "angkatan"]
 # t1_kode = status per komponen di hari terakhir bimtek ("-" bila tidak ada potret); rev50 = setuju|tolak|menunggu;
 # tunggu50 = hari sejak kiriman 50% terakhir bila masih menunggu reviu
 # urutan komponen di awal_kode / akhir_kode: satu huruf per komponen
@@ -628,10 +617,10 @@ HURUF = {"selesai": "S", "belum": "B"}  # lainnya (belum jatuh tempo, belum ada 
 # akhir_kode "P" = masih belum lengkap tapi bergerak (laporan berulang: ada kiriman/reviu baru setelah bimtek)
 
 
-def _peta_pic() -> dict[str, tuple[str, str, str]]:
-    """NPSN -> (PIC, koordinator, PTN) dari LK (export tidak memuat PIC). Kosong bila LK tidak terbaca."""
+def _peta_pic() -> dict[str, tuple[str, str, str, str]]:
+    """NPSN -> (PIC, koordinator, PTN, angkatan) dari LK (export tidak memuat PIC). Kosong bila LK tidak terbaca."""
     try:
-        return {s.npsn: (s.petugas, s.koor, s.ptn) for s in lk_baru.baca_semua()}
+        return {s.npsn: (s.petugas, s.koor, s.ptn, s.angkatan) for s in lk_baru.baca_semua()}
     except Exception:
         log.warning("PIC untuk rekap bimtek tidak terbaca dari LK", exc_info=True)
         return {}
@@ -668,7 +657,7 @@ def _kode(st: str | None) -> str:
 
 
 def _baris_sekolah(ang: set[str], wajib: set[str], tgl50: dict[str, datetime], t0: datetime, t1: datetime,
-                   terbaru: "Potret", awal: "Potret | None", pic: dict[str, str], st_awal, bergerak,
+                   terbaru: "Potret", awal: "Potret | None", pic: dict[str, tuple[str, str, str, str]], st_awal, bergerak,
                    hotel: dict[str, tuple[str, str]], st_t1, sekarang: datetime) -> list[list[Any]]:
     out = []
     for n in sorted(ang):
@@ -676,7 +665,7 @@ def _baris_sekolah(ang: set[str], wajib: set[str], tgl50: dict[str, datetime], t
         st = terbaru.status.get(n, {})
         pa = awal.progres.get(n) if awal else None
         pn = terbaru.progres.get(n)
-        p_, koor, ptn = pic.get(n, ("", "", ""))
+        p_, koor, ptn, angkatan = pic.get(n, ("", "", "", ""))
         out.append([n, nama, p_, fasil, prov, kab,
                     tgl50[n].isoformat(timespec="minutes") if n in tgl50 else "", kategori50(n, wajib, tgl50, t0, t1),
                     round(pa, 1) if pa is not None else None, round(pn, 1) if pn is not None else None,
@@ -686,7 +675,7 @@ def _baris_sekolah(ang: set[str], wajib: set[str], tgl50: dict[str, datetime], t
                             for k in KOMP_URUT),
                     hotel.get(n, ("", ""))[0], terbaru.rev50.get(n, ""),
                     terbaru.tunggu50.get(n) if terbaru.rev50.get(n) == "menunggu" else None,
-                    "".join(_kode(st_t1(n, k)) for k in KOMP_URUT), koor, ptn])
+                    "".join(_kode(st_t1(n, k)) for k in KOMP_URUT), koor, ptn, angkatan])
     return out
 
 
