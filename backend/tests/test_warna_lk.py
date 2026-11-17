@@ -147,3 +147,92 @@ def test_kiriman_dibatasi_jumlah_sel(monkeypatch, tmp_path):
         s.npsn = str(i)
     w.warnai_semua(4, semua)
     assert sum(kiriman) == 50 * 17 and max(kiriman) <= 100 and len(kiriman) == 10  # 5 baris x 17 kolom
+
+
+class _SheetWarna:
+    """Tab WEEK palsu yang menyimpan format per sel (baris, kolom), token, dan bisa gagal di kiriman ke-n."""
+
+    def __init__(self):
+        self.sel, self.dm, self.kiriman, self.gagal_ke = {}, [], [], None
+        self.title, self.id = "WEEK 4", 9
+
+    def worksheet(self, nama):
+        return self
+
+    def batch_update(self, body):
+        uc = [r["updateCells"] for r in body["requests"] if "updateCells" in r]
+        if uc:
+            if self.gagal_ke is not None and len(self.kiriman) + 1 == self.gagal_ke:
+                raise ConnectionError("koneksi putus")
+            self.kiriman.append(sum(len(u["rows"]) * len(u["rows"][0]["values"]) for u in uc))
+        for u in uc:
+            for i, row in enumerate(u["rows"]):
+                for j, v in enumerate(row["values"]):
+                    self.sel[(u["start"]["rowIndex"] + 1 + i, u["start"]["columnIndex"] + j)] = v["userEnteredFormat"]
+        for r in body["requests"]:
+            if "createDeveloperMetadata" in r:
+                self.dm = [r["createDeveloperMetadata"]["developerMetadata"]]
+
+    def fetch_sheet_metadata(self, params):
+        import re
+
+        m = re.search(r"!([A-Z]+)(\d+):([A-Z]+)(\d+)$", params.get("ranges", ""))
+        if not m:
+            return {"sheets": [{"properties": {"sheetId": 9}, "developerMetadata": self.dm}]}
+        c0, c1 = ord(m.group(1)) - 65, ord(m.group(3)) - 65
+        rows = [{"values": [{"userEnteredFormat": self.sel.get((b, c), {})} for c in range(c0, c1 + 1)]}
+                for b in range(int(m.group(2)), int(m.group(4)) + 1)]
+        return {"sheets": [{"data": [{"rowData": rows}]}]}
+
+
+def _siap_warna(monkeypatch, tmp_path, n=6):
+    from app import paths
+
+    t = Tata(identitas={"npsn": 0}, komponen={"lp": 1}, tunggu={"lp_rev": 2}, isian={1: {"lp": (3, 4)}}, lebar=5)
+    ss = _SheetWarna()
+    monkeypatch.setattr(paths, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(w.lk_baru, "_ss", lambda: ss)
+    monkeypatch.setattr(w.lk_baru, "tata", lambda week: t)
+    semua = [_sekolah(4 + i, lp="Belum" if i % 2 else "Sudah") for i in range(n)]
+    for i, s in enumerate(semua):
+        s.npsn = str(i)
+    return ss, semua
+
+
+def test_catatan_hilang_warna_dibaca_dari_sheet(monkeypatch, tmp_path):
+    ss, semua = _siap_warna(monkeypatch, tmp_path)
+    w.warnai_semua(4, semua)
+    (tmp_path / "warna_week4.json").unlink()  # laptop lain / catatan terhapus
+    ss.kiriman.clear()
+    semua[0].nilai["lp"] = "Belum"  # satu sekolah berubah
+    hasil = w.warnai_semua(4, semua)
+    assert hasil["semua"] == 1 and ss.kiriman == [4]  # hanya baris yang berubah (tulis semua = 24 sel)
+
+
+def test_putus_di_tengah_lanjut_dari_kemajuan(monkeypatch, tmp_path):
+    ss, semua = _siap_warna(monkeypatch, tmp_path)
+    monkeypatch.setattr(w, "BATAS_SEL", 8)  # 2 baris x 4 kolom per kiriman
+    monkeypatch.setattr(w, "baca_warna_sheet", lambda *a, **k: {})  # tanpa bantuan baca sheet
+    ss.gagal_ke = 2
+    import pytest
+
+    with pytest.raises(ConnectionError):
+        w.warnai_semua(4, semua)
+    assert ss.kiriman == [8]
+    ss.gagal_ke, ss.kiriman = None, []
+    w.warnai_semua(4, semua)
+    assert sum(ss.kiriman) == 16  # 4 baris tersisa, 2 baris pertama tidak dikirim ulang
+
+
+def test_catatan_dihapus_selama_menulis(monkeypatch, tmp_path):
+    """Aplikasi mati paksa di tengah tidak boleh meninggalkan catatan lama yang dianggap sah."""
+    ss, semua = _siap_warna(monkeypatch, tmp_path)
+    w.warnai_semua(4, semua)
+    berkas = tmp_path / "warna_week4.json"
+    assert berkas.exists()
+    ada_saat_kirim = []
+    asli = ss.batch_update
+    ss.batch_update = lambda body: (ada_saat_kirim.append(berkas.exists()), asli(body))
+    semua[1].nilai["lp"] = "Sudah"
+    w.warnai_semua(4, semua)
+    assert ada_saat_kirim and not any(ada_saat_kirim[:-1])

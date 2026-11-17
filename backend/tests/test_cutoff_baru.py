@@ -135,3 +135,40 @@ def test_baris_sekolah_mengundurkan_diri_ikut_judul():
     r = cutoff_baru.baris_mundur(judul, s, "16/11/2026")
     assert r[:3] == ["Ani", "123", "SD A"] and r[11:13] == ["Fasil F", "07"]
     assert r[13] == cutoff_baru.KASUS_HILANG and "16/11/2026" in r[14] and len(r) == len(judul)
+
+
+def test_rapikan_baris_repeatcell_per_rentang_dan_warna_lama_dibuang(monkeypatch):
+    # baris 4-9: baris 6, 7, 9 kehilangan format; contoh diambil dari baris 4
+    rapi = {4, 5, 8}
+    tf = {"foregroundColor": {"red": 1}, "foregroundColorStyle": {"rgbColor": {"red": 1}}, "bold": True}
+    kiriman = []
+
+    class Ss:
+        def fetch_sheet_metadata(self, params):
+            if "wrapStrategy)))))" in params["fields"]:
+                return {"sheets": [{"data": [{"rowData": [
+                    {"values": [{"userEnteredFormat": {"wrapStrategy": "CLIP"}}]} if b in rapi else {}
+                    for b in range(4, 10)]}]}]}
+            return {"sheets": [{"data": [{"rowData": [{"values": [
+                {"userEnteredFormat": {"wrapStrategy": "CLIP", "textFormat": tf}}] * 3}]}]}]}
+
+        def batch_update(self, body):
+            kiriman.append(body["requests"])
+
+    class W:
+        id, col_count = 7, 3
+
+    monkeypatch.setattr(cutoff_baru, "PERMINTAAN_FORMAT_PER_KIRIM", 4)
+    assert cutoff_baru.rapikan_baris(Ss(), W(), "WEEK 4", 9) == 3
+    req = [r["repeatCell"] for k in kiriman for r in k]
+    assert [len(k) for k in kiriman] == [4, 2]  # 2 rentang x 3 kolom, maks 4 per kiriman
+    assert sorted({(r["range"]["startRowIndex"], r["range"]["endRowIndex"]) for r in req}) == [(5, 7), (8, 9)]
+    sel_tf = req[0]["cell"]["userEnteredFormat"]["textFormat"]
+    assert "foregroundColor" not in sel_tf and sel_tf["foregroundColorStyle"] == {"rgbColor": {"red": 1}}
+    assert sel_tf["bold"] is True
+
+
+def test_tanpa_warna_lama_hanya_bila_ada_style():
+    assert cutoff_baru._tanpa_warna_lama({"borders": {"top": {"color": {"red": 1}, "style": "SOLID"}}}) == \
+        {"borders": {"top": {"color": {"red": 1}, "style": "SOLID"}}}
+    assert cutoff_baru._tanpa_warna_lama({"color": 1, "colorStyle": 2}) == {"colorStyle": 2}

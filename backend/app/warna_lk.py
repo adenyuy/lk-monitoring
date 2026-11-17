@@ -163,7 +163,7 @@ def hapus_conditional_format(ss, sheet_id: int) -> int:
 
 
 KUNCI_META = "lkm_warna"
-BATAS_SEL = 10000  # sel per panggilan batch_update (~1,7 MB, ~5 s; kiriman 4 MB sempat timeout)
+BATAS_SEL = 3000  # sel per panggilan batch_update (~0,5 MB; 1,7 MB dan 4 MB sempat timeout saat koneksi lambat)
 
 
 def nama_format() -> dict[int, str]:
@@ -181,6 +181,44 @@ def _baca_cache(week: int) -> dict[str, Any]:
         return json.loads(_berkas_cache(week).read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001 - tidak ada / rusak: tulis semua
         return {}
+
+
+def _kunci_format(f: dict[str, Any]) -> tuple:
+    """Format sel -> kunci pembanding (warna dalam skala 0-255 supaya pembulatan float Google tidak berpengaruh)."""
+    def rgb(c):
+        return None if not c else tuple(round(float(c.get(k, 0)) * 255) for k in ("red", "green", "blue"))
+    tf = f.get("textFormat") or {}
+    return rgb(f.get("backgroundColor")), rgb(tf.get("foregroundColor")), bool(tf.get("italic")), bool(tf.get("bold"))
+
+
+def baca_warna_sheet(ss, w, urut: list[Sekolah], a0: int, a1: int,
+                     potong: int = 1000) -> dict[str, list[str]]:
+    """Warna yang sekarang ada di sheet, per NPSN (nama format; '?' bila tidak cocok format mana pun).
+    Dipakai bila catatan warna di laptop hilang: membaca (unduhan, dikompres) jauh lebih ringan daripada
+    menulis ulang 1 juta lebih sel."""
+    from .sheets import col_letter
+
+    per_kunci = {_kunci_format(v): k for k, v in globals().items() if isinstance(v, dict) and "textFormat" in v}
+    if not urut:
+        return {}
+    baris = {s.baris: s.npsn for s in urut}
+    awal, akhir = min(baris), max(baris)
+    out: dict[str, list[str]] = {}
+    for p0 in range(awal, akhir + 1, potong):
+        p1 = min(p0 + potong - 1, akhir)
+        meta = ss.fetch_sheet_metadata(params={
+            "ranges": f"'{w.title}'!{col_letter(a0)}{p0}:{col_letter(a1)}{p1}",
+            "fields": "sheets(data(rowData(values(userEnteredFormat(backgroundColor,"
+                      "textFormat(foregroundColor,italic,bold))))))"})
+        rows = ((meta.get("sheets") or [{}])[0].get("data") or [{}])[0].get("rowData") or []
+        for i, r in enumerate(rows):
+            npsn = baris.get(p0 + i)
+            if not npsn:
+                continue
+            vals = r.get("values") or []
+            out[npsn] = [per_kunci.get(_kunci_format((vals[j].get("userEnteredFormat") or {}) if j < len(vals) else {}),
+                                       "?") for j in range(a1 - a0 + 1)]
+    return out
 
 
 def _token_sheet(ss, sheet_id: int) -> str:
@@ -245,12 +283,25 @@ def warnai_semua(week: int, semua: list[Sekolah], kemajuan=None, paksa: bool = F
     tanda = f"{a0}:{a1}:" + ",".join(f"{j}={peta[j][0]}/{peta[j][1]}" for j in sorted(peta))
     sah = bool(cache.get("tanda") == tanda and cache.get("sheet") == w_asal.id and cache.get("token")
                and cache.get("token") == _token_sheet(ss, w_asal.id))
-    lama = cache.get("npsn", {}) if sah else {}
+    lama = dict(cache.get("npsn", {})) if sah else {}
+    if not sah and not paksa:
+        # catatan tidak ada / tidak cocok: baca warna yang sudah ada di sheet, kirim yang berbeda saja
+        try:
+            lama = baca_warna_sheet(ss, w, urut, a0, a1)
+        except Exception:  # noqa: BLE001 - gagal membaca: tulis semua seperti dulu
+            log.warning("Membaca warna sheet gagal; semua sel ditulis", exc_info=True)
+            lama = {}
     rencana = rencana_tulis(grid, lama, a0)
-    try:
-        _berkas_cache(week).unlink(missing_ok=True)  # tulisan setengah jalan -> lain kali tulis semua
+    try:  # aplikasi mati di tengah (tanpa sempat menyimpan kemajuan) -> lain kali warna dibaca dari sheet
+        _berkas_cache(week).unlink(missing_ok=True)
     except OSError:
         pass
+    if sah:
+        token_kini = cache["token"]
+    else:
+        # token dipasang dulu supaya kemajuan yang tersimpan bila gagal di tengah tetap sah dipakai lain kali
+        token_kini = secrets.token_hex(8)
+        _pasang_token(ss, w.id, token_kini)
 
     # potong rentang panjang (mis. tulis semua: 19 ribu baris berurutan) supaya tiap kiriman kecil
     potong = []
@@ -258,19 +309,32 @@ def warnai_semua(week: int, semua: list[Sekolah], kemajuan=None, paksa: bool = F
         maks = max(1, BATAS_SEL // (c1 - c0 + 1))
         potong += [(b + i, c0, c1, min(maks, n - i)) for i in range(0, n, maks)]
     total = sum(n * (c1 - c0 + 1) for _, c0, c1, n in potong)
-    req, sel, terkirim = [], 0, 0
-    for k, (b, c0, c1, n) in enumerate(potong):
-        rows = [{"values": fmt[b + i][c0 - a0:c1 - a0 + 1]} for i in range(n)]
-        req.append({"updateCells": {"start": {"sheetId": w.id, "rowIndex": b - 1, "columnIndex": c0},
-                                    "rows": rows, "fields": FIELDS}})
-        sel += n * (c1 - c0 + 1)
-        nanti = potong[k + 1] if k + 1 < len(potong) else None
-        if nanti is None or sel + nanti[3] * (nanti[2] - nanti[1] + 1) > BATAS_SEL:
-            ss.batch_update({"requests": req})
-            terkirim += sel
-            req, sel = [], 0
-            if kemajuan:
-                kemajuan(terkirim, total)
+    per_baris = {b: (n, g) for b, n, g in grid}
+    req, sel, terkirim, baris_kirim = [], 0, 0, []
+    try:
+        for k, (b, c0, c1, n) in enumerate(potong):
+            rows = [{"values": fmt[b + i][c0 - a0:c1 - a0 + 1]} for i in range(n)]
+            req.append({"updateCells": {"start": {"sheetId": w.id, "rowIndex": b - 1, "columnIndex": c0},
+                                        "rows": rows, "fields": FIELDS}})
+            baris_kirim += range(b, b + n)
+            sel += n * (c1 - c0 + 1)
+            nanti = potong[k + 1] if k + 1 < len(potong) else None
+            if nanti is None or sel + nanti[3] * (nanti[2] - nanti[1] + 1) > BATAS_SEL:
+                ss.batch_update({"requests": req})
+                for x in baris_kirim:  # baris ini sekarang berwarna sesuai rencana
+                    lama[per_baris[x][0]] = per_baris[x][1]
+                terkirim += sel
+                req, sel, baris_kirim = [], 0, []
+                if kemajuan:
+                    kemajuan(terkirim, total)
+    except Exception:
+        # simpan kemajuan: Coba tulis lagi hanya mengirim sel yang belum terkirim
+        try:
+            _berkas_cache(week).write_text(json.dumps({"tanda": tanda, "sheet": w.id, "token": token_kini,
+                                                       "npsn": lama}), encoding="utf-8")
+        except OSError:
+            log.warning("Kemajuan warna tidak tersimpan", exc_info=True)
+        raise
     dihapus = hapus_conditional_format(ss, w.id)
 
     token = secrets.token_hex(8)

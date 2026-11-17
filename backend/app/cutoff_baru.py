@@ -32,6 +32,9 @@ TAB_MUNDUR = "Sekolah Mengundurkan Diri"
 KASUS_HILANG = "Tidak ada di data cutoff"
 RENCANA_DETIK = 30 * 60
 POTONG_BARIS = 1000
+POTONG_KETERANGAN = 2000   # baris per potongan kolom Kendala/TL
+SEL_PER_KIRIM = 20000      # sel per kiriman keterangan
+PERMINTAAN_FORMAT_PER_KIRIM = 300  # permintaan repeatCell per kiriman saat merapikan format
 KOLOM_BKU_BPP = ("Bulanan BKU Terkirim", "Bulanan BPP Terkirim", "BKU", "BPP", "BKU - Status Kirim",
                  "BPP - Status Kirim")
 
@@ -504,29 +507,40 @@ def tulis_keterangan(week: int, semua: list[Sekolah]) -> int:
     for blok, cols in t.isian.items():
         for kode, (a, c) in cols.items():
             for col, pos in ((a, 0), (c, 1)):
-                kolom, ubah = [], False
-                for b in range(awal, akhir + 1):
-                    s = per_baris.get(b)
-                    if not s:
-                        kolom.append([""])
-                        continue
-                    cur = s.isian.get(blok, {}).get(kode, ("", ""))[pos]
-                    if not cur or todo.otomatis(cur):
-                        baru = rencana[b].keterangan(kode)
-                        if baru != cur:
-                            ubah, n = True, n + 1
-                            # objek sekolah ikut diperbarui (dipakai pewarnaan sesudahnya)
-                            pasangan = list(s.isian.setdefault(blok, {}).get(kode, ("", "")))
-                            pasangan[pos] = baru
-                            s.isian[blok][kode] = (pasangan[0], pasangan[1])
-                        cur = baru
-                    kolom.append([cur])
-                if ubah:
-                    data.append({"range": f"'{tab}'!{col_letter(col)}{awal}:{col_letter(col)}{akhir}",
-                                 "values": kolom})
+                # per potongan baris; hanya potongan yang berubah yang dikirim
+                for p0 in range(awal, akhir + 1, POTONG_KETERANGAN):
+                    p1 = min(p0 + POTONG_KETERANGAN - 1, akhir)
+                    kolom, ubah = [], False
+                    for b in range(p0, p1 + 1):
+                        s = per_baris.get(b)
+                        if not s:
+                            kolom.append([""])
+                            continue
+                        cur = s.isian.get(blok, {}).get(kode, ("", ""))[pos]
+                        if not cur or todo.otomatis(cur):
+                            baru = rencana[b].keterangan(kode)
+                            if baru != cur:
+                                ubah, n = True, n + 1
+                                # objek sekolah ikut diperbarui (dipakai pewarnaan sesudahnya)
+                                pasangan = list(s.isian.setdefault(blok, {}).get(kode, ("", "")))
+                                pasangan[pos] = baru
+                                s.isian[blok][kode] = (pasangan[0], pasangan[1])
+                            cur = baru
+                        kolom.append([cur])
+                    if ubah:
+                        data.append({"range": f"'{tab}'!{col_letter(col)}{p0}:{col_letter(col)}{p1}",
+                                     "values": kolom})
     ss = lk_baru._ss()
-    for i in range(0, len(data), 6):
-        ss.values_batch_update({"valueInputOption": "RAW", "data": data[i:i + 6]})
+    # kiriman kecil (maks. ~SEL_PER_KIRIM sel): kiriman besar bisa habis waktu saat unggahan lambat
+    kirim, sel = [], 0
+    for d in data + [None]:
+        if d is None or (kirim and sel + len(d["values"]) > SEL_PER_KIRIM):
+            if kirim:
+                ss.values_batch_update({"valueInputOption": "RAW", "data": kirim})
+            kirim, sel = [], 0
+        if d is not None:
+            kirim.append(d)
+            sel += len(d["values"])
     return n
 
 
@@ -571,20 +585,28 @@ def rapikan_baris(ss, w, tab: str, baris_akhir: int) -> int:
         "ranges": f"'{tab}'!A{contoh}:{col_letter(w.col_count - 1)}{contoh}",
         "fields": f"sheets(data(rowData(values({FORMAT_BARIS}))))"})
     sel = ((m["sheets"][0].get("data") or [{}])[0].get("rowData") or [{}])[0].get("values") or []
-    sel = [{"userEnteredFormat": v.get("userEnteredFormat", {})} for v in sel]
-    # baris rusak yang berurutan digabung jadi satu rentang
+    sel = [{"userEnteredFormat": _tanpa_warna_lama(v.get("userEnteredFormat", {}))} for v in sel]
+    # baris rusak yang berurutan digabung jadi rentang; format dikirim sekali per kolom per rentang (repeatCell)
     rentang, mulai = [], rusak[0]
     for a, b in zip(rusak, rusak[1:] + [None]):
         if b != a + 1:
             rentang.append((mulai, a))
             mulai = b
-    req = [{"updateCells": {"range": {"sheetId": w.id, "startRowIndex": r0 - 1, "endRowIndex": r1,
-                                      "startColumnIndex": 0, "endColumnIndex": len(sel)},
-                            "rows": [{"values": sel}] * (r1 - r0 + 1), "fields": FORMAT_BARIS}}
-           for r0, r1 in rentang]
-    for i in range(0, len(req), 50):
-        ss.batch_update({"requests": req[i:i + 50]})
+    req = [{"repeatCell": {"range": {"sheetId": w.id, "startRowIndex": r0 - 1, "endRowIndex": r1,
+                                     "startColumnIndex": i, "endColumnIndex": i + 1},
+                           "cell": v, "fields": FORMAT_BARIS}}
+           for r0, r1 in rentang for i, v in enumerate(sel)]
+    for i in range(0, len(req), PERMINTAAN_FORMAT_PER_KIRIM):
+        ss.batch_update({"requests": req[i:i + PERMINTAAN_FORMAT_PER_KIRIM]})
     return len(rusak)
+
+
+def _tanpa_warna_lama(x):
+    """Buang 'color'/'foregroundColor' bila versi '...Style'-nya ada (isinya sama, kiriman jadi lebih ringan)."""
+    if isinstance(x, dict):
+        return {k: _tanpa_warna_lama(v) for k, v in x.items()
+                if not (k in ("color", "foregroundColor", "backgroundColor") and f"{k}Style" in x)}
+    return x
 
 
 def siapkan_format(week: int) -> None:
