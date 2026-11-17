@@ -1,0 +1,9 @@
+:HL["/_next/static/chunks/2g6tx_8kw0rv7.css","style"]
+:HL["/_next/static/chunks/1g130ai39su94.css","style"]
+:HL["/_next/static/media/e873d1be9bc8de24-s.p.06apcr9x5ml-j.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/_next/static/chunks/23g7zf3gunqlz.css","style"]
+4:[["children",{"s":"__PAGE__","h":160}]]
+3:[["children",{"s":{"n":"kelompok","t":"d","k":"b1","s":[]},"h":65632,"c":"$Q4"}]]
+2:[["children",{"s":"bimtek","h":131168,"c":"$Q3"}]]
+1:[["children",{"s":"(app)","h":131168,"c":"$Q2"}]]
+0:{"b":"jz1_bgrxkfzsRqLxPtpSX","t":{"t":{"s":"","h":131152,"c":"$Q1"}}}
