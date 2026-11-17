@@ -155,7 +155,7 @@ export function NotifList({ items, onDaftar, onTutup, onLink }: {
               )}
               {x.href && <Link href={x.href} onClick={onLink}>Buka Log</Link>}
               {(x.jenis === "terlewat" || x.jenis === "lanjut") && !x.href && (
-                <Link href="/faq/#sesi-terlewat" onClick={onLink}>Kenapa begini?</Link>
+                <Link href="/panduan/#sesi-terlewat" onClick={onLink}>Kenapa begini?</Link>
               )}
               {!x.fasil && !x.href && (
                 <button type="button" onClick={() => onTutup(x.judul)}>Mengerti</button>

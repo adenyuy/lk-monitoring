@@ -169,7 +169,7 @@ export type LkOpsi = {
 };
 
 // Harus sama dengan backend/app/config.py API_REV
-export const API_REV = 46;
+export const API_REV = 48;
 
 // Batas harian (sama dengan backend/app/config.py)
 export const BATAS = { min: 10, max: 70, langkah: 5, kuning: 40, merah: 50 } as const;
@@ -304,15 +304,30 @@ export type Aktivitas = {
 export type LogHari = { tanggal: string; perubahan: Perubahan[]; aktivitas: Aktivitas[] };
 export type FasilTercatat = { nomor: string; nama: string; terakhir: string };
 
-export type Eskalasi = {
-  baris: number; npsn: string; nama: string; keterangan: string; permasalahan: string;
-  tgl_awal: string; tgl_selesai: string; status: string; tim: string[];
+/** Satu baris LK Eskalasi (satu masalah, satu sekolah terdampak). */
+export type Masalah = {
+  baris: number; id: string; sumber: string; npsn: string; topik: string; nama: string; fasil: string;
+  petugas: string; ptn: string; aktif: number | null; keterangan: string; permasalahan: string; tingkat: string;
+  evidence: string; foto: string[]; tautan: string[]; tgl_awal: string; agregasi: string; tim: string[];
+  saran_tema: string; kode_tema: string; jawaban: string; status: string; tgl_selesai: string; pengisi: string;
+  status_eskalasi: string; tema: string; tim_tujuan: string; batas: string; status_waktu: string;
+  /** NPSN + awal keterangan: penanda baris (ID Masalah di sheet bisa bergeser) */
+  sidik: string;
+  boleh_ubah: boolean; milik_saya: boolean;
 };
+export type OpsiEskalasi = {
+  sumber: string[]; permasalahan: string[]; status: string[]; tingkat: string[]; tim: string[];
+  tema: { kode: string; tema: string }[]; pic: Record<string, string>; status_eskalasi: string[];
+};
+export type FaqResmi = { kode: string; kelompok: string; pertanyaan: string; jawaban: string; jumlah: string; tim: string; tgl_selesai: string };
 export type EskalasiInfo = {
   perlu_link: boolean;
-  opsi: { permasalahan: string[]; status: string[]; tim: string[] } | null;
-  eskalasi: Eskalasi[];
+  opsi: OpsiEskalasi | null;
+  masalah: Masalah[];
+  faq: FaqResmi[];
+  saya: { nama?: string; pic?: boolean; admin?: boolean };
 };
+export type SekolahEskalasi = { npsn: string; nama: string; petugas: string; fasil: string; ptn: string; asal: string };
 
 export type SurveiSekolah = { npsn: string; nama: string; isian: string; waktu: string };
 

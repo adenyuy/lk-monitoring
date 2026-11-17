@@ -21,7 +21,7 @@ def _read_version() -> str:
 
 VERSION = _read_version()
 # Naikkan tiap ada endpoint baru; tampilan membandingkannya untuk mendeteksi server yang belum di-restart.
-API_REV = 46
+API_REV = 48
 
 # --- Server ---
 HOST = "127.0.0.1"  # hanya bisa diakses dari laptop ini
@@ -46,7 +46,7 @@ LK_FIRST_ROW = 3
 # Sheet Akses (milik admin, "LK Monitoring - Akses"). Kolom: email | nama_petugas | fitur
 # Hanya akun yang diberi akses baca oleh admin yang bisa membukanya.
 ACCESS_TAB = "Akses"
-FEATURES = ("wa_blast", "cutoff", "blast_admin")
+FEATURES = ("wa_blast", "cutoff", "blast_admin", "eskalasi")
 
 # Cache baca sheet (detik)
 BROADCAST_CACHE_SECONDS = 300

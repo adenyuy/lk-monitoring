@@ -244,12 +244,12 @@ const GRUP: { judul: string; isi: T[] }[] = [
         id: "eskalasi",
         q: "Pertanyaan fasil tidak bisa saya jawab. Minta bantuan ke mana?",
         a: (
-          <p>Buka fasilnya lalu tekan tombol merah <b>Eskalasi ke tim lain</b>. Sekolah yang punya to-do dan
-            keterangannya sudah terisi; pilih kelompok permasalahan, lengkapi keterangan, centang tim tujuan, lalu catat.
-            Aplikasi menulisnya ke sheet LK Eskalasi dengan tanggal hari ini, dan status dari tim terkait bisa dilihat di
-            dialog yang sama. Bila fasilnya tidak membalas atau laporannya tidak bergerak, tekan <b>Hubungi
-            koordinator</b>: template pesan ke koordinator sudah berisi nama fasil dan daftar sekolahnya. Saat pertama
-            dipakai, admin cukup menempel link LK Eskalasi sekali; link itu berlaku untuk seluruh tim.</p>
+          <p>Buka fasilnya lalu tekan tombol merah <b>Eskalasi ke tim lain</b>, atau buka menu <b>FAQ</b> lalu
+            <b> Laporkan masalah</b>. Pilih sumber masalah, ketik NPSN (nama sekolah, fasilitator, petugas, dan PTN terisi
+            sendiri), jelaskan masalahnya, lampirkan foto bukti bila ada, lalu centang tim tujuan. Aplikasi menulisnya ke
+            sheet LK Eskalasi dengan ID Masalah baru. Jawaban tim terkait muncul di FAQ dan bisa Anda isi sendiri begitu
+            sudah ada. Bila fasilnya tidak membalas atau laporannya tidak bergerak, tekan <b>Hubungi
+            koordinator</b>: template pesan ke koordinator sudah berisi nama fasil dan daftar sekolahnya.</p>
         ),
       },
       {
@@ -377,10 +377,10 @@ export function FaqView() {
   return (
     <div className={s.page}>
       <header className={s.head}>
-        <h1>Tanya jawab</h1>
+        <h1>Panduan</h1>
         <p>Hal yang sering ditanyakan soal alur mingguan, sesi, chat, dan isian LK. Klik kartu untuk membaca jawabannya.</p>
-        <p className={s.keForum}>Masalahmu tidak ada di sini? <Link href="/forum/">Tanya atau cari di Forum tim</Link>, tempat
-          teman-teman berbagi pertanyaan dan solusi.</p>
+        <p className={s.keForum}>Masalah sekolah yang perlu dijawab tim lain? <Link href="/faq/">Cari atau laporkan di FAQ</Link>,
+          isinya permasalahan dan jawaban dari LK Eskalasi.</p>
       </header>
 
       <div className={s.tools}>

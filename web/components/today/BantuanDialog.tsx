@@ -1,26 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { api, post } from "@/lib/api";
-import type { EskalasiInfo } from "@/lib/types";
+import { api } from "@/lib/api";
+import { EskalasiSekolah } from "@/components/eskalasi/EskalasiSekolah";
 
 type SekolahPilih = { npsn: string; nama: string };
 /** Isian awal form eskalasi (dari to-do / kelompok fasil). */
 export type IsiEskalasi = { npsn: string[]; keterangan: string };
-import { Button, Chip, Notice, Spinner } from "@/components/ui";
+import { Button, Notice, Spinner } from "@/components/ui";
 import type { Teman } from "./TemanPanel";
 import s from "./eskalasi.module.css";
-
-const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const tgl = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${Number(iso.slice(8))} ${BULAN[Number(iso.slice(5, 7)) - 1]}` : iso);
-
-function toneStatus(st: string) {
-  const x = st.toLowerCase();
-  if (x === "selesai") return "ok" as const;
-  if (x === "proses") return "info" as const;
-  if (x === "ditunda") return "warn" as const;
-  return "muted" as const;
-}
 
 
 /** Popup "Butuh bantuan": tanya teman PIC lewat WhatsApp, atau eskalasi ke stream lain lewat LK Eskalasi. */
@@ -54,7 +43,7 @@ export function BantuanDialog({ namaFasil, sekolah, terusan, onPilihTeman, onClo
         <header className={s.head}>
           <div>
             <h2 id="esk-judul">{hanyaEskalasi ? "Eskalasi ke tim lain" : terusan ? "Teruskan ke teman PIC" : "Butuh bantuan"}</h2>
-            <p>{hanyaEskalasi ? `Kasus fasil ${namaFasil} yang harus dijawab tim lain? Catat di LK Eskalasi; sekolah dan keterangannya sudah terisi dari to-do.`
+            <p>{hanyaEskalasi ? `Kasus fasil ${namaFasil} yang harus dijawab tim lain? Catat di LK Eskalasi; sekolah dan keterangannya sudah terisi dari to-do, data sekolah terisi dari LK.`
               : terusan ? "Pilih teman. Chat-nya dibuka di panel kanan dengan pesan fasil sudah dikutip."
               : `Pertanyaan fasil ${namaFasil} belum bisa Anda jawab? Tanya teman dulu. Kasus unik yang harus dijawab stream lain? Catat di LK Eskalasi.`}</p>
           </div>
@@ -114,178 +103,6 @@ function TanyaTeman({ onPilih }: { onPilih: (t: Teman) => void }) {
   );
 }
 
-/** Pasang link LK Eskalasi. Admin: berlaku untuk seluruh tim (disimpan di sheet Akses). */
-function PasangLink({ onSelesai }: { onSelesai: () => void }) {
-  const [link, setLink] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function pasang() {
-    setBusy(true);
-    setError(null);
-    try {
-      await post("/api/eskalasi/link", { link });
-      onSelesai();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className={s.pasang}>
-      <Notice tone="warn" title="Link LK Eskalasi belum dipasang">
-        Tempel link sheet LK Eskalasi di bawah. Bila akun Anda admin, link ini langsung berlaku untuk seluruh tim.
-      </Notice>
-      <label className={s.field}>
-        <span className={s.label}>Link sheet LK Eskalasi</span>
-        <input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" />
-      </label>
-      {error && <Notice tone="bad" title="Belum bisa dipasang">{error}</Notice>}
-      <div className={s.actions}>
-        <Button loading={busy} disabled={busy || link.trim().length < 10} onClick={pasang}>Pasang link</Button>
-      </div>
-    </div>
-  );
-}
-
 function FormEskalasi({ sekolah, awal }: { sekolah: SekolahPilih[]; awal?: IsiEskalasi }) {
-  const [info, setInfo] = useState<EskalasiInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pilih, setPilih] = useState<string[]>(awal?.npsn ?? []);
-  const [masalah, setMasalah] = useState("");
-  const [ket, setKet] = useState(awal?.keterangan ?? "");
-  const [tim, setTim] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [hasil, setHasil] = useState<{ tone: "ok" | "bad"; teks: string } | null>(null);
-  const [versi, setVersi] = useState(0);
-  const npsn = sekolah.map((x) => x.npsn).join(",");
-
-  useEffect(() => {
-    let batal = false;
-    api<EskalasiInfo>(`/api/eskalasi?npsn=${encodeURIComponent(npsn)}`)
-      .then((d) => { if (!batal) { setInfo(d); setError(null); } })
-      .catch((e) => { if (!batal) setError(e instanceof Error ? e.message : String(e)); });
-    return () => { batal = true; };
-  }, [npsn, versi]);
-
-  const ganti = (daftar: string[], v: string) => (daftar.includes(v) ? daftar.filter((x) => x !== v) : [...daftar, v]);
-  const siap = pilih.length > 0 && ket.trim() !== "" && tim.length > 0;
-
-  async function catat() {
-    setBusy(true);
-    setHasil(null);
-    try {
-      const r = await post<{ ditulis: { npsn: string }[]; dilewati: string[] }>("/api/eskalasi",
-        { npsn: pilih, keterangan: ket, permasalahan: masalah, tim });
-      setHasil({
-        tone: "ok",
-        teks: `Tercatat untuk ${r.ditulis.length} sekolah, ditujukan ke ${tim.join(", ")}.`
-          + (r.dilewati.length ? ` ${r.dilewati.length} sekolah tidak ada di LK Eskalasi: ${r.dilewati.join(", ")}.` : ""),
-      });
-      setPilih([]);
-      setKet("");
-      setMasalah("");
-      setTim([]);
-      setInfo(await api<EskalasiInfo>(`/api/eskalasi?npsn=${encodeURIComponent(npsn)}`));
-    } catch (e) {
-      setHasil({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const namaSekolah = (n: string) => sekolah.find((x) => x.npsn === n)?.nama;
-
-  if (info?.perlu_link) return <PasangLink onSelesai={() => setVersi((v) => v + 1)} />;
-
-  return (
-    <>
-          {error && <Notice tone="bad" title="LK Eskalasi tidak bisa dibuka">{error}</Notice>}
-          {!info && !error && <div className={s.muted}><Spinner label="Memuat" /> Membaca LK Eskalasi…</div>}
-
-          {info?.opsi && (
-            <>
-              <fieldset className={s.field}>
-                <legend>Sekolah <span>{pilih.length} dipilih</span></legend>
-                <div className={s.sekolah}>
-                  {sekolah.map((x) => (
-                    <label key={x.npsn} className={pilih.includes(x.npsn) ? s.on : ""}>
-                      <input type="checkbox" checked={pilih.includes(x.npsn)} onChange={() => setPilih(ganti(pilih, x.npsn))} />
-                      <span><b>{x.nama}</b><small>NPSN {x.npsn}</small></span>
-                    </label>
-                  ))}
-                </div>
-                {sekolah.length > 1 && (
-                  <button type="button" className={s.linkBtn}
-                    onClick={() => setPilih(pilih.length === sekolah.length ? [] : sekolah.map((x) => x.npsn))}>
-                    {pilih.length === sekolah.length ? "Kosongkan pilihan" : "Pilih semua sekolah"}
-                  </button>
-                )}
-              </fieldset>
-
-              <label className={s.field}>
-                <span className={s.label}>Permasalahan</span>
-                <select value={masalah} onChange={(e) => setMasalah(e.target.value)}>
-                  <option value="">Pilih kelompok permasalahan</option>
-                  {info.opsi.permasalahan.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
-
-              <label className={s.field}>
-                <span className={s.label}>Keterangan permasalahan</span>
-                <textarea rows={4} value={ket} maxLength={2000} onChange={(e) => setKet(e.target.value)}
-                  placeholder="Jelaskan masalahnya dan apa yang sudah dicoba, supaya tim terkait bisa langsung menjawab." />
-              </label>
-
-              <fieldset className={s.field}>
-                <legend>Tim tujuan eskalasi</legend>
-                <div className={s.tim}>
-                  {info.opsi.tim.map((t) => (
-                    <label key={t} className={tim.includes(t) ? s.on : ""}>
-                      <input type="checkbox" checked={tim.includes(t)} onChange={() => setTim(ganti(tim, t))} />
-                      {t}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              {hasil && <Notice tone={hasil.tone} title={hasil.tone === "ok" ? "Tersimpan" : "Belum tersimpan"}>{hasil.teks}</Notice>}
-
-              <div className={s.actions}>
-                <Button loading={busy} disabled={!siap || busy} onClick={catat}>
-                  {busy ? "Mencatat…" : "Catat ke LK Eskalasi"}
-                </Button>
-                <span className={s.hint}>
-                  {siap ? "Tanggal awal diisi hari ini, status Belum Ditindaklanjuti." : "Pilih sekolah, isi keterangan, dan centang minimal satu tim."}
-                </span>
-              </div>
-
-              <section className={s.riwayat} aria-labelledby="esk-riwayat">
-                <h3 id="esk-riwayat">Sudah dieskalasi <span>{info.eskalasi.length}</span></h3>
-                {info.eskalasi.length === 0 ? (
-                  <p className={s.muted}>Belum ada eskalasi untuk sekolah fasil ini.</p>
-                ) : (
-                  <ul>
-                    {info.eskalasi.map((e) => (
-                      <li key={e.baris}>
-                        <div className={s.rHead}>
-                          <b>{namaSekolah(e.npsn) ?? e.nama}</b>
-                          <Chip tone={toneStatus(e.status)}>{e.status || "Belum ada status"}</Chip>
-                        </div>
-                        <p>{e.keterangan || "Tanpa keterangan"}</p>
-                        <small>
-                          {[e.permasalahan, e.tgl_awal && `sejak ${tgl(e.tgl_awal)}`, e.tgl_selesai && `selesai ${tgl(e.tgl_selesai)}`,
-                            e.tim.length ? `ke ${e.tim.join(", ")}` : ""].filter(Boolean).join(", ")}
-                        </small>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </>
-          )}
-    </>
-  );
+  return <EskalasiSekolah sekolah={sekolah} awal={awal} />;
 }

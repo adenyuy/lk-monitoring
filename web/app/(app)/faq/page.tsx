@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { FaqView } from "@/components/faq/FaqView";
+import { FaqEskalasi } from "@/components/eskalasi/FaqEskalasi";
 
-export const metadata: Metadata = { title: "Tanya jawab – LK Monitoring" };
+export const metadata: Metadata = { title: "FAQ – LK Monitoring" };
 
 export default function FaqPage() {
-  return <FaqView />;
+  return <FaqEskalasi />;
 }

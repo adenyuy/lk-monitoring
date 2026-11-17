@@ -42,6 +42,12 @@ def daftar(paksa: bool = False, acc: Access = Depends(require_access)) -> dict[s
             "pengumuman": forum.pengumuman_json(p, acc.email, acc.admin)}
 
 
+@router.get("/pengumuman")
+def daftar_pengumuman(acc: Access = Depends(require_access)) -> dict[str, Any]:
+    """Pengumuman saja (kolom kanan halaman FAQ)."""
+    return {"pengumuman": forum.pengumuman_json(_jalan(forum.pengumuman), acc.email, acc.admin), "admin": acc.admin}
+
+
 @router.get("/izin")
 def izin(_=Depends(require_access)) -> dict[str, Any]:
     return _izin()

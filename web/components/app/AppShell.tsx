@@ -12,7 +12,7 @@ import { LockIcon, NoAccess } from "./NoAccess";
 import { AssistDock } from "./Assist";
 import { UserMenu } from "./UserMenu";
 import { Pembaruan } from "./Pembaruan";
-import { IconAdmin, IconBimtek, IconBlast, IconCutoff, IconDashboard, IconForum, IconLk, IconLogo, IconBlastAdmin } from "./Icons";
+import { IconAdmin, IconBimtek, IconBlast, IconCutoff, IconDashboard, IconEskalasi, IconForum, IconLk, IconLogo, IconBlastAdmin } from "./Icons";
 import s from "./app.module.css";
 
 const WA_WARNA: Record<string, string> = { logged_in: "#1e7a4c", qr: "#e0a43a", loading: "#e0a43a" };
@@ -87,6 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const bolehCutoff = !!me.access?.fitur.includes("cutoff");
   const bolehBlastAdmin = !!me.access?.fitur.includes("blast_admin");
+  const bolehEskalasi = !!me.access?.fitur.includes("eskalasi") || !!me.access?.admin;
   const aktif = (href: string) => (path.startsWith(href) || path === href.slice(0, -1) ? "page" : undefined);
   const waLabel = wa?.state === "logged_in" ? `WhatsApp ${wa.nomor_tersamar || "terhubung"}`
     : wa?.state === "closed" ? "WhatsApp belum dibuka" : wa ? "WhatsApp menunggu" : "Memeriksa WhatsApp";
@@ -113,9 +114,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Link href="/bimtek/" className={s.item} aria-current={aktif("/bimtek/")}>
         <span className={s.ico}><IconBimtek /></span><span className={s.lbl}>Bimtek</span>
       </Link>
-      <Link href="/forum/" className={s.item} aria-current={aktif("/forum/")}>
-        <span className={s.ico}><IconForum /></span><span className={s.lbl}>Forum</span>
+      <Link href="/faq/" className={s.item} aria-current={aktif("/faq/")}>
+        <span className={s.ico}><IconForum /></span><span className={s.lbl}>FAQ</span>
       </Link>
+      {bolehEskalasi && (
+        <Link href="/eskalasi/" className={s.item} aria-current={aktif("/eskalasi/")}>
+          <span className={s.ico}><IconEskalasi /></span><span className={s.lbl}>Eskalasi</span>
+        </Link>
+      )}
       {bolehCutoff ? (
         <Link href="/cutoff/" className={s.item} aria-current={aktif("/cutoff/")}>
           <span className={s.ico}><IconCutoff /></span><span className={s.lbl}>Tarik Cutoff</span>
@@ -181,7 +187,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </footer>
       </div>
 
-      <AssistDock onTerkunci={() => setTerkunci(true)} bolehCutoff={bolehCutoff}
+      <AssistDock onTerkunci={() => setTerkunci(true)} bolehCutoff={bolehCutoff} bolehEskalasi={bolehEskalasi}
         adaBaru={adaBaru} />
       {terkunci && <NoAccess onClose={() => setTerkunci(false)} />}
     </div>

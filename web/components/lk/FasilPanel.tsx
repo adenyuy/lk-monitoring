@@ -8,7 +8,8 @@ import { KELOMPOK_INFO, KODE_WARNA, TAHAP_LABEL, HARI_PENDEK, inisial, type Fasi
 import { bacaBalasan, cocokkan, isi as isiTemplate, isiKendala, isianTodo, kosong, templateBawaan, templateKoorFasil, templateSekolah,
   type Template } from "@/lib/pesan";
 import { Button, Chip, Notice, Spinner } from "@/components/ui";
-import { BantuanDialog } from "@/components/today/BantuanDialog";
+import { Dialog } from "@/components/eskalasi/bagian";
+import { EskalasiSekolah } from "@/components/eskalasi/EskalasiSekolah";
 import { UbahFasilDialog } from "@/components/today/UbahFasil";
 import { ChatPanel, SalinTemplate } from "./ChatPanel";
 import { KodePicker } from "./KodePicker";
@@ -28,13 +29,6 @@ function drafAwal(d: FasilDetail): Draf {
     }
   }
   return out;
-}
-
-export function keteranganEskalasi(d: FasilDetail) {
-  const kel = KELOMPOK_INFO[d.kelompok].label.toLowerCase();
-  const todo = d.sekolah_detail.filter((x) => x.todo.length)
-    .map((x) => `${x.nama}: ${x.todo.map((t) => t.judul).join(", ")}`).slice(0, 6).join("; ");
-  return `Fasil ${d.nama} (${kel}). To-do: ${todo}.`;
 }
 
 /** Layar penuh satu fasil: Log Komunikasi hari ini, to-do & isian per sekolah, chat fasil dan koordinator. */
@@ -377,9 +371,11 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
         </>
       )}
       {eskalasi && data && (
-        <BantuanDialog hanyaEskalasi namaFasil={data.nama} sekolah={data.sekolah_detail} terusan=""
-          awal={{ npsn: data.sekolah_detail.filter((x) => x.todo.length).map((x) => x.npsn), keterangan: keteranganEskalasi(data) }}
-          onClose={() => setEskalasi(false)} />
+        <Dialog lebar judul={`Eskalasi · ${data.nama}`} onClose={() => setEskalasi(false)}
+          sub="Masalah sekolah binaan fasil ini yang harus dijawab tim lain. Dicatat ke LK Eskalasi.">
+          <EskalasiSekolah sekolah={data.sekolah_detail}
+            awal={{ npsn: data.sekolah_detail.length === 1 ? [data.sekolah_detail[0].npsn] : [] }} />
+        </Dialog>
       )}
       {ubahFasil && data && (
         <UbahFasilDialog nomor={data.nomor} nama={data.nama} nomorTersamar={data.nomor_tersamar}
