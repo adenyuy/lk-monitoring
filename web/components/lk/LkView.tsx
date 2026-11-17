@@ -217,7 +217,13 @@ function Papan({ data, onBuka, onKode }: {
   const [kel, setKel] = useState<Kelompok | "">("");
   const [tag, setTag] = useState("");
   const [bimtek, setBimtek] = useState("");
+  const [ptn, setPtn] = useState("");
   const [cari, setCari] = useState("");
+  const daftarPtn = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const f of data.fasil) if (f.ptn) n.set(f.ptn, (n.get(f.ptn) ?? 0) + 1);
+    return [...n.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [data.fasil]);
 
   const kolom: Kolom[] = useMemo(() => [
     ...data.posisi.map((p) => ({ kode: p.kode, label: p.label, ket: KET_POSISI[p.kode] ?? "" })),
@@ -227,9 +233,9 @@ function Papan({ data, onBuka, onKode }: {
   const saring = useMemo(() => {
     const q = cari.trim().toLowerCase();
     return data.fasil.filter((f) => (!kel || f.kelompok === kel) && (!tag || f.tag.includes(tag))
-      && cocokBimtek(f.bimtek, bimtek)
+      && cocokBimtek(f.bimtek, bimtek) && (!ptn || f.ptn === ptn)
       && (!q || f.nama.toLowerCase().includes(q) || f.ptn.toLowerCase().includes(q)));
-  }, [data.fasil, kel, tag, bimtek, cari]);
+  }, [data.fasil, kel, tag, bimtek, ptn, cari]);
 
   const isi = useMemo(() => {
     const out: Record<string, FasilLk[]> = {};
@@ -285,6 +291,15 @@ function Papan({ data, onBuka, onKode }: {
                 <option key={b} value={b}>{b} ({data.fasil.filter((f) => f.bimtek?.[b]).length} fasil)</option>
               ))}
               <option value="-">Tanpa sekolah bimtek</option>
+            </select>
+          </label>
+        )}
+        {daftarPtn.length > 1 && (
+          <label className={s.pilihKecil}>
+            <span>PTN</span>
+            <select value={ptn} onChange={(e) => setPtn(e.target.value)}>
+              <option value="">Semua PTN</option>
+              {daftarPtn.map(([p, n]) => <option key={p} value={p}>{p} ({n} fasil)</option>)}
             </select>
           </label>
         )}

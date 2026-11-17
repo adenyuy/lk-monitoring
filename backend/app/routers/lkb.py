@@ -80,6 +80,7 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
     chat = komunikasi.peta_chat(_tahap.senin_iso())
     belum_balas = _koor_belum_balas([x["kunci"] for x in daftar])
     aktif = rekap_bimtek.bimtek_aktif(schedule.now().date())
+    mulai = rekap_bimtek.tag_dimulai(schedule.now().date())
     for x in daftar:
         x["bimtek_aktif"] = _bimtek_aktif_fasil(x["bimtek"], aktif)
         x["tag_auto"] = [komunikasi.TAG_KOOR] if x["kunci"] in belum_balas else []
@@ -112,7 +113,9 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
         "kom": [{"kode": kode, "label": lbl, "arti": arti, "jumlah": sum(1 for x in daftar if x["kom"] == kode)}
                 for kode, lbl, arti in komunikasi.STATUS_KOM],
         "tag": semua_tag,
-        "bimtek": sorted({b for x in daftar for b in x["bimtek"]}, key=bimtek_lap.urut),
+        # hanya bimtek yang sudah dimulai; tanpa rekap bimtek semua tetap tampil
+        "bimtek": sorted({b for x in daftar for b in x["bimtek"] if mulai is None or str(b).casefold() in mulai},
+                         key=bimtek_lap.urut),
         "fasil": daftar,
     }
 

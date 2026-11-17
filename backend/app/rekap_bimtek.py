@@ -792,6 +792,19 @@ def hitung_bila_ada_cutoff_baru(rekap: dict[str, Any] | None) -> bool:
     return True
 
 
+def tag_dimulai(hari: date | None = None) -> set[str] | None:
+    """Tag (casefold) bimtek yang tanggal mulainya sudah lewat atau hari ini. None bila rekap belum ada/tidak terbaca."""
+    try:
+        r = baca()
+    except Exception:  # noqa: BLE001
+        log.warning("Rekap bimtek tidak terbaca untuk saringan bimtek", exc_info=True)
+        return None
+    if not r:
+        return None
+    h = (hari or datetime.now().date()).isoformat()
+    return {str(k.get("tag", "")).casefold() for k in r.get("kelompok", []) if str(k.get("mulai", "9999")) <= h}
+
+
 def bimtek_aktif(hari: date | None = None) -> dict[str, dict[str, Any]]:
     """{tag casefold: {tag, kode, mulai, selesai, hotel: {npsn: hotel}}} untuk bimtek yang berlangsung hari ini (kalender).
     Dibaca dari rekap di LK; kosong bila rekap belum ada atau tidak terbaca."""

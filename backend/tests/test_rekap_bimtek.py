@@ -158,3 +158,12 @@ def test_peta_bimtek_dari_rekap_untuk_cutoff(monkeypatch):
     assert bimtek_lap.peta_dari_rekap() == {"11": "Bimtek Lap 4", "12": "Bimtek Lap 4", "13": "Bimtek Lap 5"}
     monkeypatch.setattr(rekap_bimtek, "baca", lambda: None)
     assert bimtek_lap.peta_dari_rekap() == {}
+
+
+def test_tag_dimulai_hanya_bimtek_yang_sudah_mulai(monkeypatch):
+    from datetime import date
+    rekap = {"kelompok": [{"tag": "Bimtek Lap 4", "mulai": "2026-11-16"}, {"tag": "Bimtek Lap 5", "mulai": "2026-11-23"}]}
+    monkeypatch.setattr(rekap_bimtek, "baca", lambda: rekap)
+    assert rekap_bimtek.tag_dimulai(date(2026, 11, 17)) == {"bimtek lap 4"}
+    monkeypatch.setattr(rekap_bimtek, "baca", lambda: None)
+    assert rekap_bimtek.tag_dimulai(date(2026, 11, 17)) is None
