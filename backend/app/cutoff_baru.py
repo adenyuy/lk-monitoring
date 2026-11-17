@@ -388,8 +388,10 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
         if w.row_count < perlu:
             w.resize(rows=perlu)
         sid = w.id
+        # contoh format = baris data terakhir (sesudah urut per PIC, baris atas bisa sekolah baru tanpa dropdown)
+        contoh = max(mulai - 1, BARIS_DATA)
         ss.batch_update({"requests": [{"copyPaste": {
-            "source": {"sheetId": sid, "startRowIndex": BARIS_DATA - 1, "endRowIndex": BARIS_DATA,
+            "source": {"sheetId": sid, "startRowIndex": contoh - 1, "endRowIndex": contoh,
                        "startColumnIndex": 0, "endColumnIndex": w.col_count},
             "destination": {"sheetId": sid, "startRowIndex": mulai - 1, "endRowIndex": mulai - 1 + len(rc.tambah),
                             "startColumnIndex": 0, "endColumnIndex": w.col_count},
@@ -410,6 +412,12 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
     cache.clear()
 
     _langkah("Menulis keterangan otomatis Kendala/Tindak Lanjut", 50)
+    try:
+        dirapikan = rapikan_baris(ss, w, tab, BARIS_DATA - 1 + total)
+        if dirapikan:
+            log.info("Format %s baris di %s dirapikan", dirapikan, tab)
+    except Exception:  # noqa: BLE001 - format hanya tampilan; cutoff tetap jalan
+        log.warning("Merapikan format baris gagal", exc_info=True)
     siapkan_format(rc.week)
     semua = lk_baru.baca_semua(rc.week, refresh=True)
     n_ket = tulis_keterangan(rc.week, semua)
@@ -511,33 +519,86 @@ def tulis_keterangan(week: int, semua: list[Sekolah]) -> int:
     return n
 
 
+def _contoh_dropdown(ss, tab: str, kolom: list[int], baris_akhir: int) -> dict[int, dict]:
+    """Dropdown Kendala per kolom, diambil dari baris pertama yang punya dropdown di kolom itu.
+    Baris 4 saja tidak cukup: sesudah diurutkan, sekolah tanpa PIC (sering tanpa dropdown) naik ke atas."""
+    a0, a1 = min(kolom), max(kolom)
+    hasil: dict[int, dict] = {}
+    for mulai in range(BARIS_DATA, baris_akhir + 1, 2000):
+        meta = ss.fetch_sheet_metadata(params={
+            "ranges": f"'{tab}'!{col_letter(a0)}{mulai}:{col_letter(a1)}{min(mulai + 1999, baris_akhir)}",
+            "fields": "sheets(data(rowData(values(dataValidation))))"})
+        for row in ((meta.get("sheets") or [{}])[0].get("data") or [{}])[0].get("rowData") or []:
+            vals = row.get("values") or []
+            for a in kolom:
+                if a not in hasil and a - a0 < len(vals) and (vals[a - a0] or {}).get("dataValidation"):
+                    hasil[a] = vals[a - a0]["dataValidation"]
+        if len(hasil) == len(kolom):
+            break
+    return hasil
+
+
+FORMAT_BARIS = "userEnteredFormat(numberFormat,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat,borders,padding)"
+
+
+def rapikan_baris(ss, w, tab: str, baris_akhir: int) -> int:
+    """Baris data yang kehilangan format (dulu disalin dari baris tanpa format) diberi format baris yang benar.
+    Warna latar tidak disentuh: kuning sekolah baru tetap, warna status ditulis ulang warna_lk."""
+    if baris_akhir < BARIS_DATA:
+        return 0
+    meta = ss.fetch_sheet_metadata(params={
+        "ranges": f"'{tab}'!A{BARIS_DATA}:A{baris_akhir}",
+        "fields": "sheets(data(rowData(values(userEnteredFormat(wrapStrategy)))))"})
+    rows = ((meta.get("sheets") or [{}])[0].get("data") or [{}])[0].get("rowData") or []
+    ada = [bool(((r.get("values") or [{}])[0].get("userEnteredFormat") or {}).get("wrapStrategy")) for r in rows]
+    ada += [False] * (baris_akhir - BARIS_DATA + 1 - len(ada))
+    rusak = [BARIS_DATA + i for i, ok in enumerate(ada) if not ok]
+    if not rusak or all(not ok for ok in ada):
+        return 0
+    contoh = BARIS_DATA + ada.index(True)
+    m = ss.fetch_sheet_metadata(params={
+        "ranges": f"'{tab}'!A{contoh}:{col_letter(w.col_count - 1)}{contoh}",
+        "fields": f"sheets(data(rowData(values({FORMAT_BARIS}))))"})
+    sel = ((m["sheets"][0].get("data") or [{}])[0].get("rowData") or [{}])[0].get("values") or []
+    sel = [{"userEnteredFormat": v.get("userEnteredFormat", {})} for v in sel]
+    # baris rusak yang berurutan digabung jadi satu rentang
+    rentang, mulai = [], rusak[0]
+    for a, b in zip(rusak, rusak[1:] + [None]):
+        if b != a + 1:
+            rentang.append((mulai, a))
+            mulai = b
+    req = [{"updateCells": {"range": {"sheetId": w.id, "startRowIndex": r0 - 1, "endRowIndex": r1,
+                                      "startColumnIndex": 0, "endColumnIndex": len(sel)},
+                            "rows": [{"values": sel}] * (r1 - r0 + 1), "fields": FORMAT_BARIS}}
+           for r0, r1 in rentang]
+    for i in range(0, len(req), 50):
+        ss.batch_update({"requests": req[i:i + 50]})
+    return len(rusak)
+
+
 def siapkan_format(week: int) -> None:
-    """Sekali per tab: keterangan baru masuk daftar dropdown Kendala (warnanya ditulis warna_lk)."""
+    """Dropdown Kendala dipasang ulang ke seluruh kolom (sekolah yang belum punya ikut dapat),
+    dan keterangan baru masuk daftar pilihannya (warnanya ditulis warna_lk)."""
     ss = lk_baru._ss()
     tab = lk_baru.tab_week(week)
     w = ss.worksheet(tab)
     t = lk_baru.tata(week)
-    a0 = min(a for cols in t.isian.values() for a, _ in cols.values())
-    a1 = max(c for cols in t.isian.values() for _, c in cols.values())
-    meta = ss.fetch_sheet_metadata(params={
-        "ranges": f"'{tab}'!{col_letter(a0)}{BARIS_DATA}:{col_letter(a1)}{BARIS_DATA}",
-        "fields": "sheets(data(rowData(values(dataValidation))))"})
-    sh = meta["sheets"][0]
-    vals = sh["data"][0]["rowData"][0]["values"]
+    kolom = sorted({a for cols in t.isian.values() for a, _ in cols.values()})
+    if not kolom:
+        return
+    contoh = _contoh_dropdown(ss, tab, kolom, w.row_count)
     req = []
-    for cols in t.isian.values():
-        for a, _ in cols.values():
-            dv = (vals[a - a0] or {}).get("dataValidation")
-            if not dv:
-                continue
-            pilihan = [x.get("userEnteredValue", "") for x in dv["condition"].get("values", [])]
-            tambah = [k for k in KETERANGAN_BARU if k not in pilihan]
-            if not tambah:
-                continue
-            dv["condition"]["values"] = [{"userEnteredValue": p} for p in pilihan + tambah]
-            req.append({"setDataValidation": {"range": {"sheetId": w.id, "startRowIndex": BARIS_DATA - 1,
-                                                        "endRowIndex": w.row_count, "startColumnIndex": a,
-                                                        "endColumnIndex": a + 1}, "rule": dv}})
+    for a in kolom:
+        dv = contoh.get(a)
+        if not dv:
+            log.warning("Kolom %s di %s tidak punya dropdown Kendala; dilewati", col_letter(a), tab)
+            continue
+        pilihan = [x.get("userEnteredValue", "") for x in dv["condition"].get("values", [])]
+        tambah = [k for k in KETERANGAN_BARU if k not in pilihan]
+        dv["condition"]["values"] = [{"userEnteredValue": p} for p in pilihan + tambah]
+        req.append({"setDataValidation": {"range": {"sheetId": w.id, "startRowIndex": BARIS_DATA - 1,
+                                                    "endRowIndex": w.row_count, "startColumnIndex": a,
+                                                    "endColumnIndex": a + 1}, "rule": dv}})
     if req:
         ss.batch_update({"requests": req})
 
