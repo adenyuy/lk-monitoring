@@ -2,7 +2,6 @@ backend/.venv
 backend/tests
 site
 docs
-survei-progres
 scripts
 web/node_modules
 web/.next

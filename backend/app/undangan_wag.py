@@ -87,10 +87,6 @@ def simpan(*, aktif: bool, link: str, tim: str, teks: str) -> Pengaturan:
         raise UndanganError("Link grup harus berupa link undangan WhatsApp, contoh https://chat.whatsapp.com/AbCdEf123456.")
     if aktif and not link:
         raise UndanganError("Tempel link grup WhatsApp dulu sebelum menyalakan Undangan WAG.")
-    if aktif:  # hanya satu kampanye langsung yang aktif
-        from . import survei_progres
-
-        survei_progres.matikan()
     teks = _terkini((teks or "").strip() or TEKS_AWAL)
     if "{link}" not in teks:
         raise UndanganError("Teks undangan harus memuat {link} supaya link grup ikut terkirim.")

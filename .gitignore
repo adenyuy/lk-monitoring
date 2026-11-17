@@ -34,5 +34,3 @@ Thumbs.db
 docs/knowledge/*.pptx
 docs/knowledge/*.pdf
 
-# Form survei progres (Apps Script + Netlify), tidak ikut repo
-survei-progres/

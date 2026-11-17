@@ -87,7 +87,6 @@ export type Today = {
   pengiriman: Pengiriman;
   bypass: boolean;
   undangan_wag: boolean;
-  survei_progres: boolean;
   kirim_semua: boolean;
 };
 
@@ -328,49 +327,6 @@ export type EskalasiInfo = {
   saya: { nama?: string; pic?: boolean; admin?: boolean };
 };
 export type SekolahEskalasi = { npsn: string; nama: string; petugas: string; fasil: string; ptn: string; asal: string };
-
-export type SurveiSekolah = { npsn: string; nama: string; isian: string; waktu: string };
-
-export type SurveiFasil = {
-  nama: string;
-  nomor: string;
-  nomor_tersamar: string;
-  kirim: "menunggu" | "terkirim" | "gagal" | "dilewati" | "tanpa_nomor";
-  kirim_waktu: string;
-  kirim_ket: string;
-  wa: "belum" | "terkirim" | "dibaca" | "dibalas";
-  balasan: string;
-  total: number;
-  terisi: number;
-  terakhir_isi: string;
-  sekolah: SurveiSekolah[];
-};
-
-export type SurveiStatus = {
-  aktif: boolean;
-  siap: boolean;
-  galat: string;
-  bisa_kirim?: number;
-  kirim: Pengiriman;
-  ringkasan: { fasil: number; terkirim: number; dibaca: number; dibalas: number; sekolah: number; terisi: number;
-    tuntas: number } | null;
-  fasil: SurveiFasil[];
-};
-
-export type SurveiProgres = {
-  aktif: boolean;
-  sheet: string;
-  link: string;
-  teks: string;
-  teks_awal: string;
-  dari_tim: boolean;
-  contoh: string;
-  galat: string;
-  contoh_fasil: { nama: string; nomor: string; sekolah: string[] };
-  fasil: number;
-  sekolah: number;
-  ringkasan: { total: number; terkirim: number; gagal_permanen: number; belum: number } | null;
-};
 
 export type UndanganWag = {
   aktif: boolean;
