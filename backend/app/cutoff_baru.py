@@ -288,6 +288,7 @@ def _tulis_aman(rc: Rencana, oleh: str) -> None:
         hasil = tulis(rc, oleh)
         hasil["rekap_bimtek"] = _arsip_bimtek(rc)
         _status.update(hasil=hasil, persen=100, langkah="Selesai")
+        _picu_backup()
         with _lock:
             _rencana.pop(rc.token, None)
     except Exception as e:
@@ -357,6 +358,16 @@ def _arsip_bimtek(rc: Rencana) -> str:
     except Exception:  # noqa: BLE001
         log.warning("Arsip export ke data bimtek gagal", exc_info=True)
         return ""
+
+
+def _picu_backup() -> None:
+    """Backup tab WEEK ke Drive di latar (bila laptop ini mengaturnya). Dipanggil setelah status selesai."""
+    try:
+        from . import backup_lk
+
+        backup_lk.picu()
+    except Exception:  # noqa: BLE001
+        log.warning("Memicu backup WEEK gagal", exc_info=True)
 
 
 def _langkah(teks: str, persen: int) -> None:

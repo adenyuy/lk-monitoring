@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from .. import bimtek_lap, cutoff_baru, db, google_auth, komunikasi, lk_baru, pic_baru, schedule
+from .. import backup_lk, bimtek_lap, cutoff_baru, db, google_auth, komunikasi, lk_baru, pic_baru, schedule
 from .deps import require_feature
 from .lkb import _jalan
 
@@ -189,3 +189,64 @@ async def bimtek_isi_file(file: UploadFile = File(...), ganti_beda: bool = Form(
                           _=Depends(admin)) -> dict[str, Any]:
     return await run_in_threadpool(_bimtek_file, bimtek_lap.tulis_file, await file.read(),
                                    file.filename or "bimtek.csv", ganti_beda)
+
+
+# ---------- Backup tab WEEK ke Google Drive ----------
+
+def _backup(fn, *a) -> dict[str, Any]:
+    try:
+        fn(*a)
+    except backup_lk.BackupError as e:
+        raise HTTPException(400, str(e)) from e
+    except lk_baru.LkError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(502, f"Google Drive tidak bisa dihubungi: {e}") from e
+    return backup_lk.ringkasan()
+
+
+@router.get("/backup")
+def backup_info(_=Depends(admin)) -> dict[str, Any]:
+    return backup_lk.ringkasan()
+
+
+class FolderReq(BaseModel):
+    link: str
+
+
+@router.post("/backup/folder")
+def backup_folder(req: FolderReq, _=Depends(admin)) -> dict[str, Any]:
+    return _backup(backup_lk.atur_folder, req.link)
+
+
+@router.post("/backup/izin")
+def backup_izin(_=Depends(admin)) -> dict[str, Any]:
+    return _backup(backup_lk.minta_izin, google_auth.current_email() or "")
+
+
+@router.post("/backup/lepas")
+def backup_lepas(_=Depends(admin)) -> dict[str, Any]:
+    return _backup(backup_lk.cabut_izin)
+
+
+class OtomatisReq(BaseModel):
+    aktif: bool
+
+
+@router.post("/backup/otomatis")
+def backup_otomatis(req: OtomatisReq, _=Depends(admin)) -> dict[str, Any]:
+    return _backup(backup_lk.atur_otomatis, req.aktif)
+
+
+class JalanReq(BaseModel):
+    tujuan: str = "otomatis"
+
+
+@router.post("/backup/jalan")
+def backup_jalan(req: JalanReq, _=Depends(admin)) -> dict[str, Any]:
+    return _backup(backup_lk.manual, req.tujuan, google_auth.current_email() or "")
+
+
+@router.get("/backup/status")
+def backup_status(_=Depends(admin)) -> dict[str, Any]:
+    return backup_lk.status()

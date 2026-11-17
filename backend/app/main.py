@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from . import chat_refresh, config, db, lk_otomatis, paths
+from . import backup_lk, chat_refresh, config, db, lk_otomatis, paths
 from .routers import (admin, bimtek, blast, blast_admin, chat, core, cutoff, dashboard, eskalasi, forum, lkb, log,
                       paparan, pendengar as rute_pendengar, rekap, send, today, wa)
 from .wa import pendengar
@@ -35,6 +35,7 @@ async def lifespan(_: FastAPI):
 
     cutoff_baru.mulai_tanggal_log()  # kolom tanggal hari ini di Log Komunikasi dibuat otomatis tiap hari kerja
     lk_otomatis.picu()  # susulkan status komunikasi LK untuk chat minggu ini yang sudah dibaca / dibalas
+    backup_lk.picu()  # backup tab WEEK ke Drive bila ada cutoff yang belum di-backup (hanya laptop yang mengaturnya)
     pendengar.mulai_bila_tertaut()  # status chat langsung dari WhatsApp (neonize), bila sudah ditautkan
     yield
     pendengar.berhenti()

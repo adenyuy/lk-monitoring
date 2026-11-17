@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import { usePolling } from "@/lib/hooks";
 import { Button, Notice, Spinner } from "@/components/ui";
+import { BackupDrive } from "./BackupDrive";
 import s from "./cutoff2.module.css";
 
 type Status = { jalan: boolean; langkah: string; persen: number; hasil: null | { tab: string; sekolah: number; baru: number;
@@ -274,6 +275,7 @@ export function CutoffView() {
             </section>
           )}
 
+          <BackupDrive pemicu={`${info.riwayat.length}|${info.cutoff_terakhir}`} />
           <LogCutoffView data={info.log_cutoff} />
         </div>
 
