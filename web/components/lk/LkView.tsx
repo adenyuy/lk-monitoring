@@ -218,6 +218,8 @@ function Papan({ data, onBuka, onKode }: {
   const [tag, setTag] = useState("");
   const [bimtek, setBimtek] = useState("");
   const [ptn, setPtn] = useState("");
+  const [berubahBc, setBerubahBc] = useState(false);
+  const jumlahBerubah = data.fasil.filter((f) => (f.berubah_broadcast ?? 0) > 0).length;
   const [cari, setCari] = useState("");
   const daftarPtn = useMemo(() => {
     const n = new Map<string, number>();
@@ -233,9 +235,9 @@ function Papan({ data, onBuka, onKode }: {
   const saring = useMemo(() => {
     const q = cari.trim().toLowerCase();
     return data.fasil.filter((f) => (!kel || f.kelompok === kel) && (!tag || f.tag.includes(tag))
-      && cocokBimtek(f.bimtek, bimtek) && (!ptn || f.ptn === ptn)
+      && cocokBimtek(f.bimtek, bimtek) && (!ptn || f.ptn === ptn) && (!berubahBc || (f.berubah_broadcast ?? 0) > 0)
       && (!q || f.nama.toLowerCase().includes(q) || f.ptn.toLowerCase().includes(q)));
-  }, [data.fasil, kel, tag, bimtek, ptn, cari]);
+  }, [data.fasil, kel, tag, bimtek, ptn, berubahBc, cari]);
 
   const isi = useMemo(() => {
     const out: Record<string, FasilLk[]> = {};
@@ -302,6 +304,14 @@ function Papan({ data, onBuka, onKode }: {
               {daftarPtn.map(([p, n]) => <option key={p} value={p}>{p} ({n} fasil)</option>)}
             </select>
           </label>
+        )}
+        {(jumlahBerubah > 0 || berubahBc) && (
+          <div className={s.tagFilter}>
+            <button type="button" aria-pressed={berubahBc} onClick={() => setBerubahBc(!berubahBc)}
+              title="Fasil yang to-do sekolahnya berubah sejak Broadcast minggu ini dikirim">
+              Berubah sejak Broadcast ({jumlahBerubah})
+            </button>
+          </div>
         )}
         {data.tag.length > 0 && (
           <div className={s.tagFilter} aria-label="Saring tag">

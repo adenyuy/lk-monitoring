@@ -120,11 +120,14 @@ def isian_todo(j: Jawaban, judul: str, jumlah_todo: int) -> tuple[str, str] | No
     return None
 
 
+_STRIP = re.compile(r"^[\s.,]*[-–—]+[\s.,\-–—]*$")
 _TIDAK_ADA = re.compile(r"^(tidak ada|tdk ada|ga ada|gak ada|tidak ada kendala|aman|lancar|ok|nihil|belum ada|-)$")
 
 
 def pilih_kendala(teks: str, opsi: list[str]) -> str:
     """Pilihan dropdown Kendala yang cocok dengan teks jawaban, atau '' (sama dengan pilihKendala di web/lib/pesan.ts)."""
+    if _STRIP.match(teks or ""):  # "-", ".-", "–" berarti tidak ada kendala
+        return next((o for o in opsi if "tidak ada kendala" in norm(o)), "")
     t = norm(teks)
     if not t:
         return ""
@@ -320,3 +323,60 @@ def proses(nomor: str, rows: list[Row]) -> int:
         c.execute("INSERT OR IGNORE INTO tl_auto(kunci, waktu) VALUES(?, ?)",
                   (kunci, schedule.now().isoformat(timespec="seconds")))
     return n
+
+
+# ---------- perbandingan dengan Broadcast terakhir ----------
+
+_POIN_DETAIL = re.compile(r"^(.*?)(?:\s*\(([^()]*)\))?(?:\s*[—–-]\s*oleh\b.*)?$")
+
+
+def _pecah_poin(teks: str) -> tuple[str, str]:
+    """'Lengkapi Laporan Mingguan (20/23 terunggah) — oleh Bapak/Ibu' -> ('Lengkapi Laporan Mingguan', '20/23 terunggah')."""
+    m = _POIN_DETAIL.match(teks.strip())
+    return (m.group(1).strip(), (m.group(2) or "").strip()) if m else (teks.strip(), "")
+
+
+def broadcast_terakhir(rows: list[Row], sejak: str) -> tuple[str, list[Butir]] | None:
+    """(waktu, daftar sekolah + to-do) dari pesan permintaan kita yang terakhir sejak tanggal `sejak` (YYYY-MM-DD)."""
+    for r in reversed(rows):
+        if not r.out or not _FORMAT.search(r.text):
+            continue
+        try:
+            jam, tgl = r.waktu.split(", ")
+            d, m, y = tgl.split("/")
+        except ValueError:
+            continue
+        if f"{y}-{m}-{d}" < sejak:
+            return None
+        daftar = baca_daftar(r.text)
+        if daftar:
+            return f"{jam}, {d}/{m}/{y}", daftar
+    return None
+
+
+def beda_broadcast(rows: list[Row], sekolah: list, rencana: dict[str, todo.Rencana], sejak: str) -> dict[str, dict]:
+    """{npsn: perubahan to-do sekolah sejak Broadcast terakhir minggu ini}. Kosong bila Broadcast tidak ditemukan.
+    Isi: waktu, baru (to-do yang belum ada di Broadcast), selesai (to-do Broadcast yang sudah hilang),
+    bergerak ([judul, angka di Broadcast, angka sekarang]), tetap, berubah."""
+    b = broadcast_terakhir(rows, sejak)
+    if not b:
+        return {}
+    waktu, daftar = b
+    lama_per = {norm(x.nama): x for x in daftar}
+    out = {}
+    for s in sekolah:
+        n = norm(s.nama)
+        butir = lama_per.get(n) or next((x for k, x in lama_per.items() if k and n and (k in n or n in k)), None)
+        sekarang = {norm(t.judul): (t.judul, t.detail) for t in rencana[s.npsn].todo}
+        if butir is None:  # sekolah tidak ada di pesan itu (mis. pesan tanya untuk sebagian sekolah): tidak dibandingkan
+            continue
+        lama = {norm(j): (j, d) for j, d in map(_pecah_poin, butir.poin)}
+        bergerak = [[sekarang[k][0], lama[k][1], sekarang[k][1]] for k in sekarang if k in lama and lama[k][1] != sekarang[k][1]]
+        r = {"waktu": waktu,
+             "baru": [v[0] for k, v in sekarang.items() if k not in lama],
+             "selesai": [v[0] for k, v in lama.items() if k not in sekarang],
+             "bergerak": bergerak,
+             "tetap": [v[0] for k, v in sekarang.items() if k in lama and lama[k][1] == v[1]]}
+        r["berubah"] = bool(r["baru"] or r["selesai"] or r["bergerak"])
+        out[s.npsn] = r
+    return out

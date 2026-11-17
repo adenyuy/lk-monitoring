@@ -428,6 +428,8 @@ export function cocokkan<T extends { nama: string }>(jawab: JawabanSekolah[], se
 
 /** Pilihan dropdown Kendala yang cocok dengan teks jawaban, atau "" bila tidak ada yang cocok. */
 export function pilihKendala(teks: string, opsi: string[]) {
+  // "-", ".-", "–" berarti tidak ada kendala
+  if (/^[\s.,]*[-–—]+[\s.,\-–—]*$/.test(teks)) return opsi.find((o) => norm(o).includes("tidak ada kendala")) ?? "";
   const t = norm(teks);
   if (!t) return "";
   const persis = opsi.find((o) => norm(o) === t || norm(o.replace(/^\d+\.\s*/, "")) === t);

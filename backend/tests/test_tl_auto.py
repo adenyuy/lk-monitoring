@@ -152,3 +152,34 @@ def test_rentang_sesi_blast():
     assert rentang_sesi(date(2026, 11, 11), baru) == (date(2026, 11, 9), date(2026, 11, 11))
     assert lk_baru.label_blok(2, baru) == "Kamis–Sabtu"
     assert lk_baru.rentang_hari("SESI RABU – JUMAT · DIISI PETUGAS") == (2, 4, "Rabu–Jumat")
+
+
+def test_kendala_strip_berarti_tidak_ada_kendala():
+    for k in ("-", ".-", " - ", "–", "--"):
+        assert ta.isi_kendala(k, "-", OPSI_LP) == ("1. Tidak ada kendala", "-"), k
+    assert ta.isi_kendala("...", "", OPSI_LP)[0] != "1. Tidak ada kendala"
+
+
+def test_beda_broadcast_per_sekolah():
+    from types import SimpleNamespace as NS
+
+    from app import todo
+    from app.wa.actions import Row
+
+    pesan = ("Selamat pagi\n\n1. *SD NEGERI 3 TUMPUK*\n   • Lengkapi Laporan Mingguan (20/23 terunggah)\n   Kendala: ...\n"
+             "   Tindak lanjut: ...\n   • Reviu Laporan Bulanan (4/5 direviu) — oleh Bapak/Ibu\n   Kendala: ...\n"
+             "   Tindak lanjut: ...\n\n2. *SD NEGERI 12 SUSOH*\n   • Unggah Laporan 50%\n   Kendala: ...\n   Tindak lanjut: ...")
+    rows = [Row(id="a", out=True, status="read", text=pesan, waktu="09.12, 17/11/2026")]
+    T = lambda j, d="": todo.Todo(kode=j, judul=j, pelaku="sekolah", komponen=[], detail=d)  # noqa: E731
+    rencana = {"1": NS(todo=[T("Lengkapi Laporan Mingguan", "21/22 terunggah"), T("Reviu Laporan Mingguan", "20/21 direviu"),
+                             T("Reviu Laporan Bulanan", "4/5 direviu"), T("Unggah Laporan 100%")]),
+               "2": NS(todo=[T("Reviu Laporan 50%")]),
+               "3": NS(todo=[T("Unggah Laporan 50%")])}
+    sekolah = [NS(npsn="1", nama="SD NEGERI 3 TUMPUK"), NS(npsn="2", nama="SD NEGERI 12 SUSOH"), NS(npsn="3", nama="SD LAIN")]
+    out = ta.beda_broadcast(rows, sekolah, rencana, "2026-11-16")
+    assert out["1"]["baru"] == ["Reviu Laporan Mingguan", "Unggah Laporan 100%"]
+    assert out["1"]["bergerak"] == [["Lengkapi Laporan Mingguan", "20/23 terunggah", "21/22 terunggah"]]
+    assert out["1"]["tetap"] == ["Reviu Laporan Bulanan"] and out["1"]["berubah"]
+    assert out["2"]["selesai"] == ["Unggah Laporan 50%"] and out["2"]["baru"] == ["Reviu Laporan 50%"]
+    assert "3" not in out  # tidak ada di pesan Broadcast
+    assert ta.beda_broadcast(rows, sekolah, rencana, "2026-11-23") == {}  # Broadcast minggu lalu tidak dipakai

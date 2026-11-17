@@ -88,6 +88,7 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
         x["kom"] = komunikasi.status_kom(x, c)
         x["balasan"] = " ".join((c or {}).get("balasan", "").split())[:120]
         x["waktu_balasan"] = (c or {}).get("waktu", "")
+        x["berubah_broadcast"] = sum(1 for v in _beda_broadcast(k["fasil"][x["kunci"]], k).values() if v["berubah"])
     urut = {kode: i for i, (kode, *_r) in enumerate(komunikasi.KELOMPOK)}
     daftar.sort(key=lambda x: (urut[x["kelompok"]], -(x["perlu"] - x["lengkap"]), x["nama"].casefold()))
     n = Counter(x["kelompok"] for x in daftar)
@@ -128,6 +129,7 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
         raise HTTPException(404, "Fasil ini tidak ada di sekolah binaan Anda (mungkin data LK baru diperbarui).")
     r = komunikasi.ringkasan_fasil(f, k["rencana"], k["logkom"], k["hari"], k["blok"], k["tag"], k["delta"])
     aktif = rekap_bimtek.bimtek_aktif(schedule.now().date())
+    beda = _beda_broadcast(f, k)
     sekolah = sorted(f.sekolah, key=lambda s: (not k["rencana"][s.npsn].todo, k["rencana"][s.npsn].tahap, s.nama))
     return {
         **_info(k),
@@ -144,8 +146,22 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
                             "punya_hp_kepsek": bool(s.hp_kepsek),
                             **_kepsek_chat(s),
                             "bimtek_aktif": _bimtek_aktif_sekolah(s, aktif),
-                            "delta": k["delta"].get(s.npsn)} for s in sekolah],
+                            "delta": k["delta"].get(s.npsn),
+                            "beda_broadcast": beda.get(s.npsn)} for s in sekolah],
     }
+
+
+def _beda_broadcast(f, k) -> dict[str, dict]:
+    """Perubahan to-do per sekolah sejak Broadcast minggu ini (dari chat tersimpan pendengar); {} bila tidak ada."""
+    if not f.nomor:
+        return {}
+    from .. import tahap as _tahap, tl_auto
+    from ..wa import pendengar
+
+    try:
+        return tl_auto.beda_broadcast(pendengar.baris_chat(f.nomor), f.sekolah, k["rencana"], _tahap.senin_iso())
+    except Exception:  # noqa: BLE001  pelengkap: jangan gagalkan halaman LK
+        return {}
 
 
 def _bimtek_aktif_fasil(per_tag: dict[str, int], aktif: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:

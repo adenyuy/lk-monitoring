@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { tglPendek } from "@/lib/lk";
+import { tglPendek, type BedaBroadcast } from "@/lib/lk";
 import { api, post } from "@/lib/api";
 import { KELOMPOK_INFO, KODE_WARNA, TAHAP_LABEL, HARI_PENDEK, inisial, type FasilDetail, type OpsiLk,
   type Penerima, type SekolahDetail } from "@/lib/lk";
@@ -486,6 +486,7 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSalin,
             </span>
           )}
           {x.delta !== null && x.delta > 0 && <Chip tone="ok">+{x.delta} sejak cutoff lalu</Chip>}
+          {x.beda_broadcast?.berubah && <Chip tone="info">Berubah sejak Broadcast</Chip>}
           {kotor && <Chip tone="warn">Belum disimpan</Chip>}
           <Chip tone={ada ? (x.lengkap ? "ok" : "muted") : "ok"}>
             {!ada ? "Semua hijau" : x.lengkap ? "Isian lengkap ✓" : `Isian ${terisi}/${x.todo.length}`}
@@ -515,6 +516,7 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSalin,
           ))}
         </p>
       )}
+      {terbuka && x.beda_broadcast?.berubah && <BedaBc b={x.beda_broadcast} />}
       {ada && terbuka && (
         <>
           <ol className={s.todo}>
@@ -532,6 +534,11 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSalin,
                       {t.pelaku === "fasil" ? "Tugas fasil" : "Tugas sekolah"}
                     </span>
                     {t.detail && !/^(Belum|Sudah)$/.test(t.detail) && <small>{t.detail}</small>}
+                    {x.beda_broadcast?.baru.includes(t.judul) && (
+                      <span className={s.belumDitanya} title="To-do ini muncul setelah Broadcast dikirim, jadi belum ditanyakan ke fasil">
+                        Belum ditanyakan
+                      </span>
+                    )}
                     {t.tunggu !== null && t.tunggu > 0 && (
                       <small className={t.tunggu > 3 ? s.lama : undefined}>menunggu reviu {Math.round(t.tunggu)} hari</small>
                     )}
@@ -617,6 +624,22 @@ function TagEditor({ tag, onChange }: { tag: string[]; onChange: (t: string[]) =
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); tambah(); } }} onBlur={tambah} />
         )}
       </div>
+    </div>
+  );
+}
+
+/** Ringkasan perubahan to-do sekolah sejak Broadcast terakhir minggu ini. */
+function BedaBc({ b }: { b: BedaBroadcast }) {
+  return (
+    <div className={s.bedaBc}>
+      <b>Berubah sejak Broadcast {b.waktu}</b>
+      <ul>
+        {b.selesai.map((j) => <li key={`s${j}`}><span className={s.bedaSelesai}>Selesai</span>{j}</li>)}
+        {b.baru.map((j) => <li key={`b${j}`}><span className={s.bedaBaru}>Baru</span>{j}</li>)}
+        {b.bergerak.map(([j, dari, ke]) => (
+          <li key={`g${j}`}><span className={s.bedaGerak}>Bergerak</span>{j}: {dari || "–"} → {ke || "–"}</li>
+        ))}
+      </ul>
     </div>
   );
 }
