@@ -152,7 +152,7 @@ def detail(kunci: str, _=Depends(require_access)) -> dict[str, Any]:
 
 
 def _beda_broadcast(f, k) -> dict[str, dict]:
-    """Perubahan to-do per sekolah sejak Broadcast minggu ini (dari chat tersimpan pendengar); {} bila tidak ada."""
+    """To-do baru per sekolah sejak Broadcast minggu ini (dari chat tersimpan pendengar); {} bila tidak ada."""
     if not f.nomor:
         return {}
     from .. import tahap as _tahap, tl_auto

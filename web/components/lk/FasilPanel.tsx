@@ -487,7 +487,7 @@ function SekolahCard({ x, draf, opsi, kotor, terbuka, onToggle, onUbah, onSalin,
             </span>
           )}
           {x.delta !== null && x.delta > 0 && <Chip tone="ok">+{x.delta} sejak cutoff lalu</Chip>}
-          {x.beda_broadcast?.berubah && <Chip tone="info">Berubah sejak Broadcast</Chip>}
+          {x.beda_broadcast?.berubah && <Chip tone="info">To-do baru sejak Broadcast</Chip>}
           {kotor && <Chip tone="warn">Belum disimpan</Chip>}
           <Chip tone={ada ? (x.lengkap ? "ok" : "muted") : "ok"}>
             {!ada ? "Semua hijau" : x.lengkap ? "Isian lengkap ✓" : `Isian ${terisi}/${x.todo.length}`}
@@ -629,17 +629,13 @@ function TagEditor({ tag, onChange }: { tag: string[]; onChange: (t: string[]) =
   );
 }
 
-/** Ringkasan perubahan to-do sekolah sejak Broadcast terakhir minggu ini. */
+/** To-do sekolah yang muncul sesudah Broadcast terakhir minggu ini. */
 function BedaBc({ b }: { b: BedaBroadcast }) {
   return (
     <div className={s.bedaBc}>
-      <b>Berubah sejak Broadcast {b.waktu}</b>
+      <b>To-do baru sejak Broadcast {b.waktu}</b>
       <ul>
-        {b.selesai.map((j) => <li key={`s${j}`}><span className={s.bedaSelesai}>Selesai</span>{j}</li>)}
-        {b.baru.map((j) => <li key={`b${j}`}><span className={s.bedaBaru}>Baru</span>{j}</li>)}
-        {b.bergerak.map(([j, dari, ke]) => (
-          <li key={`g${j}`}><span className={s.bedaGerak}>Bergerak</span>{j}: {dari || "–"} → {ke || "–"}</li>
-        ))}
+        {b.baru.map((j) => <li key={j}><span className={s.bedaBaru}>Baru</span>{j}</li>)}
       </ul>
     </div>
   );

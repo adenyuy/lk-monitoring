@@ -355,9 +355,9 @@ def broadcast_terakhir(rows: list[Row], sejak: str) -> tuple[str, list[Butir]] |
 
 
 def beda_broadcast(rows: list[Row], sekolah: list, rencana: dict[str, todo.Rencana], sejak: str) -> dict[str, dict]:
-    """{npsn: perubahan to-do sekolah sejak Broadcast terakhir minggu ini}. Kosong bila Broadcast tidak ditemukan.
-    Isi: waktu, baru (to-do yang belum ada di Broadcast), selesai (to-do Broadcast yang sudah hilang),
-    bergerak ([judul, angka di Broadcast, angka sekarang]), tetap, berubah."""
+    """{npsn: to-do baru sekolah sejak Broadcast terakhir minggu ini}. Kosong bila Broadcast tidak ditemukan.
+    Isi: waktu, baru (to-do yang belum ada di Broadcast), berubah (ada to-do baru). Perubahan angka pada to-do yang
+    sama (mis. 20/23 jadi 21/23) dan to-do yang selesai tidak dihitung."""
     b = broadcast_terakhir(rows, sejak)
     if not b:
         return {}
@@ -367,16 +367,9 @@ def beda_broadcast(rows: list[Row], sekolah: list, rencana: dict[str, todo.Renca
     for s in sekolah:
         n = norm(s.nama)
         butir = lama_per.get(n) or next((x for k, x in lama_per.items() if k and n and (k in n or n in k)), None)
-        sekarang = {norm(t.judul): (t.judul, t.detail) for t in rencana[s.npsn].todo}
         if butir is None:  # sekolah tidak ada di pesan itu (mis. pesan tanya untuk sebagian sekolah): tidak dibandingkan
             continue
-        lama = {norm(j): (j, d) for j, d in map(_pecah_poin, butir.poin)}
-        bergerak = [[sekarang[k][0], lama[k][1], sekarang[k][1]] for k in sekarang if k in lama and lama[k][1] != sekarang[k][1]]
-        r = {"waktu": waktu,
-             "baru": [v[0] for k, v in sekarang.items() if k not in lama],
-             "selesai": [v[0] for k, v in lama.items() if k not in sekarang],
-             "bergerak": bergerak,
-             "tetap": [v[0] for k, v in sekarang.items() if k in lama and lama[k][1] == v[1]]}
-        r["berubah"] = bool(r["baru"] or r["selesai"] or r["bergerak"])
-        out[s.npsn] = r
+        lama = {norm(_pecah_poin(p)[0]) for p in butir.poin}
+        baru = [t.judul for t in rencana[s.npsn].todo if norm(t.judul) not in lama]
+        out[s.npsn] = {"waktu": waktu, "baru": baru, "berubah": bool(baru)}
     return out

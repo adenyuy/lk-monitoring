@@ -50,7 +50,7 @@ export type FasilLk = {
   belum_ditelepon: boolean;
   telepon?: TeleponInfo;
   progres_naik: number | null;
-  /** jumlah sekolah yang to-do-nya berubah sejak Broadcast minggu ini */
+  /** jumlah sekolah yang punya to-do baru sejak Broadcast minggu ini */
   berubah_broadcast?: number;
   /** {kode kolom papan: jumlah sekolah yang tertahan di sana} */
   posisi: Record<string, number>;
@@ -131,17 +131,13 @@ export type SekolahDetail = {
   /** chat terakhir dengan kepala sekolah: dibalas | dibaca | terkirim */
   kepsek_chat?: { status: string; waktu: string } | null;
   delta: number | null;
-  /** perubahan to-do sejak Broadcast minggu ini; null bila Broadcast tidak ditemukan di chat */
+  /** to-do baru sejak Broadcast minggu ini; null bila Broadcast tidak ditemukan di chat */
   beda_broadcast?: BedaBroadcast | null;
 };
 
 export type BedaBroadcast = {
   waktu: string;
   baru: string[];
-  selesai: string[];
-  /** [judul, angka di Broadcast, angka sekarang] */
-  bergerak: [string, string, string][];
-  tetap: string[];
   berubah: boolean;
 };
 

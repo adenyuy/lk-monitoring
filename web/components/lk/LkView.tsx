@@ -308,8 +308,8 @@ function Papan({ data, onBuka, onKode }: {
         {(jumlahBerubah > 0 || berubahBc) && (
           <div className={s.tagFilter}>
             <button type="button" aria-pressed={berubahBc} onClick={() => setBerubahBc(!berubahBc)}
-              title="Fasil yang to-do sekolahnya berubah sejak Broadcast minggu ini dikirim">
-              Berubah sejak Broadcast ({jumlahBerubah})
+              title="Fasil yang sekolahnya punya to-do baru sejak Broadcast minggu ini dikirim">
+              To-do baru sejak Broadcast ({jumlahBerubah})
             </button>
           </div>
         )}

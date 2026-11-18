@@ -177,9 +177,12 @@ def test_beda_broadcast_per_sekolah():
                "3": NS(todo=[T("Unggah Laporan 50%")])}
     sekolah = [NS(npsn="1", nama="SD NEGERI 3 TUMPUK"), NS(npsn="2", nama="SD NEGERI 12 SUSOH"), NS(npsn="3", nama="SD LAIN")]
     out = ta.beda_broadcast(rows, sekolah, rencana, "2026-11-16")
-    assert out["1"]["baru"] == ["Reviu Laporan Mingguan", "Unggah Laporan 100%"]
-    assert out["1"]["bergerak"] == [["Lengkapi Laporan Mingguan", "20/23 terunggah", "21/22 terunggah"]]
-    assert out["1"]["tetap"] == ["Reviu Laporan Bulanan"] and out["1"]["berubah"]
-    assert out["2"]["selesai"] == ["Unggah Laporan 50%"] and out["2"]["baru"] == ["Reviu Laporan 50%"]
+    assert out["1"]["baru"] == ["Reviu Laporan Mingguan", "Unggah Laporan 100%"] and out["1"]["berubah"]
+    assert out["2"]["baru"] == ["Reviu Laporan 50%"]
     assert "3" not in out  # tidak ada di pesan Broadcast
+    # angka berubah (20/23 jadi 21/22) dan to-do selesai bukan to-do baru
+    rencana["1"] = NS(todo=[T("Lengkapi Laporan Mingguan", "21/22 terunggah")])
+    rencana["2"] = NS(todo=[])
+    out = ta.beda_broadcast(rows, sekolah, rencana, "2026-11-16")
+    assert out["1"]["baru"] == [] and not out["1"]["berubah"] and not out["2"]["berubah"]
     assert ta.beda_broadcast(rows, sekolah, rencana, "2026-11-23") == {}  # Broadcast minggu lalu tidak dipakai
