@@ -380,7 +380,8 @@ export function FasilPanel({ kunci, onClose, kodeLabel }: {
       {ubahFasil && data && (
         <UbahFasilDialog nomor={data.nomor} nama={data.nama} nomorTersamar={data.nomor_tersamar}
           ket={`Ditulis ke kolom Fasilitator dan No HP Fasilitator di ${data.sekolah} sekolah binaan Anda di LK WEEK ${data.week}`
-            + " (dan nama di Log Komunikasi). Riwayat chat dan kode komunikasi di aplikasi ikut pindah ke nomor baru."}
+            + " (dan nama di Log Komunikasi). Riwayat chat dan kode komunikasi di aplikasi ikut pindah ke nomor baru."
+            + " Cutoff berikutnya menyamakan lagi dengan file cutoff, jadi minta perbaikan juga di aplikasi sumber."}
           kirim={async (nama, nomorBaru) =>
             (await post<{ kunci: string }>("/api/lk2/fasil-ubah", { kunci: data.kunci, nama, nomor_baru: nomorBaru })).kunci}
           onClose={() => setUbahFasil(false)}

@@ -1,7 +1,8 @@
 """Tarik Cutoff ke LK format baru (WEEK n), dari export aplikasi per sekolah (CSV/Excel, berjudul).
 
 Alur: siapkan(file) -> ringkasan perubahan untuk dicek admin -> tulis(token):
-  1. identitas & komponen WEEK n diperbarui per NPSN (Kendala/TL petugas tidak disentuh); sekolah baru ditambahkan
+  1. komponen & identitas sekolah WEEK n disamakan dengan file per NPSN (PIC dan Kendala/TL petugas tidak disentuh);
+     sekolah baru ditambahkan
   2. baris diurutkan per PIC lalu nama sekolah (supaya data tiap petugas terbaca cepat)
   3. keterangan otomatis Kendala/TL ditulis ulang sesuai to-do terbaru
   4. Log Progres (nasional) dan Log Progres PIC mendapat kolom/baris cutoff baru
@@ -23,7 +24,7 @@ import pandas as pd
 
 from . import bimtek_lap, lk_baru, proteksi, schedule, todo, warna_lk
 from .lk_baru import BARIS_DATA, KOMPONEN, Sekolah, komponen_dari_judul
-from .sheets import cache, clean_petugas, col_letter
+from .sheets import cache, clean_petugas, col_letter, daftar_nomor, nomor_key
 
 log = logging.getLogger(__name__)
 TAB_PIC = "Log Progres PIC"
@@ -148,6 +149,8 @@ def olah(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
             "Waktu Tunggu Reviu Laporan 100%": angka(g(r, "Hari Verif 100%")),
             "Reviu Laporan 100%": REVIU_LAP.get(g(r, "Laporan 100% - Status Reviu"), g(r, "Laporan 100% - Status Reviu")),
         }
+        x["_hp_rusak"] = {j for j in ("No HP Kepala Sekolah", "No HP Koordinator", "No HP Fasilitator")
+                          if g(r, j) and not x[j]}
         # BKU / BPP: jumlah terkirim dibanding jumlah Lap. Bulanan yang sudah due, mis. '2/3'.
         # Diisi hanya bila export sudah punya kolomnya.
         for k in ("BKU", "BPP"):
@@ -182,6 +185,7 @@ class Rencana:
     kol_awal: int = 0                     # kolom pertama yang ditulis untuk sekolah yang sudah ada  # langkah tulis yang sudah berhasil (untuk "Coba tulis lagi")
     data_file: bytes = b""                # isi file export, diarsipkan ke folder data bimtek setelah cutoff selesai
     hilang: list[str] = field(default_factory=list)  # NPSN di LK yang tidak ada di file (kemungkinan mengundurkan diri)
+    pemetaan: list[dict[str, str]] = field(default_factory=list)  # sel pemetaan yang berubah (lihat beda_pemetaan)
 
 
 _rencana: dict[str, Rencana] = {}
@@ -197,6 +201,53 @@ def _sama(a: Any, b: Any) -> bool:
         return abs(float(a) - float(b)) < 1e-6
     except (TypeError, ValueError):
         return False
+
+
+# Pemetaan sekolah yang mengikuti export: kunci Tata.identitas -> judul kolom hasil olah()
+PEMETAAN = {"nama": "Nama Sekolah", "angkatan": "Angkatan", "provinsi": "Provinsi", "kab": "Kab/Kota",
+            "kepsek": "Nama Kepala Sekolah", "hp_kepsek": "No HP Kepala Sekolah", "ptn": "PTN", "koor": "Koordinator",
+            "hp_koor": "No HP Koordinator", "fasil": "Fasilitator", "hp_fasil": "No HP Fasilitator"}
+PEMILIK_HP = {"hp_kepsek": "kepsek", "hp_koor": "koor", "hp_fasil": "fasil"}
+
+
+def judul_pemetaan(df: pd.DataFrame) -> set[str]:
+    """Kolom pemetaan yang benar-benar berisi di file. Kolom hilang/kosong total tidak boleh mengosongkan LK."""
+    return {j for j in PEMETAAN.values() if j in df.columns and df[j].astype(str).str.strip().any()}
+
+
+def beda_pemetaan(r: list[Any], x: dict[str, Any], kolom: dict[str, int], dipakai: set[str]) -> list[dict[str, str]]:
+    """Sel identitas satu sekolah yang berbeda dari export; file cutoff adalah acuan, termasuk nilai kosong.
+    Nomor rusak di export (mis. notasi ilmiah Excel) tidak menimpa nomor orang yang sama; bila orangnya berganti,
+    sel dikosongkan agar pesan tidak terkirim ke orang lama. Beda penulisan nomor yang sama (08.. / 628..) diabaikan."""
+    out = []
+    for k, judul in PEMETAAN.items():
+        if k not in kolom or judul not in dipakai:
+            continue
+        lama, baru = lk_baru._teks(lk_baru._sel(r, kolom[k])), str(x.get(judul) or "").strip()
+        if lama == baru:
+            continue
+        pemilik = PEMILIK_HP.get(k)
+        if pemilik:
+            if judul in x.get("_hp_rusak", ()):
+                nama_lk = lk_baru._teks(lk_baru._sel(r, kolom[pemilik])) if pemilik in kolom else ""
+                if not nama_lk or nama_lk.casefold() == str(x.get(PEMETAAN[pemilik]) or "").strip().casefold():
+                    continue
+            if baru and {nomor_key(n) for n in daftar_nomor(lama)} == {nomor_key(baru)}:
+                continue
+        out.append({"kunci": k, "kolom": judul, "lama": lama, "baru": baru})
+    return out
+
+
+def tulis_pemetaan(ss, tab: str, t: Any, isi: list[dict[str, str]]) -> int:
+    """Tulis sel pemetaan ke baris tempat NPSN itu berada saat ini (urutan bisa berubah sejak file diperiksa)."""
+    c = col_letter(t.identitas["npsn"])
+    kolom = ss.values_get(f"'{tab}'!{c}{BARIS_DATA}:{c}", params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
+    baris = {npsn(r[0]): BARIS_DATA + i for i, r in enumerate(kolom) if r}
+    data = [{"range": f"'{tab}'!{col_letter(t.identitas[p['kunci']])}{baris[p['npsn']]}", "values": [[p["baru"]]]}
+            for p in isi if p["npsn"] in baris]
+    for i in range(0, len(data), 200):
+        ss.values_batch_update({"valueInputOption": "RAW", "data": data[i:i + 200]})
+    return len(data)
 
 
 def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
@@ -218,10 +269,12 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
     lama = ss.values_get(f"'{tab}'!A{BARIS_DATA}:{col_letter(akhir - 1)}",
                          params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
     i_npsn = t.identitas["npsn"]
-    # Sekolah yang sudah ada: hanya kolom komponen & waktu tunggu yang ditulis. PIC dan identitas (nama, fasil,
-    # koordinator, nomor HP) dikelola lewat sheet Penugasan, jadi tidak disentuh cutoff.
+    # Sekolah yang sudah ada: kolom komponen & waktu tunggu ditulis per blok, identitas (beda_pemetaan) per sel.
+    # PIC dikelola lewat sheet Penugasan, jadi tidak disentuh cutoff.
     kol_awal = min(list(t.komponen.values()) + list(t.tunggu.values()))
     out, ada = [], set()
+    pemetaan: list[dict[str, str]] = []
+    dipakai = judul_pemetaan(df)
     berubah = Counter()
     naik = Counter()
     for r in lama:
@@ -231,6 +284,8 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
         if n:
             ada.add(n)
         if x:
+            nama_lk = lk_baru._teks(lk_baru._sel(r, t.identitas["nama"]))
+            pemetaan += [{"npsn": n, "nama": nama_lk, **p} for p in beda_pemetaan(r, x, t.identitas, dipakai)]
             for j, h in enumerate(judul):
                 if j < kol_awal or h not in x:
                     continue
@@ -255,10 +310,10 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
     hilang_npsn = sorted(n for n in ada if n not in baru)
     hilang = len(hilang_npsn)
     rc = Rencana(token=secrets.token_urlsafe(12), week=week, nama_file=nama_file, dibuat=time.time(), judul=judul,
-                 baris=out, tambah=tambah, kol_awal=kol_awal, data_file=data, hilang=hilang_npsn)
+                 baris=out, tambah=tambah, kol_awal=kol_awal, data_file=data, hilang=hilang_npsn, pemetaan=pemetaan)
     rc.ringkasan = {
         "sekolah_file": len(baru), "sekolah_lk": len(ada), "cocok": len(ada & set(baru)), "baru": len(tambah),
-        "tidak_di_file": hilang,
+        "tidak_di_file": hilang, "pemetaan": pemetaan, "pemetaan_sekolah": len({p["npsn"] for p in pemetaan}),
         "berubah": [{"kolom": k, "jumlah": v} for k, v in berubah.most_common()],
         "naik_selesai": [{"komponen": k, "jumlah": v} for k, v in naik.most_common()],
         "bku_bpp": any(k in df.columns for k in KOLOM_BKU_BPP),
@@ -395,6 +450,10 @@ def tulis(rc: Rencana, oleh: str) -> dict[str, Any]:
         rc.selesai.add(f"data:{i}")
         _langkah(f"Memperbarui komponen sekolah ({min(i + POTONG_BARIS, len(rc.baris)):,} dari {len(rc.baris):,})"
                  .replace(",", "."), 10 + round(15 * min(i + POTONG_BARIS, len(rc.baris)) / max(len(rc.baris), 1)))
+    if rc.pemetaan and "pemetaan" not in rc.selesai:
+        _langkah("Memperbarui pemetaan sekolah, koordinator, dan fasil", 25)
+        tulis_pemetaan(ss, tab, lk_baru.tata(rc.week, refresh=True), rc.pemetaan)
+        rc.selesai.add("pemetaan")
     if rc.tambah and "tambah" not in rc.selesai:
         _langkah(f"Menambahkan {len(rc.tambah)} sekolah baru", 25)
         mulai = BARIS_DATA + len(rc.baris)
@@ -1021,14 +1080,36 @@ def rencana_log_kom(semua: list[Sekolah], log_rows: list[list[Any]], baris_awal:
     return baru, ubah
 
 
+JUDUL_LOG_PEMETAAN = {"nama sekolah": "nama", "ptn": "ptn", "koordinator": "koor", "fasilitator": "fasil"}
+
+
+def rencana_pemetaan_log_kom(semua: list[Sekolah], judul: list[Any], log_rows: list[list[Any]], baris_awal: int = 3
+                             ) -> list[tuple[str, int, str]]:
+    """[(huruf kolom, nomor baris, nilai)] agar nama sekolah/PTN/koordinator/fasil di Log Komunikasi sama dengan LK.
+    Kolom dicari dari judul baris 2, tidak dipatok hurufnya. log_rows = isi kolom A:F mulai baris_awal."""
+    kolom = {i: JUDUL_LOG_PEMETAAN[h] for i, x in enumerate(judul) if (h := str(x).strip().casefold()) in JUDUL_LOG_PEMETAAN}
+    per = {s.npsn: s for s in semua}
+    out = []
+    for b, r in enumerate(log_rows, baris_awal):
+        s = per.get(npsn(r[1])) if len(r) > 1 else None
+        for i, f in kolom.items() if s else ():
+            v = str(getattr(s, f) or "").strip()
+            if lk_baru._teks(lk_baru._sel(r, i)) != v:
+                out.append((col_letter(i), b, v))
+    return out
+
+
 def sinkron_log_kom(semua: list[Sekolah]) -> dict[str, int]:
-    """Samakan Log Komunikasi dengan LK: tambah baris sekolah baru, dan isi/samakan kolom PIC."""
+    """Samakan Log Komunikasi dengan LK: tambah baris sekolah baru, isi/samakan kolom PIC dan pemetaan sekolah."""
     ss = lk_baru._ss()
     tab = lk_baru.TAB_LOG_KOM
-    rows = ss.values_get(f"'{tab}'!A3:B", params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
+    rows = ss.values_get(f"'{tab}'!A3:F", params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
     baru, ubah = rencana_log_kom(semua, rows)
-    if ubah:
-        data = [{"range": f"'{tab}'!A{b}", "values": [[pic]]} for b, pic in ubah]
+    judul = (ss.values_get(f"'{tab}'!A2:F2").get("values") or [[]])[0]
+    pemetaan = rencana_pemetaan_log_kom(semua, judul, rows)
+    data = [{"range": f"'{tab}'!A{b}", "values": [[pic]]} for b, pic in ubah]
+    data += [{"range": f"'{tab}'!{c}{b}", "values": [[v]]} for c, b, v in pemetaan]
+    if data:
         for i in range(0, len(data), 200):
             ss.values_batch_update({"valueInputOption": "RAW", "data": data[i:i + 200]})
     if baru:
@@ -1045,9 +1126,9 @@ def sinkron_log_kom(semua: list[Sekolah]) -> dict[str, int]:
             "pasteType": t}} for t in ("PASTE_FORMAT", "PASTE_DATA_VALIDATION")]})
         ss.values_update(f"'{tab}'!A{mulai}:F{mulai + len(baru) - 1}", params={"valueInputOption": "RAW"},
                          body={"values": baru})
-    if baru or ubah:
+    if baru or data:
         cache.drop("lk2_logkom")
-    return {"ditambah": len(baru), "pic_diubah": len(ubah)}
+    return {"ditambah": len(baru), "pic_diubah": len(ubah), "pemetaan_diubah": len(pemetaan)}
 
 
 # ---------- WEEK baru ----------

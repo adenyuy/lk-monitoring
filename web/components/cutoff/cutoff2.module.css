@@ -102,6 +102,12 @@
   .stepper { grid-template-columns: 1fr; }
 }
 .catatanTulis { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.pemetaan summary { cursor: pointer; color: var(--primary); font-size: 13px; font-weight: 600; width: fit-content; }
+.pemetaanGulir { margin-top: 8px; max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.pemetaanGulir:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.pemetaanGulir table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.pemetaanGulir th { position: sticky; top: 0; background: #f2f4f7; color: var(--ink-2); font-weight: 600; text-align: left; white-space: nowrap; }
+.pemetaanGulir th, .pemetaanGulir td { padding: 6px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
 .linkInput { height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13px;
   color: var(--ink); width: 100%; min-width: 0; }
 .linkInput:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }

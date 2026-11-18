@@ -85,11 +85,93 @@ def test_cutoff_hanya_menulis_kolom_komponen(monkeypatch):
     monkeypatch.setattr(cutoff_baru, "baca", lambda data, nama: df)
     rc = cutoff_baru.siapkan(b"", "x.csv", 3)
     assert rc.kol_awal == 4
-    assert rc.baris == [["Sudah", 2.0, "Sudah"]]  # identitas (PIC, nama, fasil) tidak ikut
+    assert rc.baris == [["Sudah", 2.0, "Sudah"]]  # identitas (PIC, nama, fasil) tidak ikut blok komponen
+    assert [(p["npsn"], p["kunci"], p["lama"], p["baru"]) for p in rc.pemetaan] == [
+        ("123", "nama", "SD Lama", "SD Baru Ganti Nama"), ("123", "fasil", "Fasil Lama", "Fasil Lain")]
+    assert rc.ringkasan["pemetaan_sekolah"] == 1
     assert {b["kolom"] for b in rc.ringkasan["berubah"]} == {"Status Laporan Pendahuluan",
                                                               "Waktu Tunggu Reviu Laporan Pendahuluan",
                                                               "Reviu Laporan Pendahuluan"}
     assert rc.tambah[0][1] == "999" and rc.tambah[0][2] == "SD Tambahan"  # sekolah baru tetap lengkap
+
+
+KOLOM_PETA = {"nama": 0, "ptn": 1, "koor": 2, "hp_koor": 3, "fasil": 4, "hp_fasil": 5}
+
+
+def _beda(r, rusak=(), **x):
+    isi = {cutoff_baru.PEMETAAN[k]: v for k, v in x.items()}
+    return {p["kunci"]: p["baru"] for p in cutoff_baru.beda_pemetaan(r, {**isi, "_hp_rusak": set(rusak)}, KOLOM_PETA, set(isi))}
+
+
+BARIS_PETA = ["SD A", "PTN", "Koor", "081111111111", "Fasil Lama", "082222222222"]
+SAMA_PETA = dict(nama="SD A", ptn="PTN", koor="Koor", hp_koor="081111111111", fasil="Fasil Lama", hp_fasil="082222222222")
+
+
+def test_pemetaan_sama_dengan_file_tidak_ada_perubahan():
+    assert _beda(BARIS_PETA, **SAMA_PETA) == {}
+    assert _beda(BARIS_PETA, **{**SAMA_PETA, "hp_fasil": "6282222222222"}) == {}  # nomor sama, beda penulisan
+
+
+def test_pemetaan_mengikuti_file_termasuk_nomor_orang_sama():
+    x = {**SAMA_PETA, "nama": "SD a", "koor": "Koor Baru", "hp_koor": "083333333333", "hp_fasil": "084444444444"}
+    assert _beda(BARIS_PETA, **x) == {"nama": "SD a", "koor": "Koor Baru", "hp_koor": "083333333333", "hp_fasil": "084444444444"}
+
+
+def test_pemetaan_nilai_kosong_di_file_ikut_kosong():
+    assert _beda(BARIS_PETA, **{**SAMA_PETA, "fasil": "", "hp_fasil": ""}) == {"fasil": "", "hp_fasil": ""}
+
+
+def test_pemetaan_kolom_tidak_dipakai_tidak_menyentuh_lk():
+    x = {"Fasilitator": "", "No HP Fasilitator": "", "_hp_rusak": set()}
+    assert cutoff_baru.beda_pemetaan(BARIS_PETA, x, KOLOM_PETA, set()) == []
+
+
+def test_judul_pemetaan_abaikan_kolom_hilang_atau_kosong_total():
+    df = pd.DataFrame([{"Fasilitator": "Fasil Baru", "PTN": " "}, {"Fasilitator": "", "PTN": ""}])
+    assert cutoff_baru.judul_pemetaan(df) == {"Fasilitator"}
+
+
+def test_pemetaan_nomor_rusak_orang_sama_tetap():
+    x = {**SAMA_PETA, "hp_fasil": ""}
+    assert _beda(BARIS_PETA, rusak={"No HP Fasilitator"}, **x) == {}
+
+
+def test_pemetaan_nomor_rusak_orang_baru_dikosongkan():
+    x = {**SAMA_PETA, "fasil": "Fasil Baru", "hp_fasil": ""}
+    assert _beda(BARIS_PETA, rusak={"No HP Fasilitator"}, **x) == {"fasil": "Fasil Baru", "hp_fasil": ""}
+
+
+def test_olah_menandai_nomor_rusak_bukan_nomor_kosong():
+    x = cutoff_baru.olah(_df(**{"No HP Fasilitator": "6,28E+12", "No HP Koordinator": ""}))["123"]
+    assert x["_hp_rusak"] == {"No HP Fasilitator"}
+
+
+def test_tulis_pemetaan_mengikuti_baris_npsn_terkini():
+    from types import SimpleNamespace as S
+
+    class Ss:
+        kirim = []
+
+        def values_get(self, rng, params=None):
+            return {"values": [[999.0], [], ["123"]]}
+
+        def values_batch_update(self, body):
+            self.kirim += body["data"]
+
+    isi = [{"npsn": "123", "kunci": "fasil", "baru": "Fasil Baru"}, {"npsn": "404", "kunci": "fasil", "baru": "X"}]
+    assert cutoff_baru.tulis_pemetaan(Ss(), "WEEK 5", S(identitas={"npsn": 1, "fasil": 3}), isi) == 1
+    assert Ss.kirim == [{"range": "'WEEK 5'!D6", "values": [["Fasil Baru"]]}]  # data mulai baris 4, NPSN 123 di baris 6
+
+
+def test_rencana_pemetaan_log_kom_ikut_judul_kolom():
+    from types import SimpleNamespace as S
+
+    semua = [S(npsn="1", nama="SD 1", ptn="P", koor="Koor Baru", fasil="Fasil Baru"), S(npsn="2", nama="SD 2", ptn="", koor="K", fasil="F")]
+    judul = ["PIC", "NPSN", "Nama Sekolah", "PTN", "Koordinator", "Fasilitator"]
+    rows = [["Ani", 1.0, "SD 1", "P", "Koor Lama", "Fasil Lama"], ["Ani", "2", "sd 2", "Q", "K", "F"], ["Ani", "3", "SD 3", "P", "K", "F"]]
+    assert cutoff_baru.rencana_pemetaan_log_kom(semua, judul, rows) == [
+        ("E", 3, "Koor Baru"), ("F", 3, "Fasil Baru"), ("C", 4, "SD 2"), ("D", 4, "")]
+    assert cutoff_baru.rencana_pemetaan_log_kom(semua, ["PIC", "NPSN", "A", "B", "C", "D"], rows) == []
 
 
 def test_rencana_log_kom_sekolah_baru_dan_pic():
@@ -172,3 +254,8 @@ def test_tanpa_warna_lama_hanya_bila_ada_style():
     assert cutoff_baru._tanpa_warna_lama({"borders": {"top": {"color": {"red": 1}, "style": "SOLID"}}}) == \
         {"borders": {"top": {"color": {"red": 1}, "style": "SOLID"}}}
     assert cutoff_baru._tanpa_warna_lama({"color": 1, "colorStyle": 2}) == {"colorStyle": 2}
+
+
+def test_pemetaan_nomor_tidak_baku_yang_sama_tidak_ditulis_ulang():
+    r = ["SD A", "PTN", "Koor", "075233556", "Fasil Lama", "082222222222"]
+    assert _beda(r, **{**SAMA_PETA, "hp_koor": "075233556"}) == {}

@@ -134,6 +134,8 @@ Untuk admin: tombol Buat Google Slides butuh **Google Slides API** aktif di proj
 
 Pilih jenis tarikan (Harian / Mingguan), WEEK, dan file cutoff → **Cek file** → periksa angkanya → **Tulis ke WEEK n**.
 
+**File cutoff adalah acuan data sekolah**: setiap cutoff mencocokkan sekolah per NPSN, lalu menyamakan nama sekolah, angkatan, wilayah, kepala sekolah, PTN, koordinator, fasil, dan nomor HP dengan file (nama sekolah, PTN, koordinator, dan fasil juga di Log Komunikasi). Daftar perubahannya tampil di **Cek file** sebelum ditulis. Koreksi manual di LK akan tertimpa pada cutoff berikutnya, jadi bila datanya salah, minta perbaikan di aplikasi sumber. Nomor yang rusak di file (mis. notasi ilmiah Excel) tidak menimpa nomor orang yang sama. PIC tidak diubah cutoff.
+
 **PIC sekolah baru**: bila ada sekolah baru, biasanya ada sheet pembagian tim yang baru. Tempel link-nya di kartu **PIC sekolah baru** → **Cek** → **Isi PIC**. Aplikasi mencari tab berkolom NPSN dan Nama Anggota (mis. *Penugasan Anggota*), lalu hanya mengisi kolom PIC yang kosong di WEEK aktif. Centang **Ganti juga PIC yang berbeda** bila ada pembagian ulang. Sekolah yang tidak ada di sheet ditampilkan supaya bisa ditanyakan.
 
 ### Bingung?

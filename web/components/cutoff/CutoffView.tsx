@@ -37,7 +37,8 @@ type HariCutoff = { tanggal: string; hari: string; label: string; status: "sudah
 const namaOleh = (email: string) => (email.split("@")[0] || "").replace(/[._\d]+/g, " ").trim();
 type Cek = { token: string; file: string; week: number; tab: string; sekolah_file: number; sekolah_lk: number; cocok: number;
   baru: number; tidak_di_file: number; berubah: { kolom: string; jumlah: number }[];
-  naik_selesai: { komponen: string; jumlah: number }[]; bku_bpp: boolean };
+  naik_selesai: { komponen: string; jumlah: number }[]; bku_bpp: boolean;
+  pemetaan: { npsn: string; nama: string; kolom: string; lama: string; baru: string }[]; pemetaan_sekolah: number };
 
 const fmt = (n: number | string) => Number(n).toLocaleString("id-ID");
 
@@ -223,9 +224,27 @@ export function CutoffView() {
                   ) : <p className={s.muted}>Tidak ada nilai yang berubah.</p>}
                 </div>
               </div>
+              {cek.pemetaan.length > 0 && (
+                <details className={s.pemetaan} open>
+                  <summary>Data sekolah berubah di {fmt(cek.pemetaan_sekolah)} sekolah ({fmt(cek.pemetaan.length)} data)</summary>
+                  <div className={s.pemetaanGulir} tabIndex={0} role="region" aria-label="Daftar perubahan pemetaan sekolah">
+                    <table>
+                      <thead><tr><th scope="col">NPSN</th><th scope="col">Sekolah</th><th scope="col">Data</th><th scope="col">Di LK</th><th scope="col">Dari file</th></tr></thead>
+                      <tbody>
+                        {cek.pemetaan.map((p, i) => (
+                          <tr key={i}>
+                            <td>{p.npsn}</td><td>{p.nama}</td><td>{p.kolom}</td><td>{p.lama || "(kosong)"}</td><td><b>{p.baru || "(dikosongkan)"}</b></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
+              {cek.pemetaan.length === 0 && <p className={s.muted}>Data sekolah, koordinator, dan fasil di LK sudah sama dengan file.</p>}
               <p className={s.catatanTulis}>
-                Yang ditulis hanya kolom komponen dan waktu tunggu reviu. PIC, fasil, koordinator, dan identitas sekolah
-                mengikuti sheet Penugasan, jadi tidak diubah cutoff. Sekolah baru ditulis lengkap.
+                File cutoff menjadi acuan: identitas sekolah, koordinator, fasil, dan nomor HP disamakan per NPSN.
+                Bila datanya salah, perbaiki di aplikasi sumber. PIC dan isian Kendala/TL tidak diubah.
               </p>
               {!cek.bku_bpp && <Notice tone="info">File ini belum punya kolom BKU/BPP, jadi isi BKU dan BPP di LK tidak diubah.</Notice>}
               {aksiError && <Notice tone="bad" title="Belum bisa ditulis">{aksiError}</Notice>}
