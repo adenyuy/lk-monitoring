@@ -5,7 +5,7 @@ jadi dua kali seminggu. Siklus fasil berakhir di akhir sesi tempat siklus dimula
 dikirimi pesan baru. Bila fasil membalas di sesi berikutnya (mis. blast Jumat dibalas Senin), siklusnya
 diperpanjang sampai akhir sesi balasan itu. Blast ke fasil lain tidak mengakhiri siklus fasil ini.
 Putaran blast (blast ke banyak fasil di hari yang sama) hanya dipakai untuk mengenali blast lewat HP.
-Survei dan undangan WAG bukan blast monitoring, jadi tidak memulai siklus.
+Survei, undangan WAG, dan broadcast informasi ToT bukan blast monitoring, jadi tidak memulai siklus.
 
 Siklus dimulai pada hari pesan terakhir terkirim (blast atau chat dari aplikasi). Setiap hari kerja (Senin–Sabtu)
 dari hari itu sampai hari ini diisi, termasuk hari yang terlewat karena laptop mati. Kode tiap hari mengikuti
@@ -101,7 +101,9 @@ class Siklus:
     akhir: date | None = None  # hari terakhir siklus (akhir sesi, atau sehari sebelum siklus berikutnya)
 
 
-_BUKAN_BLAST = " AND ".join(f"hash_pesan NOT LIKE '{x}%'" for x in TIPE_SURVEI_WAG)
+# shortcut: broadcast informasi dikenali dari kata "ToT" di topik; tambah penanda di form Blast bila ada jenis informasi lain
+_TOPIK_INFO = "lower(' ' || coalesce(topik, '') || ' ') LIKE '% tot %'"
+_BUKAN_BLAST = " AND ".join(f"hash_pesan NOT LIKE '{x}%'" for x in TIPE_SURVEI_WAG) + f" AND NOT ({_TOPIK_INFO})"
 
 
 def _rentang(hari: date) -> tuple[str, str]:
@@ -118,6 +120,14 @@ def _nomor_fasil() -> set[str] | None:
         return None
 
 
+def _hari_info(nomor: str) -> set[str]:
+    """Tanggal fasil ini menerima broadcast informasi. Balasan di hari itu ("baik pak") menjawab informasinya,
+    bukan blast monitoring, kecuali berisi Kendala / Tindak lanjut."""
+    return {r["w"] for r in db.query(
+        f"SELECT substr(waktu, 1, 10) AS w FROM sends WHERE coba = 0 AND nomor = ? AND status = 'terkirim' AND {_TOPIK_INFO}",
+        (nomor,))}
+
+
 def putaran(hari: date, fasil: set[str] | None = None) -> list[date]:
     """Tanggal putaran blast: blast/Broadcast dari aplikasi ke minimal MIN_PUTARAN fasil di hari yang sama, atau pesan
     keluar yang terbaca di chat (blast lewat HP) ke minimal MIN_PUTARAN_HP fasil. Ambang HP lebih tinggi karena
@@ -132,7 +142,7 @@ def putaran(hari: date, fasil: set[str] | None = None) -> list[date]:
     hp = db.query(
         "SELECT DISTINCT m.tanggal AS w, m.nomor FROM kom_mulai m WHERE m.tanggal >= ? AND m.tanggal < ? "
         "AND NOT EXISTS (SELECT 1 FROM sends x WHERE x.nomor = m.nomor AND x.coba = 0 "
-        f"AND substr(x.waktu, 1, 10) = m.tanggal AND NOT ({_BUKAN_BLAST.replace('hash_pesan', 'x.hash_pesan')}))",
+        f"AND substr(x.waktu, 1, 10) = m.tanggal AND NOT ({_BUKAN_BLAST.replace('hash_pesan', 'x.hash_pesan').replace('topik', 'x.topik')}))",
         (batas, akhir))
 
     def hitung(rows) -> dict[str, int]:
@@ -196,8 +206,10 @@ def daftar_siklus(nomor: str, hari: date, putaran_: list[date] | None = None,
         "AND lower(keterangan) LIKE '%tidak terdaftar%' AND waktu >= ? AND waktu < ?", (nomor, batas, akhir))}
     gagal -= kuat
     sesi = sesi or _sesi()
+    info = _hari_info(nomor)
     balas = sorted(date.fromisoformat(r["tanggal"]) for r in db.query(
-        "SELECT tanggal FROM kom_balas WHERE nomor = ? AND tanggal >= ? AND tanggal < ?", (nomor, batas, akhir)))
+        "SELECT tanggal, konfirmasi FROM kom_balas WHERE nomor = ? AND tanggal >= ? AND tanggal < ?", (nomor, batas, akhir))
+        if r["konfirmasi"] or r["tanggal"] not in info)
 
     def susun_akhir(daftar: list[Siklus]) -> list[Siklus]:
         daftar.sort(key=lambda s: s.awal)
@@ -323,8 +335,9 @@ def kejadian(nomor: str, s: Siklus) -> Kejadian:
         "WHERE nomor = ? AND awal >= ? AND awal <= ? AND tanggal >= ? GROUP BY jenis", (nomor, a, sampai, a))}
     # Minggu tidak ada di Log Komunikasi: balasan hari Minggu digabung ke Senin, juga bila Senin ada blast baru.
     dari = (s.awal - timedelta(days=1)).isoformat() if s.awal.weekday() == 0 else a
-    bls = db.query("SELECT tanggal, konfirmasi FROM kom_balas WHERE nomor = ? AND tanggal >= ? ORDER BY tanggal",
-                   (nomor, dari))
+    info = _hari_info(nomor)
+    bls = [r for r in db.query("SELECT tanggal, konfirmasi FROM kom_balas WHERE nomor = ? AND tanggal >= ? ORDER BY tanggal",
+                               (nomor, dari)) if r["konfirmasi"] or r["tanggal"] not in info]
     k = Kejadian(centang1="masih_c" in amat)
     if bls:
         k.balas = date.fromisoformat(bls[0]["tanggal"])

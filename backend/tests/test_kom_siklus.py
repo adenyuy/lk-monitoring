@@ -323,3 +323,51 @@ def test_blast_ke_kepala_sekolah_bukan_putaran_fasil():
     finally:
         with db.tx() as c:
             c.execute("DELETE FROM sends WHERE nomor LIKE '6283_________'")
+
+
+def kirim_tot(hari: date):
+    with db.tx() as c:
+        c.execute("INSERT INTO sends(tanggal, waktu, sesi, nama_fasil, nomor, hash_pesan, status, keterangan, coba, topik) "
+                  "VALUES(?,?,0,'Fasil',?,'blast:tot','terkirim','',0,'BC Tot Fasil Angkatan 4')",
+                  (hari.isoformat(), f"{hari}T09:00:00", NO))
+
+
+def test_broadcast_tot_tidak_memulai_siklus_dan_kode_t_tetap():
+    sen, sel, rab = date(2026, 11, 16), date(2026, 11, 17), date(2026, 11, 18)
+    kirim(sen)
+    kirim_tot(rab)
+    rows = [Row(out=True, status="read", text="blast", waktu="2026-11-16"),
+            Row(out=False, status="", text="Kendala: sedang proses", waktu="2026-11-17"),
+            Row(out=True, status="read", text="info ToT", waktu="2026-11-18"),
+            Row(out=False, status="", text="baik pak", waktu="2026-11-18")]
+    ks.catat_chat(NO, rows, tgl, rab)
+    assert [s.awal for s in ks.daftar_siklus(NO, rab)] == [sen]
+    assert kode(rab)["2026-11-18"] == "T"
+
+
+def test_balasan_basa_basi_ke_tot_bukan_respon_monitoring():
+    sen, rab = date(2026, 11, 16), date(2026, 11, 18)
+    kirim(sen)
+    kirim_tot(rab)
+    rows = [Row(out=True, status="read", text="blast", waktu="2026-11-16"),
+            Row(out=True, status="read", text="info ToT", waktu="2026-11-18"),
+            Row(out=False, status="", text="baik pak", waktu="2026-11-18")]
+    ks.catat_chat(NO, rows, tgl, rab)
+    assert kode(rab)["2026-11-18"] == "R"
+
+
+def test_balasan_kendala_di_hari_tot_tetap_dihitung():
+    sen, rab = date(2026, 11, 16), date(2026, 11, 18)
+    kirim(sen)
+    kirim_tot(rab)
+    rows = [Row(out=True, status="read", text="blast", waktu="2026-11-16"),
+            Row(out=False, status="", text="Kendala: dana belum cair", waktu="2026-11-18")]
+    ks.catat_chat(NO, rows, tgl, rab)
+    assert kode(rab)["2026-11-18"] == "T"
+
+
+def test_hanya_tot_tidak_membuat_siklus():
+    rab = date(2026, 11, 18)
+    kirim_tot(rab)
+    ks.catat_chat(NO, [Row(out=True, status="read", text="info ToT", waktu="2026-11-18")], tgl, rab)
+    assert ks.daftar_siklus(NO, rab) == []
