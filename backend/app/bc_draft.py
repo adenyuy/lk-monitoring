@@ -68,29 +68,47 @@ def _kolom(header: list[Any], *cari: str, kecuali: tuple[str, ...] = ()) -> int 
     return None
 
 
-def parse_tab(judul: str, values: list[list[Any]], petugas: str) -> dict[str, Any] | None:
-    """Satu tab BC -> {judul, jenis, pesan: [(nama, teks)]} untuk baris milik `petugas`. None bila formatnya lain."""
-    baris_h = next((i for i, r in enumerate(values) if r and str(r[0]).strip().casefold().startswith("pic")), None)
+def parse_tab(judul: str, values: list[list[Any]], petugas: str) -> list[dict[str, Any]] | None:
+    """Satu tab BC -> [{kode, judul, jenis, pesan: [(nama, teks)]}] untuk baris milik `petugas`. None bila formatnya lain.
+
+    Tab campuran (kolom "Jenis BC" berisi FASILITATOR / KOORDINATOR PTN, nama di "Nama Penerima") dipecah jadi dua
+    template, satu per jenis penerima, karena Blast mengirim ke satu jenis penerima sekaligus."""
+    baris_h = next((i for i, r in enumerate(values)
+                    if any(str(c).strip().casefold().startswith("pic") for c in r[:2])), None)
     if baris_h is None:
         return None
     h = values[baris_h]
-    i_nama = _kolom(h, "nama fasilitator")
-    jenis = "fasil"
+    i_pic = next(i for i, c in enumerate(h[:2]) if str(c).strip().casefold().startswith("pic"))
+    i_jenis = None
+    i_nama, jenis = _kolom(h, "nama fasilitator"), "fasil"
+    if i_nama is None:
+        i_nama, i_jenis = _kolom(h, "nama penerima"), _kolom(h, "jenis")
     if i_nama is None:
         i_nama, jenis = _kolom(h, "koordinator"), "koor"
     i_pesan = _kolom(h, "siap salin", "bc ", kecuali=("link", "whatsapp"))
     if i_nama is None or i_pesan is None:
         return None
     saya = normalize_petugas(petugas)
-    pesan: list[tuple[str, str]] = []
+    pesan: dict[str, list[tuple[str, str]]] = {}
     for r in values[baris_h + 1:]:
-        if len(r) <= max(i_nama, i_pesan) or normalize_petugas(r[0]) != saya:
+        j = jenis
+        if i_jenis is not None:
+            if len(r) <= i_jenis or not str(r[i_jenis]).strip():
+                continue
+            j = "koor" if "koor" in str(r[i_jenis]).casefold() else "fasil"
+        daftar = pesan.setdefault(j, [])
+        if len(r) <= max(i_pic, i_nama, i_pesan) or normalize_petugas(r[i_pic]) != saya:
             continue
         nama, teks = str(r[i_nama]).strip(), str(r[i_pesan]).replace("\r\n", "\n").strip()
         if nama and teks:
-            pesan.append((nama, _salam(teks)))
-    judul_tpl = re.sub(r"(?i)^bc\s*-\s*", "", judul.strip())
-    return {"tab": judul.strip(), "judul": f"BC {judul_tpl.title()}", "jenis": jenis, "pesan": pesan}
+            daftar.append((nama, _salam(teks)))
+    tab = judul.strip()
+    judul_tpl = "BC " + re.sub(r"(?i)^bc\s*-\s*", "", tab).title()
+    if i_jenis is None:
+        return [{"kode": tab, "tab": tab, "judul": judul_tpl, "jenis": jenis, "pesan": pesan.get(jenis, [])}]
+    label = {"fasil": "Fasil", "koor": "Koor"}
+    return [{"kode": f"{tab} ({label[j]})", "tab": tab, "judul": f"{judul_tpl} ({label[j]})", "jenis": j, "pesan": p}
+            for j, p in sorted(pesan.items())]
 
 
 def baca(petugas: str, refresh: bool = False) -> list[dict[str, Any]]:
@@ -105,7 +123,7 @@ def baca(petugas: str, refresh: bool = False) -> list[dict[str, Any]]:
             tabs = [w.title for w in ss.worksheets() if tab_bc(w.title)]
             if not tabs:
                 return []
-            got = ss.values_batch_get([f"'{t}'!A1:F" for t in tabs]).get("valueRanges", [])
+            got = ss.values_batch_get([f"'{t}'!A1:J" for t in tabs]).get("valueRanges", [])
         except Exception as e:
             raise BcError(f"Sheet Draft Broadcast tidak terbaca: {e}") from e
         out = []
@@ -114,7 +132,7 @@ def baca(petugas: str, refresh: bool = False) -> list[dict[str, Any]]:
             if x is None:
                 log.warning("Tab %s tidak berformat BC (kolom PIC / nama / pesan tidak ditemukan)", t)
                 continue
-            out.append(x)
+            out += x
         return out
 
     return cache.get(f"bc:{normalize_petugas(petugas)}", CACHE_DETIK, load, refresh)
@@ -133,6 +151,6 @@ def template(petugas: str, kunci_nama: dict[str, dict[str, str]], refresh: bool 
                 per.setdefault(k, teks)
             else:
                 tanpa.append(nama)
-        out.append({"kode": "bc:" + x["tab"], "judul": x["judul"], "tab": x["tab"], "jenis": x["jenis"],
+        out.append({"kode": "bc:" + x["kode"], "judul": x["judul"], "tab": x["tab"], "jenis": x["jenis"],
                     "per": per, "tanpa_cocok": tanpa})
     return out
