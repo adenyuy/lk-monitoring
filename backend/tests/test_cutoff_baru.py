@@ -95,6 +95,32 @@ def test_cutoff_hanya_menulis_kolom_komponen(monkeypatch):
     assert rc.tambah[0][1] == "999" and rc.tambah[0][2] == "SD Tambahan"  # sekolah baru tetap lengkap
 
 
+def test_pic_ikut_fasil_saat_cutoff(monkeypatch):
+    from app import lk_baru
+
+    judul = ["PIC", "NPSN", "Nama Sekolah", "Fasilitator", "Status Laporan Pendahuluan",
+             "Waktu Tunggu Reviu Laporan Pendahuluan", "Reviu Laporan Pendahuluan"]
+    data = [["Petugas A", "1", "SD 1", "Fasil A", "Belum", "", "-"],
+            ["Petugas B", "2", "SD 2", "Fasil B", "Belum", "", "-"],
+            ["", "3", "SD 3", "fasil  a", "Belum", "", "-"],
+            ["Petugas B", "4", "SD 4", "Fasil C", "Belum", "", "-"],
+            ["Petugas A", "5", "SD 5", "Fasil C", "Belum", "", "-"]]
+    t = lk_baru.Tata(identitas={"petugas": 0, "npsn": 1, "nama": 2, "fasil": 3}, komponen={"lp": 4, "lp_rev": 6},
+                     tunggu={"lp_rev": 5}, isian={}, lebar=7)
+    monkeypatch.setattr(lk_baru, "tata", lambda week, refresh=False: t)
+    monkeypatch.setattr(lk_baru, "_ss", lambda: _SsPalsu(judul, data))
+    baris = lambda n, f: {"NPSN": n, "Nama Sekolah": f"SD {n}", "Fasilitator": f, "Pendahuluan - Status Kirim": "Belum Dikirim"}
+    df = pd.DataFrame([baris("1", "Fasil A"), baris("2", "Fasil A"), baris("3", "Fasil A"), baris("4", "Fasil C"),
+                       baris("5", "Fasil C"), baris("9", "Fasil B"), baris("8", "Fasil Baru")])
+    monkeypatch.setattr(cutoff_baru, "baca", lambda data, nama: df)
+    rc = cutoff_baru.siapkan(b"", "x.csv", 3)
+    pic = [(p["npsn"], p["lama"], p["baru"]) for p in rc.pemetaan if p["kunci"] == "petugas"]
+    # sekolah 2 pindah dari fasil B ke fasil A -> ikut PIC fasil A; fasil C dipegang dua PIC -> tidak diubah
+    assert pic == [("2", "Petugas B", "Petugas A"), ("3", "", "Petugas A")]
+    assert {r[1]: r[0] for r in rc.tambah} == {"9": "Petugas B", "8": ""}
+    assert rc.ringkasan["fasil_tanpa_pic"] == ["Fasil Baru"] and rc.ringkasan["fasil_ganda"] == ["Fasil C"]
+
+
 KOLOM_PETA = {"nama": 0, "ptn": 1, "koor": 2, "hp_koor": 3, "fasil": 4, "hp_fasil": 5}
 
 

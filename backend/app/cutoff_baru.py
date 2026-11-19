@@ -1,8 +1,8 @@
 """Tarik Cutoff ke LK format baru (WEEK n), dari export aplikasi per sekolah (CSV/Excel, berjudul).
 
 Alur: siapkan(file) -> ringkasan perubahan untuk dicek admin -> tulis(token):
-  1. komponen & identitas sekolah WEEK n disamakan dengan file per NPSN (PIC dan Kendala/TL petugas tidak disentuh);
-     sekolah baru ditambahkan
+  1. komponen & identitas sekolah WEEK n disamakan dengan file per NPSN; PIC mengikuti fasil (pemetaan fasil -> PIC
+     dari LK sebelum cutoff); Kendala/TL petugas tidak disentuh; sekolah baru ditambahkan
   2. baris diurutkan per PIC lalu nama sekolah (supaya data tiap petugas terbaca cepat)
   3. keterangan otomatis Kendala/TL ditulis ulang sesuai to-do terbaru
   4. Log Progres (nasional) dan Log Progres PIC mendapat kolom/baris cutoff baru
@@ -22,9 +22,9 @@ from typing import Any
 
 import pandas as pd
 
-from . import bimtek_lap, lk_baru, proteksi, schedule, todo, warna_lk
+from . import bimtek_lap, lk_baru, pic_baru, proteksi, schedule, todo, warna_lk
 from .lk_baru import BARIS_DATA, KOMPONEN, Sekolah, komponen_dari_judul
-from .sheets import cache, clean_petugas, col_letter, daftar_nomor, nomor_key
+from .sheets import cache, clean_petugas, col_letter, daftar_nomor, nomor_key, normalize_petugas
 
 log = logging.getLogger(__name__)
 TAB_PIC = "Log Progres PIC"
@@ -270,11 +270,24 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
                          params={"valueRenderOption": "UNFORMATTED_VALUE"}).get("values", [])
     i_npsn = t.identitas["npsn"]
     # Sekolah yang sudah ada: kolom komponen & waktu tunggu ditulis per blok, identitas (beda_pemetaan) per sel.
-    # PIC dikelola lewat sheet Penugasan, jadi tidak disentuh cutoff.
+    # PIC mengikuti fasil: satu fasil dipegang satu PIC. Pemetaan fasil -> PIC dibaca dari LK sebelum cutoff, jadi
+    # sekolah yang pindah fasil ikut pindah PIC. Fasil yang belum punya PIC di LK (fasil baru) atau tercatat di lebih
+    # dari satu PIC tidak mengubah PIC; fasilnya dilaporkan supaya dirapikan lewat kartu PIC per Fasil.
     kol_awal = min(list(t.komponen.values()) + list(t.tunggu.values()))
     out, ada = [], set()
     pemetaan: list[dict[str, str]] = []
     dipakai = judul_pemetaan(df)
+    i_pic, i_fasil = t.identitas["petugas"], t.identitas["fasil"]
+    pic_fasil, fasil_ganda = pic_baru.peta_fasil(lama, i_fasil, i_pic)
+    kunci_ganda = {pic_baru.kunci_fasil(f) for f in fasil_ganda}
+    fasil_tanpa_pic: set[str] = set()
+
+    def pic_dari(fasil: Any) -> str:
+        k = pic_baru.kunci_fasil(fasil)
+        if k and k not in pic_fasil and k not in kunci_ganda:
+            fasil_tanpa_pic.add(lk_baru._teks(fasil))
+        return pic_fasil.get(k, "")
+
     berubah = Counter()
     naik = Counter()
     for r in lama:
@@ -286,6 +299,11 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
         if x:
             nama_lk = lk_baru._teks(lk_baru._sel(r, t.identitas["nama"]))
             pemetaan += [{"npsn": n, "nama": nama_lk, **p} for p in beda_pemetaan(r, x, t.identitas, dipakai)]
+            fasil = x.get("Fasilitator") if "Fasilitator" in dipakai else lk_baru._sel(r, i_fasil)
+            pic, pic_lama = pic_dari(fasil), lk_baru._teks(lk_baru._sel(r, i_pic))
+            if pic and normalize_petugas(pic) != normalize_petugas(pic_lama):
+                pemetaan.append({"npsn": n, "nama": nama_lk, "kunci": "petugas", "kolom": "PIC", "lama": pic_lama,
+                                 "baru": pic})
             for j, h in enumerate(judul):
                 if j < kol_awal or h not in x:
                     continue
@@ -306,6 +324,7 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
         for j, h in enumerate(judul):
             if h in x:
                 r[j] = x[h]
+        r[i_pic] = pic_dari(x.get("Fasilitator"))
         tambah.append(r)
     hilang_npsn = sorted(n for n in ada if n not in baru)
     hilang = len(hilang_npsn)
@@ -313,7 +332,8 @@ def siapkan(data: bytes, nama_file: str, week: int) -> Rencana:
                  baris=out, tambah=tambah, kol_awal=kol_awal, data_file=data, hilang=hilang_npsn, pemetaan=pemetaan)
     rc.ringkasan = {
         "sekolah_file": len(baru), "sekolah_lk": len(ada), "cocok": len(ada & set(baru)), "baru": len(tambah),
-        "tidak_di_file": hilang, "pemetaan": pemetaan, "pemetaan_sekolah": len({p["npsn"] for p in pemetaan}),
+        "tidak_di_file": hilang, "pemetaan": pemetaan,
+        "fasil_tanpa_pic": sorted(fasil_tanpa_pic, key=str.casefold), "fasil_ganda": sorted(fasil_ganda, key=str.casefold), "pemetaan_sekolah": len({p["npsn"] for p in pemetaan}),
         "berubah": [{"kolom": k, "jumlah": v} for k, v in berubah.most_common()],
         "naik_selesai": [{"komponen": k, "jumlah": v} for k, v in naik.most_common()],
         "bku_bpp": any(k in df.columns for k in KOLOM_BKU_BPP),
