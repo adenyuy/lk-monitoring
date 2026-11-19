@@ -8,6 +8,7 @@ import { KELOMPOK_INFO, hariPendek, tglPendek, type FasilLk, type Kelompok, type
 import { Button, Notice, Spinner } from "@/components/ui";
 import { FasilPanel } from "./FasilPanel";
 import { KodePicker } from "./KodePicker";
+import { TabelSekolah } from "./TabelSekolah";
 import s from "./lk.module.css";
 
 /** Halaman LK: fasil binaan dikelompokkan menurut keadaan komunikasi hari ini, lalu to-do sekolahnya. */
@@ -129,6 +130,7 @@ export function LkView() {
 
       <Papan data={data} onBuka={setBuka} onKode={(f, k) => void setKode(f, k)} />
       <PapanKom data={data} onBuka={setBuka} onKode={(f, k) => void setKode(f, k)} />
+      <TabelSekolah data={data} onBuka={setBuka} />
 
       {buka && <FasilPanel kunci={buka} onClose={tutup} kodeLabel={data.kode} />}
     </div>

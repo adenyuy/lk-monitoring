@@ -67,7 +67,10 @@ export type Indikator = {
   fasil?: { kunci: string; nama: string; ptn: string; ket: string }[];
 };
 
+export type BarisSekolah = { npsn: string; nama: string; angkatan: string; kunci: string; fasil: string; todo: number; isian: number };
+
 export type LkRingkasan = LkInfo & {
+  sekolah_tabel: BarisSekolah[];
   total: { fasil: number; sekolah: number; perlu: number; lengkap: number; dihubungi: number; todo: number };
   kelompok: { kode: Kelompok; label: string; arti: string; jumlah: number }[];
   tahap: { kode: Tahap; jumlah: number }[];

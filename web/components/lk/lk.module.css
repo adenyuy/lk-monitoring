@@ -368,3 +368,19 @@ span.foto { font-size: 12px; color: var(--muted); font-style: italic; }
 .bedaBc li { display: flex; align-items: baseline; gap: 8px; }
 .bedaBc li > span { flex: none; min-width: 64px; text-align: center; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 1px 6px; }
 .bedaBaru { background: #fff4e0; color: #8a5300; }
+
+/* tabel sekolah */
+.tabelJumlah { margin-left: auto; font-size: 13px; color: var(--muted); }
+.tabelGulir { max-height: 520px; overflow: auto; border-top: 1px solid var(--line); }
+.tabelGulir:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.tabelSekolah { width: 100%; min-width: 860px; border-collapse: collapse; font-size: 13px; }
+.tabelSekolah th { position: sticky; top: 0; z-index: 1; background: #f2f4f7; color: var(--ink-2); font-weight: 600; text-align: left; white-space: nowrap; }
+.tabelSekolah th, .tabelSekolah td { padding: 8px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.tabelSekolah td:first-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tabelSekolah button { padding: 0; border: 0; background: none; font: inherit; color: var(--primary); text-align: left; cursor: pointer; }
+.tabelSekolah button:hover { text-decoration: underline; }
+.tabelIsian { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.tabelLengkap { color: var(--ok-fg); font-weight: 600; }
+.tabelBelum { color: var(--warn-fg); font-weight: 600; }
+.tabelKode { display: inline-block; min-width: 26px; margin-right: 8px; color: var(--ink); }
+.tabelKosong { padding: 24px 12px !important; text-align: center; color: var(--muted); }

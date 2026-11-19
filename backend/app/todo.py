@@ -205,6 +205,17 @@ def lengkap(s: Sekolah, r: Rencana, blok: int) -> bool:
     return True
 
 
+def isian_terisi(s: Sekolah, r: Rencana, blok: int) -> int:
+    """Jumlah to-do yang Kendala dan Tindak Lanjut-nya sudah diisi petugas pada sesi `blok`."""
+    isi = s.isian.get(blok, {})
+
+    def terisi(k: str) -> bool:
+        kendala, tl = isi.get(k, ("", ""))
+        return bool(kendala and tl and not otomatis(kendala) and not otomatis(tl))
+
+    return sum(1 for t in r.todo if all(terisi(k) for k in t.komponen))
+
+
 def keterangan_baru(s: Sekolah, r: Rencana) -> list[tuple[int, str, str, str]]:
     """Sel Kendala/TL yang perlu diperbarui: [(blok, kode, kendala_baru, tl_baru)].
     Hanya sel kosong atau berisi keterangan otomatis yang diubah; isian petugas tidak ditimpa."""

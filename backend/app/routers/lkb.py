@@ -118,7 +118,14 @@ def ringkasan(refresh: bool = False, _=Depends(require_access)) -> dict[str, Any
         "bimtek": sorted({b for x in daftar for b in x["bimtek"] if mulai is None or str(b).casefold() in mulai},
                          key=bimtek_lap.urut),
         "fasil": daftar,
+        "sekolah_tabel": tabel_sekolah(k["sekolah"], k["rencana"], k["blok"]),
     }
+
+
+def tabel_sekolah(sekolah: list, rencana: dict[str, todo.Rencana], blok: int) -> list[dict[str, Any]]:
+    """Satu baris per sekolah binaan untuk tabel di halaman LK."""
+    return [{"npsn": s.npsn, "nama": s.nama, "angkatan": s.angkatan, "kunci": komunikasi.kunci_fasil(s), "fasil": s.fasil,
+             "todo": len(rencana[s.npsn].todo), "isian": todo.isian_terisi(s, rencana[s.npsn], blok)} for s in sekolah]
 
 
 @router.get("/fasil/{kunci}")
