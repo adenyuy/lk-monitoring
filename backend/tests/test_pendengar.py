@@ -162,3 +162,37 @@ def test_foto_ditandai_dan_telepon_disisipkan_di_chat(siap):
     assert [x["teks"] for x in out] == ["bukti upload", "Telepon keluar, diangkat, 2 menit", "terima kasih",
                                         "Telepon masuk, tidak diangkat"]
     assert out[0]["foto"] == f"/api/chat/{FASIL}/foto/F1" and out[1]["jenis"] == "telepon"
+
+
+def _edit(id_asli, teks):
+    from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message, ProtocolMessage
+
+    m = Message()
+    m.protocolMessage.type = ProtocolMessage.MESSAGE_EDIT
+    m.protocolMessage.key.ID = id_asli
+    m.protocolMessage.editedMessage.conversation = teks
+    return m
+
+
+def _isi_chat():
+    return [(r.id, r.text) for r in p.baris_chat(FASIL)]
+
+
+def test_pesan_diedit_menimpa_teks_asli(siap):
+    pytest.importorskip("neonize")
+    p.on_pesan(pesan("A1", False, "Kendala: ...\nTindak lanjut: ...", alt=jid(FASIL, "s.whatsapp.net")))
+    e = pesan("EDIT1", False, "", alt=jid(FASIL, "s.whatsapp.net"))
+    e.Message = _edit("A1", "Kendala: dana belum cair\nTindak lanjut: dihubungi")
+    p.on_pesan(e)
+    assert _isi_chat() == [("A1", "Kendala: dana belum cair\nTindak lanjut: dihubungi")]
+
+
+def test_pesan_diedit_dibaca_dari_raw_saat_message_sudah_dibuka(siap):
+    pytest.importorskip("neonize")
+    from neonize.proto.waE2E.WAWebProtobufsE2E_pb2 import Message
+
+    p.on_pesan(pesan("A2", False, "Kendala: ...", alt=jid(FASIL, "s.whatsapp.net")))
+    e = pesan("EDIT2", False, "", alt=jid(FASIL, "s.whatsapp.net"))
+    e.Message, e.Raw = Message(conversation="Kendala: sudah dikirim"), _edit("A2", "Kendala: sudah dikirim")
+    p.on_pesan(e)
+    assert _isi_chat() == [("A2", "Kendala: sudah dikirim")]

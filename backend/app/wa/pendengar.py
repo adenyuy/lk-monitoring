@@ -399,6 +399,22 @@ def _media_foto(pesan) -> bytes | None:
         return None
 
 
+def _edit_dari(*pesan) -> tuple[str, Any] | None:
+    """(ID pesan asli, isi baru) bila ini kabar pesan diedit. Kabar edit punya ID sendiri, jadi isinya harus menimpa
+    pesan aslinya; bentuknya bisa langsung protocolMessage atau terbungkus editedMessage."""
+    for m in pesan:
+        try:
+            if m.HasField("editedMessage"):
+                m = m.editedMessage.message
+            if m.HasField("protocolMessage"):
+                p = m.protocolMessage
+                if p.type == p.MESSAGE_EDIT and p.key.ID and p.HasField("editedMessage"):
+                    return p.key.ID, p.editedMessage
+        except (AttributeError, ValueError):
+            continue
+    return None
+
+
 def on_pesan(e) -> None:
     src = e.Info.MessageSource
     if src.IsGroup:
@@ -408,9 +424,8 @@ def on_pesan(e) -> None:
     keadaan.terakhir = time.time()
     if not nomor or nomor not in _nomor_milik():
         return
-    teks = _teks(e.Message)
-    simpan_pesan(e.Info.ID, nomor, keluar, teks, waktu_dari(e.Info.Timestamp), "sent" if keluar else "",
-                 _media_foto(e.Message))
+    pid, isi = _edit_dari(getattr(e, "Raw", None), e.Message) or (e.Info.ID, e.Message)
+    simpan_pesan(pid, nomor, keluar, _teks(isi), waktu_dari(e.Info.Timestamp), "sent" if keluar else "", _media_foto(isi))
     antrekan(nomor)
 
 
@@ -463,7 +478,8 @@ def on_riwayat(e) -> None:
                 continue
             keluar = bool(w.key.fromMe)
             st = status_dari.get(_nama_status(w), "sent") if keluar else ""
-            simpan_pesan(w.key.ID, nomor, keluar, _teks(w.message), t, st, _media_foto(w.message))
+            pid, isi = _edit_dari(w.message) or (w.key.ID, w.message)
+            simpan_pesan(pid, nomor, keluar, _teks(isi), t, st, _media_foto(isi))
             sentuh.add(nomor)
             pesan += 1
     telepon = _riwayat_telepon(getattr(e.Data, "callLogRecords", []), milik, batas, sentuh)
