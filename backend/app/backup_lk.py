@@ -403,12 +403,16 @@ def mulai(tujuan: str, week: int, waktu: datetime, sumber: str, oleh: str = "", 
     return status()
 
 
-def manual(tujuan: str, oleh: str) -> dict[str, Any]:
+def manual(tujuan: str, oleh: str, week: int | None = None) -> dict[str, Any]:
+    """`week` = WEEK yang dipilih di tampilan; kosong = WEEK aktif."""
     if tujuan not in TUJUAN:
         raise BackupError("Tujuan backup tidak dikenal.")
     if not siap():
         raise BackupError("Atur folder dan izin Google Drive dulu.")
-    return mulai(tujuan, lk_baru.week_aktif(), schedule.now().replace(tzinfo=None), "manual", oleh)
+    week = week or lk_baru.week_aktif()
+    if week_ada(week) != week:
+        raise BackupError(f"Tab WEEK {week} sudah tidak ada di LK.")
+    return mulai(tujuan, week, schedule.now().replace(tzinfo=None), "manual", oleh)
 
 
 # ---------- otomatis ----------

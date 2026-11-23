@@ -162,14 +162,14 @@ export function BackupDrive({ pemicu }: { pemicu: string }) {
           </div>
 
           <div className={s.manual}>
-            <span className={s.manualLabel}>Backup manual ke</span>
+            <span className={s.manualLabel}>Backup manual{minggu ? ` WEEK ${minggu.week}` : ""} ke</span>
             <div className={s.pilih} role="radiogroup" aria-label="Tujuan backup manual">
               {TUJUAN.map((t) => (
                 <button key={t.v} type="button" role="radio" aria-checked={tujuanAktif === t.v} onClick={() => setTujuan(t.v)}>{t.l}</button>
               ))}
             </div>
             <Button size="sm" loading={busy === "jalan" || st.jalan} disabled={st.jalan}
-              onClick={() => void aksi("jalan", "/api/cutoff/backup/jalan", { tujuan: tujuanAktif })}>Backup sekarang</Button>
+              onClick={() => void aksi("jalan", "/api/cutoff/backup/jalan", { tujuan: tujuanAktif, week: minggu?.week })}>Backup sekarang</Button>
           </div>
           <p className={s.muted}>Backup manual menimpa file di slot itu dengan isi tab WEEK saat ini.</p>
 

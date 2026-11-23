@@ -236,11 +236,12 @@ def backup_otomatis(req: OtomatisReq, _=Depends(admin)) -> dict[str, Any]:
 
 class JalanReq(BaseModel):
     tujuan: str = "otomatis"
+    week: int | None = None
 
 
 @router.post("/backup/jalan")
 def backup_jalan(req: JalanReq, _=Depends(admin)) -> dict[str, Any]:
-    return _backup(backup_lk.manual, req.tujuan, google_auth.current_email() or "")
+    return _backup(backup_lk.manual, req.tujuan, google_auth.current_email() or "", req.week)
 
 
 @router.get("/backup/status")
