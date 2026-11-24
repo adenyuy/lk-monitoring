@@ -89,6 +89,8 @@ def baca_jadwal(d: Path) -> list[Jadwal]:
         raise RekapError(f"Jadwal bimtek tidak ada: {f}")
     out = []
     for r in csv.DictReader(io.StringIO(f.read_text(encoding="utf-8-sig")), delimiter=";"):
+        if not (r.get("mulai") or "").strip():
+            continue  # belum dijadwalkan: pesertanya dihitung sebagai belum dibimtek
         try:
             out.append(Jadwal(r["kelompok"].strip(), r["tag"].strip(), date.fromisoformat(r["mulai"].strip()),
                               date.fromisoformat(r["selesai"].strip()), (r.get("catatan") or "").strip()))
