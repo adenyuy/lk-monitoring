@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui";
 import d from "@/components/dashboard/dashboard.module.css";
 import s from "./online.module.css";
 
-// Log Progres nasional (tab Log Progres di LK) dengan batang per cutoff dan angka di tiap batang.
+// Log Progres nasional (tab Log Progres di LK) atau satu PIC (tab Log Progres PIC), tren per cutoff.
 
 type LogBaris = { kelompok: string; komponen: string; nilai: string[] };
 type Data = { cutoff: string[]; baris: LogBaris[] };
@@ -40,15 +40,19 @@ function pecahLabel(c: string): [string, string] {
   return m ? [m[1], m[2]] : [c, ""];
 }
 
-export function LogProgresOnline() {
+export function LogProgresOnline({ pic = "" }: { pic?: string }) {
   const [data, setData] = useState<Data | null | undefined>(undefined);
-  useEffect(() => { api<Data>("/api/dashboard/log-progres").then(setData).catch(() => setData(null)); }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setData(undefined);
+    api<Data>(`/api/dashboard/log-progres${pic ? `?pic=${encodeURIComponent(pic)}` : ""}`).then(setData).catch(() => setData(null));
+  }, [pic]);
   if (data === undefined) return <section className={d.card}><div className={s.memuat}><Spinner label="Memuat" /> Membaca Log Progres…</div></section>;
   if (!data?.cutoff.length) return null;
-  return <LogProgres data={data} />;
+  return <LogProgres data={data} pic={pic} />;
 }
 
-function LogProgres({ data }: { data: Data }) {
+function LogProgres({ data, pic }: { data: Data; pic: string }) {
   // Setiap baris (komponen) jadi kartu tren sendiri; baris tanpa angka % / hari (mis. jumlah sekolah) dilewati.
   const kartu = useMemo(() => data.baris.map((b) => ({ ...b, v: b.nilai.map(bacaNilai) }))
     .filter((b) => b.v.some((x) => x.persen !== null || x.hari !== null)), [data]);
@@ -57,7 +61,7 @@ function LogProgres({ data }: { data: Data }) {
   return (
     <section className={d.card} aria-labelledby="h-logp-online">
       <div className={d.cardHead}>
-        <h2 id="h-logp-online">Log Progres nasional</h2>
+        <h2 id="h-logp-online">Log Progres {pic || "nasional"}</h2>
         <span>{data.cutoff.length} cutoff{total ? ` · ${fmt(total)} sekolah` : ""} · angka di tiap titik = nilai saat cutoff itu</span>
       </div>
       <div className={s.lpGrid}>

@@ -883,6 +883,27 @@ def baca_log_pic() -> list[dict[str, Any]]:
     return cache.get("lk2_logpic", 600, load)
 
 
+def log_progres_pic(pic: str) -> dict[str, Any]:
+    """Log Progres satu PIC dari tab Log Progres PIC, dalam bentuk yang sama dengan baca_log_progres."""
+    want = normalize_petugas(pic)
+    rows = [r for r in baca_log_pic() if r.get("Cutoff") and normalize_petugas(str(r.get("PIC", ""))) == want]
+    cut = list(dict.fromkeys(str(r["Cutoff"]) for r in rows))
+    per = {str(r["Cutoff"]): r for r in rows}
+
+    def teks(kol: str, v: Any) -> str:
+        if v in ("", None):
+            return "-"
+        if isinstance(v, (int, float)) and kol.endswith("(%)"):
+            return f"{str(round(v, 1)).replace('.', ',')}%"
+        if isinstance(v, (int, float)) and kol.endswith("(hari)"):
+            return f"{str(round(v, 1)).replace('.', ',')} hari"
+        return _fmt(v) if isinstance(v, (int, float)) else str(v)
+
+    baris = [{"kelompok": "Umum" if not kol.endswith("(%)") else "Laporan", "komponen": kol.replace(" (%)", ""),
+              "nilai": [teks(kol, per[c].get(kol)) for c in cut]} for kol in JUDUL_PIC[2:]]
+    return {"cutoff": cut, "baris": baris}
+
+
 # ---------- Log Progres Bimtek: per kelompok Bimtek Pelaporan per cutoff ----------
 
 TAB_BIMTEK = "Log Progres Bimtek"

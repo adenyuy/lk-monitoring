@@ -25,16 +25,16 @@ router = APIRouter(prefix="/api/dashboard")
 SEGAR_DETIK = 600          # hitung ulang di latar bila hasil lebih tua dari ini
 DIPANTAU_DETIK = 3 * 3600  # dashboard yang dibuka dalam 3 jam terakhir ikut dihitung ulang berkala
 NASIONAL = "__semua__"
-PISAH = ""  # target = PIC [+ PISAH + kelompok bimtek]
+PISAH = ""  # target = PIC [+ PISAH + kelompok bimtek + PISAH + angkatan]
 
 
-def target(pic: str, bimtek: str = "") -> str:
-    return f"{pic}{PISAH}{bimtek}" if bimtek else pic
+def target(pic: str, bimtek: str = "", angkatan: str = "") -> str:
+    return f"{pic}{PISAH}{bimtek}{PISAH}{angkatan}" if bimtek or angkatan else pic
 
 
-def _pisah(t: str) -> tuple[str, str]:
-    pic, _, bt = t.partition(PISAH)
-    return pic, bt
+def _pisah(t: str) -> tuple[str, str, str]:
+    pic, bt, ak = (t.split(PISAH) + ["", ""])[:3]
+    return pic, bt, ak
 
 KOLOM_TREN = {
     "lp": "Lap. Pendahuluan terkirim (%)", "lp_rev": "Lap. Pendahuluan direviu (%)",
@@ -240,9 +240,11 @@ def _tabel_fasil(fasil: dict[str, komunikasi.Fasil], status: dict[str, dict[str,
 
 
 def _hitung(t: str) -> dict[str, Any]:
-    target, bt = _pisah(t)
+    target, bt, ak = _pisah(t)
     nasional = target == NASIONAL
     cakupan = lk_baru.tanpa_mundur(lk_baru.baca_semua()) if nasional else lk_baru.baca_petugas(target)
+    if ak:
+        cakupan = [s for s in cakupan if (s.angkatan or "-") == ak]
     sekolah = [s for s in cakupan if bimtek_lap.cocok(s, bt)]
     try:
         logkom = lk_baru.baca_log_kom()
@@ -267,6 +269,8 @@ def _hitung(t: str) -> dict[str, Any]:
         "tren": _tren(None if nasional else target),
         "fasil": [] if nasional else _tabel_fasil(fasil, status, logkom),
         "bimtek": bt,
+        "angkatan": ak,
+        "pilihan_angkatan": sorted({s.angkatan or "-" for s in lk_baru.baca_semua()}, key=lambda a: (len(a), a)),
         "pilihan_bimtek": bimtek_lap.pilihan(lk_baru.baca_semua()),
         "per_bimtek": _per_bimtek(cakupan, status),
         "tren_bimtek": _tren_bimtek(None if nasional else target),
@@ -283,9 +287,9 @@ _loop_mulai = False
 
 
 def _kunci(t: str) -> str:
-    target, bt = _pisah(t)
+    target, bt, ak = _pisah(t)
     k = target if target == NASIONAL else normalize_petugas(target)
-    return f"{k}{PISAH}{bt.casefold()}" if bt else k
+    return f"{k}{PISAH}{bt.casefold()}{PISAH}{ak}" if bt or ak else k
 
 
 def _hitung_simpan(target: str) -> dict[str, Any]:
@@ -374,10 +378,11 @@ def ambil(target: str, paksa: bool = False) -> dict[str, Any]:
 
 
 @router.get("")
-def dashboard(pic: str = Query("", max_length=120), bimtek: str = Query("", max_length=60), paksa: bool = False,
+def dashboard(pic: str = Query("", max_length=120), bimtek: str = Query("", max_length=60),
+              angkatan: str = Query("", max_length=20), paksa: bool = False,
               acc: Access = Depends(require_access)) -> dict[str, Any]:
-    """`pic` kosong = nasional (seperti dashboard online)."""
-    out = dict(_jalan(ambil, target(pic or NASIONAL, bimtek), paksa))
+    """`pic` kosong = nasional (seperti dashboard online). `angkatan` "-" = sekolah tanpa angkatan."""
+    out = dict(_jalan(ambil, target(pic or NASIONAL, bimtek, angkatan), paksa))
     try:
         out["pilihan_pic"] = [p["nama"] for p in lk_baru.daftar_petugas()]
     except Exception:
@@ -431,6 +436,6 @@ def ranking_pic(bimtek: str = Query("", max_length=60), _: Access = Depends(requ
 
 
 @router.get("/log-progres")
-def log_progres(_: Access = Depends(require_access)) -> dict[str, Any]:
-    """Log Progres nasional (tab Log Progres di LK), ditampilkan di dashboard."""
-    return _jalan(cutoff_baru.baca_log_progres)
+def log_progres(pic: str = Query("", max_length=120), _: Access = Depends(require_access)) -> dict[str, Any]:
+    """Log Progres nasional (tab Log Progres di LK); dengan `pic` dari tab Log Progres PIC."""
+    return _jalan(cutoff_baru.log_progres_pic, pic) if pic and pic != NASIONAL else _jalan(cutoff_baru.baca_log_progres)

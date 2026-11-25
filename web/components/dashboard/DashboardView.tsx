@@ -32,6 +32,8 @@ export type Dash = {
   /** Filter Bimtek Pelaporan yang aktif ('' = semua). */
   bimtek?: string;
   pilihan_bimtek?: string[];
+  angkatan?: string;
+  pilihan_angkatan?: string[];
   per_bimtek?: { bimtek: string; sekolah: number; fasil: number; lengkap: number; progres: number | null; capaian: Capaian[] }[];
   tren_bimtek?: { cutoff: string[]; kolom: { kode: string; label: string }[];
     kelompok: { bimtek: string; sekolah: (number | null)[]; seri: Record<string, (number | null)[]> }[] };

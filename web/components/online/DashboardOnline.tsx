@@ -32,7 +32,7 @@ const NASIONAL = "__semua__";
 const fmt = (n: number) => n.toLocaleString("id-ID");
 const persen = (v: number | null | undefined) => (v === null || v === undefined ? "–" : `${String(Math.round(v * 10) / 10).replace(".", ",")}%`);
 
-function useDash(pic: string, bimtek = "") {
+function useDash(pic: string, bimtek = "", angkatan = "") {
   const [data, setData] = useState<Dash | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [memuat, setMemuat] = useState(false);
@@ -42,6 +42,7 @@ function useDash(pic: string, bimtek = "") {
       const q = new URLSearchParams();
       if (pic && pic !== NASIONAL) q.set("pic", pic);
       if (bimtek) q.set("bimtek", bimtek);
+      if (angkatan) q.set("angkatan", angkatan);
       if (paksa) q.set("paksa", "true");
       setData(await api<Dash>(`/api/dashboard${q.size ? `?${q}` : ""}`));
       setError(null);
@@ -50,7 +51,7 @@ function useDash(pic: string, bimtek = "") {
     } finally {
       setMemuat(false);
     }
-  }, [pic, bimtek]);
+  }, [pic, bimtek, angkatan]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void muat(); }, [muat]);
   return { data, error, memuat, muat };
@@ -68,7 +69,8 @@ export function DashboardOnline() {
   }, []);
   const [rank, setRank] = useState<Rank | null>(null);
   const [bimtek, setBimtek] = useState("");
-  const utama = useDash(pic, bimtek);
+  const [angkatan, setAngkatan] = useState("");
+  const utama = useDash(pic, bimtek, angkatan);
 
   useEffect(() => {
     const q = bimtek ? `?bimtek=${encodeURIComponent(bimtek)}` : "";
@@ -87,7 +89,8 @@ export function DashboardOnline() {
         <div>
           <p className="chips"><span className="chip">Week {x.week}</span>{x.cutoff ? <span className="chip">{x.cutoff}</span> : null}</p>
           <h1>{banding !== null ? "Perbandingan PIC" : x.nasional ? "Dashboard nasional" : `Dashboard ${x.pic}`}
-            {x.bimtek ? <small className={s.subJudul}> · {x.bimtek === "-" ? "bukan peserta bimtek" : x.bimtek}</small> : null}</h1>
+            {x.bimtek ? <small className={s.subJudul}> · {x.bimtek === "-" ? "bukan peserta bimtek" : x.bimtek}</small> : null}
+            {x.angkatan ? <small className={s.subJudul}> · {x.angkatan === "-" ? "tanpa angkatan" : `Angkatan ${x.angkatan}`}</small> : null}</h1>
           <p className={s.sub}>Data per {x.dibuat}</p>
         </div>
         <div className={s.kontrol}>
@@ -95,6 +98,15 @@ export function DashboardOnline() {
             <span>{banding !== null ? "Kiri" : "Lihat"}</span>
             <PilihPic nilai={pic} ubah={setPic} pilihan={pilihan} />
           </label>
+          {(x.pilihan_angkatan?.length ?? 0) > 1 && (
+            <label className={s.pilih}>
+              <span>Angkatan</span>
+              <select value={angkatan} onChange={(e) => setAngkatan(e.target.value)} aria-label="Saring angkatan">
+                <option value="">Semua angkatan</option>
+                {x.pilihan_angkatan!.map((a) => <option key={a} value={a}>{a === "-" ? "Tanpa angkatan" : `Angkatan ${a}`}</option>)}
+              </select>
+            </label>
+          )}
           {(x.pilihan_bimtek?.length ?? 0) > 0 && (
             <label className={s.pilih}>
               <span>Bimtek</span>
@@ -124,11 +136,11 @@ export function DashboardOnline() {
       </header>
 
       {banding !== null ? (
-        <Banding a={pic} b={banding} rank={rank} dataA={x} bimtek={bimtek} />
+        <Banding a={pic} b={banding} rank={rank} dataA={x} bimtek={bimtek} angkatan={angkatan} />
       ) : (
         <>
           <Ringkasan x={x} />
-          <LogProgresOnline />
+          <LogProgresOnline pic={pic === NASIONAL ? "" : pic} />
         </>
       )}
     </div>
@@ -662,8 +674,9 @@ function Rasio({ a, b, v, acuan }: { a: number; b: number; v: number | null; acu
 
 /* ---------- banding kiri-kanan ---------- */
 
-function Banding({ a, b, rank, dataA, bimtek }: { a: string; b: string; rank: Rank | null; dataA: Dash; bimtek: string }) {
-  const kanan = useDash(b, bimtek);
+function Banding({ a, b, rank, dataA, bimtek, angkatan }: { a: string; b: string; rank: Rank | null; dataA: Dash;
+  bimtek: string; angkatan: string }) {
+  const kanan = useDash(b, bimtek, angkatan);
   const cari = (p: string) => (p === NASIONAL ? rank?.nasional : rank?.pic.find((x) => x.nama === p)) ?? null;
   const ra = cari(a), rb = cari(b);
   const namaA = a === NASIONAL ? "Nasional" : a, namaB = b === NASIONAL ? "Nasional" : b;

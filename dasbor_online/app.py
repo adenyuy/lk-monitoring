@@ -116,9 +116,10 @@ def _pilihan_pic() -> list[str]:
 
 
 @app.get("/api/dashboard")
-def dash(pic: str = Query("", max_length=120), bimtek: str = Query("", max_length=60), paksa: bool = False,
+def dash(pic: str = Query("", max_length=120), bimtek: str = Query("", max_length=60),
+         angkatan: str = Query("", max_length=20), paksa: bool = False,
          email: str = Depends(auth.wajib_login)) -> dict[str, Any]:
-    target = dashboard.target(pic or dashboard.NASIONAL, bimtek)
+    target = dashboard.target(pic or dashboard.NASIONAL, bimtek, angkatan)
     if paksa:
         k = normalize_petugas(target)
         if time.time() - _paksa_terakhir.get(k, 0) < JEDA_PAKSA:
@@ -132,9 +133,11 @@ def dash(pic: str = Query("", max_length=120), bimtek: str = Query("", max_lengt
 
 
 @app.get("/api/dashboard/log-progres")
-def log_progres(_: str = Depends(auth.wajib_login)) -> dict[str, Any]:
+def log_progres(pic: str = Query("", max_length=120), _: str = Depends(auth.wajib_login)) -> dict[str, Any]:
     from app import cutoff_baru
 
+    if pic and pic != dashboard.NASIONAL:
+        return _jalan(cutoff_baru.log_progres_pic, pic)
     return _jalan(cutoff_baru.baca_log_progres)
 
 
