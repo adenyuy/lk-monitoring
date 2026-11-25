@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from .. import bimtek_lap, cutoff_baru, komunikasi, lk_baru, ranking, rekap_bimtek, schedule, todo
+from .. import bimtek_lap, cutoff_baru, komunikasi, lk_baru, ranking, rekap_bimtek, schedule, timeline, todo
 from ..access import Access
 from ..sheets import normalize_petugas
 from .deps import require_access
@@ -413,6 +413,15 @@ def bimtek_hitung(acc: Access = Depends(require_access)) -> dict[str, Any]:
         raise HTTPException(400, f"Folder data bimtek tidak ada di laptop ini: {rekap_bimtek.folder()}")
     rekap_bimtek.mulai_hitung()
     return rekap_bimtek.status()
+
+
+@router.get("/timeline")
+def timeline_(_: Access = Depends(require_access)) -> dict[str, Any]:
+    """Timeline mingguan Sep–Nov per komponen LK, dari file export di folder data bimtek laptop ini."""
+    try:
+        return timeline.hitung()
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/ranking")

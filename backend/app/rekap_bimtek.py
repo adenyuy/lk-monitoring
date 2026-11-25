@@ -685,38 +685,48 @@ def _baris_sekolah(ang: set[str], wajib: set[str], tgl50: dict[str, datetime], t
 
 def simpan(data: dict[str, Any]) -> int:
     """Tulis hasil ke tab tersembunyi 'Rekap Bimtek' (JSON dipotong per sel di kolom A)."""
+    return simpan_json(TAB, "rekap_bimtek_v1", data)
+
+
+def simpan_json(tab: str, tanda: str, data: dict[str, Any]) -> int:
+    """Tulis JSON ke tab tersembunyi `tab` di LK (dipotong per sel di kolom A, baris 1 = tanda + waktu dibuat)."""
     teks = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     potong = [teks[i:i + POTONG] for i in range(0, len(teks), POTONG)]
     ss = lk_baru._ss()
-    if TAB not in [w.title for w in ss.worksheets()]:
-        w = ss.add_worksheet(TAB, rows=max(50, len(potong) + 10), cols=2)
+    if tab not in [w.title for w in ss.worksheets()]:
+        w = ss.add_worksheet(tab, rows=max(50, len(potong) + 10), cols=2)
         ss.batch_update({"requests": [{"updateSheetProperties": {
             "properties": {"sheetId": w.id, "hidden": True}, "fields": "hidden"}}]})
-    w = ss.worksheet(TAB)
+    w = ss.worksheet(tab)
     if w.row_count < len(potong) + 2:
         w.add_rows(len(potong) + 10 - w.row_count)
-    ss.values_batch_clear(body={"ranges": [f"'{TAB}'!A1:B"]})
-    ss.values_update(f"'{TAB}'!A1", params={"valueInputOption": "RAW"},
-                     body={"values": [["rekap_bimtek_v1", data["dibuat"]]] + [[x] for x in potong]})
+    ss.values_batch_clear(body={"ranges": [f"'{tab}'!A1:B"]})
+    ss.values_update(f"'{tab}'!A1", params={"valueInputOption": "RAW"},
+                     body={"values": [[tanda, data.get("dibuat", "")]] + [[x] for x in potong]})
     cache.clear()
     return len(teks)
 
 
 def baca() -> dict[str, Any] | None:
+    return baca_json(TAB, "rekap_bimtek_v1", "lk2_rekap_bimtek")
+
+
+def baca_json(tab: str, tanda: str, kunci_cache: str) -> dict[str, Any] | None:
+    """Kebalikan simpan_json; None bila tab belum ada atau isinya rusak. Di-cache 10 menit."""
     def load() -> dict[str, Any] | None:
         try:
-            v = lk_baru._ss().values_get(f"'{TAB}'!A1:{col_letter(1)}").get("values", [])
+            v = lk_baru._ss().values_get(f"'{tab}'!A1:{col_letter(1)}").get("values", [])
         except Exception:
             return None
-        if not v or not v[0] or v[0][0] != "rekap_bimtek_v1":
+        if not v or not v[0] or v[0][0] != tanda:
             return None
         try:
             return json.loads("".join(r[0] for r in v[1:] if r))
         except ValueError:
-            log.exception("Rekap Bimtek di LK rusak")
+            log.exception("Tab %s di LK rusak", tab)
             return None
 
-    return cache.get("lk2_rekap_bimtek", 600, load)
+    return cache.get(kunci_cache, 600, load)
 
 
 def hitung_dan_simpan() -> dict[str, Any]:

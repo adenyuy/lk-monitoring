@@ -238,6 +238,18 @@ def bimtek_rekap(email: str = Depends(auth.wajib_login)) -> dict[str, Any]:
             "admin": auth.admin(email) or not saya, "saya": saya}
 
 
+@app.get("/api/dashboard/timeline")
+def timeline_(_: str = Depends(auth.wajib_login)) -> dict[str, Any]:
+    """Timeline mingguan (dibaca dari tab Timeline di LK; dihitung di laptop yang punya file export)."""
+    from app import timeline
+
+    data = _jalan(timeline.baca)
+    if not data:
+        raise HTTPException(404, "Timeline belum tersedia. Buka halaman Timeline di aplikasi laptop admin sekali "
+                                 "(atau lakukan cutoff) supaya hasilnya tertulis ke LK.")
+    return data
+
+
 @app.get("/api/dashboard/ranking")
 @app.get("/api/ranking")
 def ranking_(bimtek: str = Query("", max_length=60), _: str = Depends(auth.wajib_login)) -> dict[str, Any]:

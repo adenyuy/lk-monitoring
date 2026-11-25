@@ -432,10 +432,21 @@ def _arsip_bimtek(rc: Rencana) -> str:
         if not f:
             return ""
         rekap_bimtek.mulai_hitung()
+        threading.Thread(target=_timeline, daemon=True).start()
         return f.name
     except Exception:  # noqa: BLE001
         log.warning("Arsip export ke data bimtek gagal", exc_info=True)
         return ""
+
+
+def _timeline() -> None:
+    """Hitung ulang Timeline (ikut menulis tab Timeline di LK) setelah export baru diarsipkan."""
+    try:
+        from . import timeline
+
+        timeline.hitung()
+    except Exception:  # noqa: BLE001
+        log.warning("Hitung Timeline setelah cutoff gagal", exc_info=True)
 
 
 def _picu_backup() -> None:

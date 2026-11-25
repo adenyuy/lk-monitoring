@@ -10,6 +10,7 @@ const TAB = [
   { href: "/dashboard/", label: "Ringkasan" },
   { href: "/ranking/", label: "Ranking" },
   { href: "/paparan/", label: "Paparan" },
+  { href: "/timeline/", label: "Timeline" },
   { href: "/log/", label: "Log" },
 ];
 

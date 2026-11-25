@@ -11,6 +11,7 @@ const TAB = [
   { href: "/dashboard/", label: "Ringkasan" },
   { href: "/ranking/", label: "Ranking" },
   { href: "/bimtek/", label: "Bimtek" },
+  { href: "/timeline/", label: "Timeline" },
   { href: "/log/", label: "Log" },
 ];
 
