@@ -15,28 +15,34 @@ const TAB = [
   { href: "/log/", label: "Log" },
 ];
 
-/** Kerangka dashboard online: cek login, header, tab. Tanpa menu blast/LK/forum. */
+const PUBLIK = "/timeline/"; // satu-satunya halaman yang bisa dibuka tanpa login
+
+/** Kerangka dashboard online: cek login, header, tab. Tanpa menu blast/LK/forum.
+ *  Tanpa login hanya Timeline yang tampil; halaman lain mengarah ke /masuk/ (email dicek ke sheet Akses). */
 export function OnlineShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const path = usePathname() ?? "";
-  const [email, setEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null); // "" = pengunjung tanpa login
+  const publik = path.startsWith(PUBLIK.slice(0, -1));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api<{ email: string }>("/api/auth/saya")
       .then((r) => setEmail(r.email))
       .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) router.replace("/masuk/");
-        else setError(e instanceof Error ? e.message : String(e));
+        if (e instanceof ApiError && e.status === 401) {
+          if (publik) setEmail("");
+          else router.replace("/masuk/");
+        } else setError(e instanceof Error ? e.message : String(e));
       });
-  }, [router]);
+  }, [router, publik]);
 
   const keluar = async () => {
     try { await post("/api/auth/keluar"); } finally { router.replace("/masuk/"); }
   };
 
   if (error) return <main className={s.isi}><Notice tone="bad" title="Tidak bisa terhubung">{error}</Notice></main>;
-  if (!email) return <main className={s.memuat}><Spinner label="Memuat" /> Memeriksa akses…</main>;
+  if (email === null || (!email && !publik)) return <main className={s.memuat}><Spinner label="Memuat" /> Memeriksa akses…</main>;
 
   return (
     <>
@@ -44,14 +50,18 @@ export function OnlineShell({ children }: { children: ReactNode }) {
         <div className={s.atasDalam}>
           <span className={s.merek}>LK Monitoring</span>
           <nav className={s.tabs} aria-label="Bagian dashboard">
-            {TAB.map((t) => (
+            {TAB.filter((t) => email || t.href === PUBLIK).map((t) => (
               <Link key={t.href} href={t.href} className={s.tab}
                 aria-current={path.startsWith(t.href.slice(0, -1)) ? "page" : undefined}>{t.label}</Link>
             ))}
           </nav>
           <div className={s.akun}>
-            <span title={email}>{email}</span>
-            <button type="button" onClick={() => void keluar()}>Keluar</button>
+            {email ? (
+              <>
+                <span title={email}>{email}</span>
+                <button type="button" onClick={() => void keluar()}>Keluar</button>
+              </>
+            ) : <Link href="/masuk/" className={s.masukLink}>Masuk</Link>}
           </div>
         </div>
       </header>

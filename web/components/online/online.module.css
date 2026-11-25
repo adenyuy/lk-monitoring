@@ -12,6 +12,8 @@
 .akun button { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius-control); padding: 6px 12px;
   font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
 .akun button:hover { background: var(--bg); }
+.masukLink { border: 1px solid var(--primary); color: var(--primary); border-radius: var(--radius-control); padding: 6px 12px; font-weight: 500; }
+.masukLink:hover { background: var(--primary-soft); }
 .isi { max-width: 1280px; margin: 0 auto; padding: 24px; }
 .memuat { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 80px 0; color: var(--muted); }
 

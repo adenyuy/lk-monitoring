@@ -242,8 +242,9 @@ def bimtek_rekap(email: str = Depends(auth.wajib_login)) -> dict[str, Any]:
 
 
 @app.get("/api/dashboard/timeline")
-def timeline_(_: str = Depends(auth.wajib_login)) -> dict[str, Any]:
-    """Timeline mingguan (dibaca dari tab Timeline di LK; dihitung di laptop yang punya file export)."""
+def timeline_() -> dict[str, Any]:
+    """Timeline mingguan (dibaca dari tab Timeline di LK; dihitung di laptop yang punya file export).
+    PUBLIK tanpa login (disetujui atasan 2026-11-25); isinya hanya angka agregat per minggu."""
     from app import timeline
 
     data = _jalan(timeline.baca)
