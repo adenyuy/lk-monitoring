@@ -726,7 +726,10 @@ def baca_json(tab: str, tanda: str, kunci_cache: str) -> dict[str, Any] | None:
             log.exception("Tab %s di LK rusak", tab)
             return None
 
-    return cache.get(kunci_cache, 600, load)
+    hasil = cache.get(kunci_cache, 600, load)
+    if hasil is None:
+        cache.drop(kunci_cache)  # tab belum ada/gagal dibaca: coba lagi di permintaan berikutnya, jangan tunggu 10 menit
+    return hasil
 
 
 def hitung_dan_simpan() -> dict[str, Any]:
