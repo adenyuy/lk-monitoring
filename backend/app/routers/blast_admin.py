@@ -15,7 +15,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from .. import bimtek_lap, blast, db, komunikasi, lk_baru, todo
-from ..sheets import daftar_nomor, message_hash, normalize_petugas
+from ..google_auth import gspread_client
+from ..sheets import cache, daftar_nomor, message_hash, normalize_petugas
 from ..wa.browser import worker
 from .deps import require_feature
 from .lkb import _jalan
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/api/blast-admin")
 admin_blast = require_feature("blast_admin")
 MAKS_PESAN = 4000
 KONFIRMASI = "risiko ditanggung sendiri"
-Jenis = Literal["koor", "fasil", "sekolah"]
+Jenis = Literal["koor", "fasil", "sekolah", "spab"]
 
 VARIABEL = {
     "koor": [("{salam}", "Salam sesuai jam"), ("{nama}", "Nama koordinator"), ("{ptn}", "PTN"),
@@ -38,6 +39,8 @@ VARIABEL = {
     "sekolah": [("{salam}", "Salam sesuai jam"), ("{nama}", "Nama kepala sekolah"), ("{sekolah}", "Nama sekolah"),
                 ("{fasil}", "Nama fasil"), ("{ptn}", "PTN"), ("{pic}", "Nama PIC"),
                 ("{belum}", "Komponen yang belum (sesuai saringan komponen)")],
+    "spab": [("{salam}", "Salam sesuai jam"), ("{nama}", "Nama kepala sekolah"), ("{sekolah}", "Nama sekolah"),
+             ("{kab}", "Kabupaten/kota"), ("{provinsi}", "Provinsi"), ("{link_grup}", "Link grup WhatsApp")],
 }
 
 
@@ -221,11 +224,64 @@ class HitungReq(BaseModel):
     jenis: Jenis
     saring: Saring = Field(default_factory=Saring)
     pesan: str = Field("", max_length=MAKS_PESAN)
+    sheet: str = Field("", max_length=300)      # spab: link sheet SPAB
+    link_grup: str = Field("", max_length=300)  # spab: isi {link_grup}
+
+
+TAB_SPAB = "Isi di sini"
+
+
+def spab(sheet: str, link_grup: str) -> list[Target]:
+    """Kepala sekolah dari sheet SPAB (blast sementara): tab "Isi di sini" (atau tab pertama), baris judul berisi NPSN
+    dan Kontak Kepala Sekolah."""
+    sid = lk_baru._id_dari(sheet) if sheet.strip() else ""
+    if not sid:
+        raise HTTPException(400, "Tempel dulu link sheet SPAB.")
+
+    def load() -> list[list[str]]:
+        try:
+            ss = gspread_client().open_by_key(sid)
+            judul = [w.title for w in ss.worksheets()]
+            tab = TAB_SPAB if TAB_SPAB in judul else judul[0]
+            return ss.values_get(f"'{tab}'!A1:Z3000").get("values", [])
+        except Exception as e:
+            raise HTTPException(400, f"Sheet SPAB tidak terbaca: {e}") from e
+
+    rows = cache.get(f"spab:{sid}", 300, load)
+    for h, r in enumerate(rows[:20]):
+        kol = {str(x).strip().casefold(): i for i, x in enumerate(r)}
+        if "npsn" in kol and "kontak kepala sekolah" in kol:
+            break
+    else:
+        raise HTTPException(400, "Kolom NPSN dan Kontak Kepala Sekolah tidak ditemukan di sheet SPAB.")
+
+    def ambil(r: list[str], nama: str) -> str:
+        i = kol.get(nama)
+        return str(r[i]).strip() if i is not None and i < len(r) else ""
+
+    out: dict[str, Target] = {}
+    for r in rows[h + 1:]:
+        npsn = ambil(r, "npsn")
+        if not npsn:
+            continue
+        n = daftar_nomor(ambil(r, "kontak kepala sekolah"))
+        kepsek, prov = ambil(r, "nama kepala sekolah"), ambil(r, "provinsi")
+        kepsek = "" if kepsek in ("0", "-") else kepsek
+        out[npsn] = Target(f"spab:{npsn}", kepsek or f"Kepala {ambil(r, 'nama sekolah')}", n[0] if n else "", {
+            "nama": kepsek or "Kepala Sekolah", "sekolah": ambil(r, "nama sekolah"), "kab": ambil(r, "kab/kota"),
+            "provinsi": prov, **({"link_grup": link_grup.strip()} if link_grup.strip() else {})},
+            provinsi={prov} if prov else set())  # link kosong -> {link_grup} tersisa -> kirim ditolak
+    return sorted(out.values(), key=lambda t: t.nama.casefold())
+
+
+def _penerima(req: HitungReq) -> list[Target]:
+    ts = spab(req.sheet, req.link_grup) if req.jenis == "spab" else target(req.jenis, _semua())
+    return saring(ts, req.saring)
 
 
 @router.post("/hitung")
 def hitung(req: HitungReq, _=Depends(admin_blast)) -> dict[str, Any]:
-    ts = saring(target(req.jenis, _semua()), req.saring)
+    ts = _penerima(req)
     ada = [t for t in ts if t.nomor]
     unik = {t.nomor for t in ada}
     out: dict[str, Any] = {"jumlah": len(ts), "punya_nomor": len(ada), "tanpa_nomor": len(ts) - len(ada),
@@ -262,7 +318,7 @@ def start(req: StartReq, _=Depends(admin_blast)) -> dict[str, Any]:
         raise HTTPException(400, f'Ketik "{KONFIRMASI}" untuk mulai mengirim.')
     if not komunikasi.wa_otomatis():
         raise HTTPException(400, "WhatsApp otomatis sedang dimatikan. Nyalakan dulu di halaman LK untuk memakai Blast.")
-    ts = [t for t in saring(target(req.jenis, _semua()), req.saring) if t.nomor]
+    ts = [t for t in _penerima(req) if t.nomor]
     daftar, sudah = [], set()
     for t in ts:
         if t.nomor in sudah:
@@ -271,7 +327,7 @@ def start(req: StartReq, _=Depends(admin_blast)) -> dict[str, Any]:
         teks = rakit(req.pesan, t)
         sisa = _sisa_variabel(teks)
         if sisa:
-            raise HTTPException(400, f"Variabel {', '.join(sisa)} tidak dikenal untuk penerima ini.")
+            raise HTTPException(400, f"Variabel {', '.join(sisa)} tidak dikenal atau masih kosong untuk penerima ini.")
         daftar.append(blast.Penerima(nomor=t.nomor, nama=t.nama, pesan=teks, jenis=req.jenis, kunci=t.kunci))
     dilewati = 0
     if req.lewati_terkirim and not req.coba:

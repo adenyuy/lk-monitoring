@@ -11,10 +11,10 @@ import { AturanDialog, Progres } from "./BlastView";
 import { GantiWa, WaKartu } from "./GantiWa";
 import s from "./blast.module.css";
 
-type Jenis = "koor" | "fasil" | "sekolah";
+type Jenis = "koor" | "fasil" | "sekolah" | "spab";
 type Saring = { pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[]; bimtek: string[]; belum: string[] };
 type Opsi = {
-  jumlah: Record<Jenis, number>; pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[]; bimtek: string[];
+  jumlah: Partial<Record<Jenis, number>>; pic: string[]; ptn: string[]; provinsi: string[]; angkatan: string[]; bimtek: string[];
   komponen: { kode: string; label: string }[];
   variabel: Record<Jenis, { kode: string; arti: string }[]>; konfirmasi: string;
 };
@@ -29,7 +29,23 @@ const JENIS: { k: Jenis; label: string; ket: string }[] = [
   { k: "koor", label: "Koordinator", ket: "Semua koordinator fasil di LK." },
   { k: "fasil", label: "Fasilitator", ket: "Semua fasil di LK, dari seluruh PIC." },
   { k: "sekolah", label: "Kepala sekolah", ket: "Nomor kepala sekolah di LK." },
+  { k: "spab", label: "SPAB", ket: "Kepala sekolah dari sheet SPAB (tab Isi di sini), undangan grup WA." },
 ];
+// Blast sementara SPAB: link sheet & grup disimpan di browser ini saja (tidak masuk repo).
+const TEMPLATE_SPAB = `Yth. Bapak/Ibu {nama}
+Kepala {sekolah}
+
+Selamat {salam} Bapak/Ibu, semoga senantiasa dalam keadaan sehat.
+
+Dengan hormat, kami dari tim verifikator Program SPAB 2026 mengundang Bapak/Ibu untuk bergabung ke grup WhatsApp koordinasi SPAB 2026 melalui tautan berikut:
+{link_grup}
+
+Grup ini akan kami gunakan untuk menyampaikan informasi dan koordinasi kegiatan. Atas perhatian dan kesediaan Bapak/Ibu, kami ucapkan terima kasih.
+
+Hormat kami,
+Tim Verifikator SPAB 2026`;
+const simpanan = (k: string) => { try { return localStorage.getItem(k) ?? ""; } catch { return ""; } };
+const simpan = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* abaikan */ } };
 const SARING: { k: "pic" | "ptn" | "provinsi" | "angkatan" | "bimtek"; label: string }[] = [
   { k: "pic", label: "PIC" }, { k: "ptn", label: "PTN" }, { k: "provinsi", label: "Provinsi" },
   { k: "angkatan", label: "Angkatan" }, { k: "bimtek", label: "Bimtek Pelaporan" },
@@ -54,6 +70,15 @@ export function AdminBlastView() {
   const [saring, setSaring] = useState<Saring>(KOSONG);
   const [judul, setJudul] = useState("Blast admin");
   const [teks, setTeks] = useState("{salam} {nama},\n\n");
+  const [sheetSpab, setSheetSpab] = useState("");
+  const [grupSpab, setGrupSpab] = useState("");
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setSheetSpab(simpanan("lkm_spab_sheet")); setGrupSpab(simpanan("lkm_spab_grup")); }, []);
+  const spab = useMemo(() => (jenis === "spab" ? { sheet: sheetSpab, link_grup: grupSpab } : {}), [jenis, sheetSpab, grupSpab]);
+  const pilihJenis = (j: Jenis) => {
+    setJenis(j);
+    if (j === "spab") { setTeks(TEMPLATE_SPAB); setJudul("Undangan grup SPAB"); setSaring(KOSONG); }
+  };
   const [hitung, setHitung] = useState<Hitung | null>(null);
   const [menghitung, setMenghitung] = useState(false);
   const [aturan, setAturan] = useState<Aturan>({ jeda_min: 20, jeda_max: 45, istirahat_setiap: 20, istirahat_menit: 5 });
@@ -90,7 +115,7 @@ export function AdminBlastView() {
     const h = setTimeout(async () => {
       setMenghitung(true);
       try {
-        setHitung(await post<Hitung>(`${DASAR}/hitung`, { jenis, saring, pesan: langkah >= 2 ? teks : "" }));
+        setHitung(await post<Hitung>(`${DASAR}/hitung`, { jenis, saring, pesan: langkah >= 2 ? teks : "", ...spab }));
       } catch (e) {
         setPesanAksi({ tone: "bad", teks: e instanceof Error ? e.message : String(e) });
       } finally {
@@ -98,7 +123,7 @@ export function AdminBlastView() {
       }
     }, 350);
     return () => clearTimeout(h);
-  }, [opsi, jenis, saring, teks, langkah]);
+  }, [opsi, jenis, saring, teks, langkah, spab]);
 
   const n = hitung ? Math.max(0, hitung.nomor_unik - (lewati && !coba ? hitung.sudah_terkirim ?? 0 : 0)) : 0;
   const kirimN = coba ? Math.min(3, n) : n;
@@ -127,7 +152,7 @@ export function AdminBlastView() {
     setBusy(true); setPesanAksi(null);
     try {
       const r = await post<{ jumlah: number; dilewati: number }>(`${DASAR}/start`, {
-        jenis, saring, pesan: teks, judul, coba, lewati_terkirim: lewati, aturan, konfirmasi, abaikan_jam: abaikanJam,
+        jenis, saring, pesan: teks, judul, coba, lewati_terkirim: lewati, aturan, konfirmasi, abaikan_jam: abaikanJam, ...spab,
       });
       setPesanAksi({ tone: "ok", teks: `Mulai mengirim ${fmt(r.jumlah)} pesan${r.dilewati ? `; ${fmt(r.dilewati)} penerima dilewati karena sudah menerima pesan ini` : ""}.` });
       setKonfirmasi("");
@@ -205,12 +230,24 @@ export function AdminBlastView() {
           <div className={s.cardHead}><h2 id="h-target">Siapa yang dikirimi?</h2></div>
           <div className={s.jenisGrid} role="radiogroup" aria-label="Jenis penerima">
             {JENIS.map((j) => (
-              <button key={j.k} type="button" role="radio" aria-checked={jenis === j.k} onClick={() => setJenis(j.k)}>
-                <b>{j.label}</b><small>{fmt(opsi.jumlah[j.k])} orang. {j.ket}</small>
+              <button key={j.k} type="button" role="radio" aria-checked={jenis === j.k} onClick={() => pilihJenis(j.k)}>
+                <b>{j.label}</b><small>{opsi.jumlah[j.k] !== undefined ? `${fmt(opsi.jumlah[j.k]!)} orang. ` : ""}{j.ket}</small>
               </button>
             ))}
           </div>
-          <div className={s.saringAdmin}>
+          {jenis === "spab" && (
+            <div className={s.saringAdmin}>
+              <label className={s.judulInput}>Link sheet SPAB
+                <input value={sheetSpab} placeholder="https://docs.google.com/spreadsheets/d/…"
+                  onChange={(e) => { setSheetSpab(e.target.value); simpan("lkm_spab_sheet", e.target.value); }} />
+              </label>
+              <label className={s.judulInput}>Link grup WhatsApp (mengisi {"{link_grup}"})
+                <input value={grupSpab} placeholder="https://chat.whatsapp.com/…"
+                  onChange={(e) => { setGrupSpab(e.target.value); simpan("lkm_spab_grup", e.target.value); }} />
+              </label>
+            </div>
+          )}
+          {jenis !== "spab" && <div className={s.saringAdmin}>
             <PilihBanyak label="Komponen belum" pilihan={opsi.komponen.map((k) => k.kode)} nilai={saring.belum}
               tampil={(v) => opsi.komponen.find((k) => k.kode === v)?.label ?? v}
               onUbah={(v) => setSaring({ ...saring, belum: v })} />
@@ -220,7 +257,7 @@ export function AdminBlastView() {
                 onUbah={(v) => setSaring({ ...saring, [x.k]: v })} />
             ))}
             {nSaring > 0 && <button type="button" className={s.linkBtn} onClick={() => setSaring(KOSONG)}>Hapus semua saringan</button>}
-          </div>
+          </div>}
           <div className={s.ringkasAdmin} aria-live="polite">
             {hitung ? (
               <>
